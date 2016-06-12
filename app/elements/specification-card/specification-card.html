@@ -92,9 +92,10 @@
         }
       },
       FnspecificationitemreadService:function(){
-        var obj={"inwardregno":"","checkstatus":""};
+        var obj={"inwardregno":"","checkstatus":"","productid":""};
         obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
         obj.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        obj.productid=localStorage.getItem("curr_sess_productid");
         this.specificationitemreadparam=obj;
         this.specificationitemreadurl=sessionStorage.getItem("curr_sess_url")+"specificationitemread-service";
         this.$.specificationitemreadajax.generateRequest();
@@ -103,6 +104,7 @@
         this.finalarr=[];
         this.arr=[];
         this.temp="true";
+        // alert(JSON.stringify(e.detail.response));
         if(JSON.stringify(e.detail.response)!='no items')
           this.specarr=e.detail.response;
           for(var i=0;i<this.specarr.length;i++){

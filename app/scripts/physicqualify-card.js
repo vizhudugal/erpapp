@@ -61,14 +61,14 @@
       this.$.physicqualifyexpanditemreadajax.generateRequest();
     },
     FnphysicqualifyexpanditemreadResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
+      // alert(JSON.stringify(e.detail.response));
       if(e.detail.response=="no items")
       {
         //alert('yeas');
         this.speccardlength=containerreceived;
         this.specarr=[];
         if(containermeasure.toUpperCase()==('Coil').toUpperCase()){
-          //alert('coil');
+          // alert('coil');
           // document.querySelector('physicqualifyitem-card').FnComponentSize();
           localStorage.setItem("curr_sess_repeatitementry","1");
           for(var i=0;i<parseInt(this.speccardlength);i++){
@@ -81,7 +81,7 @@
         }
         else{
           //alert('no coil');
-          document.querySelector('physicqualifyitem-card').FnComponentSize();
+          // document.querySelector('physicqualifyitem-card').FnComponentSize();
           localStorage.setItem("curr_sess_repeatitementry","0");
           var obj={"hideflag":"","serialno":"","heatno":"","id":"","number":""};
           obj.serialno=i;
@@ -91,7 +91,7 @@
 
         }
         this.specificationArray=this.specarr;
-        //alert(JSON.stringify(this.specificationArray));
+        // alert(JSON.stringify(this.specificationArray));
         document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray);
       }
       else{
@@ -106,12 +106,13 @@
          if(containermeasure.toUpperCase()==('Coil').toUpperCase())
          arr[i].hideflag=false;
          else{
-         document.querySelector('physicqualifyitem-card').FnComponentSize();
+         // document.querySelector('physicqualifyitem-card').FnComponentSize();
          arr[i].hideflag=true;
          }
         }
         //alert(JSON.stringify(arr));
         this.specificationArray = arr;
+        localStorage.setItem("curr_sess_productid",this.specificationArray[0].Product_ID);
         localStorage.setItem("curr_sess_PONumber",this.specificationArray[0].PO_Number);
         document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray);
       }
@@ -140,6 +141,7 @@
       this.specarr.push(obj);
     }
     this.specificationArray=this.specarr;
+    // alert(JSON.stringify(this.specarr));
   },
   callWebcomponentService:function(){
     this.$.webcomponentreadajax.generateRequest();
