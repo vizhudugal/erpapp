@@ -38,6 +38,7 @@ Polymer({is:"physicqualifyread-card",
         }
       }
       else{
+        // document.querySelector('physicqualifyitemread-card').FnComponentSize();
         localStorage.setItem("curr_sess_repeatitementry","0");
         var obj={"id":"","number":"","hideflag":""};
         obj.hideflag=true;
@@ -55,7 +56,10 @@ Polymer({is:"physicqualifyread-card",
         if(localStorage.getItem("curr_sess_containermeasure").toUpperCase()==('Coil').toUpperCase())
           arr[i].hideflag=false;
         else
+        {
+          // document.querySelector('physicqualifyitemread-card').FnComponentSize();
           arr[i].hideflag=true;
+        }
       }
       this.specificationArray = arr;
       this.ponumber=this.specificationArray[0].PO_Number;

@@ -132,6 +132,7 @@
       }
     }
     else{
+      
       localStorage.setItem("curr_sess_repeatitementry","0");
       var obj={"serialno":"","hideflag":"","id":"","number":""};
       obj.hideflag=true;

@@ -140,8 +140,8 @@ var flag="true";
         this.hidequality=false;
     },
     FnComponentSize:function(){
-      // alert('calling'+this.querySelector('paper-input'));
-      this.querySelector('.repeatcard').style.width='130%';
+      // alert('calling');
+      this.querySelector('.repeatcard').style.width='120%';
       this.querySelector('#cont'+this.inwardno).style.width='40%';
       this.querySelector('#qty'+this.inwardno).style.width='40%';
       this.querySelector('textarea').style.width='50%'; 

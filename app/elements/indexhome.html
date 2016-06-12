@@ -62,23 +62,13 @@
     ::-webkit-scrollbar {
       display: none;
     }
-    paper-drawer-panel {
-      --paper-drawer-panel-main-container: {
-      //background-color: #e6e6e6;
-        font-family: 'Lustria', serif;
-      };
-    }
-    paper-drawer-panel {
-      --paper-drawer-panel-left-drawer-container: {
-      //background-color: #e6e6e6;
-        font-family: 'Lustria', serif;
-      };
-    }
+   
     .maintoolbar{
       background-color: white;
-      border-bottom: 2px solid;
-      border-bottom-color: whitesmoke;
-      //background-color: #bfbfbf;
+      border-bottom: 1px solid #dedede;
+      /*border-bottom: 2px solid;*/
+      /*border-bottom-color: whitesmoke;*/
+      /*//background-color: #bfbfbf;*/
       color: black;
       height: 6%;
       text-align: top;
@@ -91,43 +81,42 @@
       text-align: top;
     }
     .top1{
-      border-bottom: 2px solid;
+      border-bottom: 1px solid #dedede;
+      /*border-bottom: 2px solid;*/
       background-color: white;
-      //background-color: #e6e6e6;
+      /*//background-color: #e6e6e6;*/
       height: 6%;
       color: black;
-      //border-radius: 2px;
-      //box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-      border-bottom-color: whitesmoke;
+      /*//border-radius: 2px;*/
+      /*//box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;*/
+      /*border-bottom-color: whitesmoke;*/
     }
     .top2{
-      border-bottom: 2px solid;
-      border-bottom-color: whitesmoke;
-      //border-bottom: thin;
+      border-bottom: 1px solid #dedede;
+      /*border-bottom: 2px solid;*/
+      /*border-bottom-color: whitesmoke;*/
+      /*//border-bottom: thin;*/
       background-color: white;
-      //background-color: #f2f2f2;
+      /*//background-color: #f2f2f2;*/
       height: 6%;
       color: black;
-      //border-radius: 2px;
-      //box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-      //border-color: rgb(229, 204, 255);
+      /*//border-radius: 2px;*/
+      /*//box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;*/
+      /*//border-color: rgb(229, 204, 255);*/
     }
     .top3{
-      border-bottom: 2px solid;
-      border-bottom-color: whitesmoke;
-     // border-bottom: thin;
+      border-bottom: 1px solid #dedede;
+      
+     /*// border-bottom: thin;*/
       background-color: white;
-      //background-color: #e6e6e6;
+      /*//background-color: #e6e6e6;*/
       height: 4.5%;
       color: black;
-      //border-radius: 2px;
-      //box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-      //border-color: rgb(229, 204, 255);
+      /*//border-radius: 2px;*/
+      /*//box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;*/
+      /*//border-color: rgb(229, 204, 255);*/
     }
-    .sidemenu{
-   // background-color: #e6e6e6;
-      //margin-top:42%
-    }
+   
     .bottom{
       width: 100%;
       margin-left: 90%;
@@ -136,13 +125,14 @@
     }
     .content{
       width:100%;
-      //height:500%;
+      /*//height:500%;*/
       text-align: center;
       overflow:hidden;
-      //background-color: rgb(255, 255, 255);
-      border-style: solid;
-      border-color: #e6e6e6;
-      border-bottom: none;
+      /*//background-color: rgb(255, 255, 255);*/
+      /*border-style: solid;*/
+      /*border-color: #e6e6e6;*/
+      /*border-bottom: none;*/
+      /*margin-top: 2%;*/
     }
     .title{
       margin-left:-30px;
@@ -221,6 +211,7 @@
         <paper-toolbar class="maintoolbar">
           <paper-icon-button icon="menu" paper-drawer-toggle></paper-icon-button>
           <div>
+          <div><paper-item class="pagetitle">{{pagetitle}}</paper-item></div>
           <!-- <paper-item class="title" style="font-size:15px;color: black;">Applications link....</paper-item> -->
           </div>
           <div class="flex"></div>
@@ -229,10 +220,10 @@
           <paper-tooltip for="signin" offset="0">{{userlabel}}</paper-tooltip>
         </paper-toolbar>
         <!-- Top Toolbar for search and cart-->
-        <paper-toolbar class="top1">
+        <!--<paper-toolbar class="top1">
           <div><paper-item class="pagetitle">{{pagetitle}}</paper-item></div>
           <div class="flex"></div>
-        </paper-toolbar>
+        </paper-toolbar>-->
         <paper-toolbar class="top2">
           <div id="intentview">
             <!--Component for create button in UI-->
