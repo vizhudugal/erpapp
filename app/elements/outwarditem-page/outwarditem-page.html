@@ -59,6 +59,8 @@
         text-align: left;
         width: 30%;
         margin-left: 10%;
+        font-family: calibri;
+        font-size: 17px;
       }
       hr{
         width: 111.5%;
@@ -92,13 +94,17 @@
       }
       .additem,.save{
         text-align: center;
-      //width: 35%;
-        border-radius: 2px;
-        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-        background-color: #3d6868;
-        color: white;
-        height: 30px;
-      //margin-top: 4%;
+      /*//width: 35%;*/
+        /*border-radius: 2px;*/
+        /*box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;*/
+        /*background-color: #3d6868;*/
+        /*color: white;*/
+        background-color: #A0A0A0;
+        font-family: calibri;
+        font-size: 17px;
+        color: black;
+        height: 34px;
+      /*//margin-top: 4%;*/
       }
       item-card{
         //width:200%;
@@ -131,7 +137,7 @@
       <!--Outward item card template-->
       <div class="banner2">
 
-        <paper-tabs selected="0" noink id="ptab">
+        <paper-tabs selected="0" no-ink no-bar no-slide id="ptab">
           <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
           <paper-tab><paper-button>{{tabs.tab}}</paper-button></paper-tab>
           </template>
