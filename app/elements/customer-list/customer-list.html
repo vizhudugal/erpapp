@@ -10,7 +10,7 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
@@ -18,23 +18,26 @@
 <link rel="import" href="../../bower_components/iron-collapse/iron-collapse.html">
 <link rel="import" href="../../bower_components/paper-styles/demo-pages.html">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Component registeraion -->
 <dom-module id="customer-list">
   <style>
     .repeatcard{
       @apply(--layout-horizontal);
       width:100%;
-
     }
     paper-listbox{
       width: 135%;
       background-color: #e5efe2;
       box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
+      font-family: calibri;
+      font-size: 16px;
     }
     paper-input{
       width: 135%;
       text-align: left;
       --paper-input-container-label: { color: red };
-      //color: red ;
+      font-family: calibri;
+      font-size: 16px;      
     }
     .cus{
       @apply(--layout-vertical);
@@ -54,11 +57,10 @@
         </template>
       </paper-listbox>
       </div>
-
     </div>
     <!--Component which read and bind data from item json file and bind to the dropdown card-->
     <iron-ajax 
-    auto   
+      auto   
       method="post"         
       params='{{customerparam}}'
       id="itemcustomerreadajax"
@@ -67,11 +69,7 @@
       content-type="application/json"
       on-response="itemcustomerreadResponse">
     </iron-ajax>
-
   </template>
   <!--Importing JS file-->
-  <script src="../../scripts/customer-list.js">
-
-  </script>
-
+  <script src="../../scripts/customer-list.js"></script>
 </dom-module>

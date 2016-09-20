@@ -1,6 +1,4 @@
-/**
- * Created by praba on 2/12/2016.
- */
+
 //JS file for grn service
 (function() {
   var intentstate;
@@ -10,13 +8,13 @@
     is: "grn-service",
     ready:function()
     {
-    },
+    },    
     updatequalityparameterService:function(qualityarray){
       arrlength=0;
       no=0;
       arrlength=qualityarray.length;
       for(var i=0;i<qualityarray.length;i++){
-        var obj={"inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":""};
+        var obj={"measure":"","inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":"","testdate":""};
         obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
         obj.containerid=localStorage.getItem("curr_sess_expandedcontainer");
         obj.name=qualityarray[i].name;
@@ -24,31 +22,33 @@
         obj.maxvalue=qualityarray[i].maxvalue;
         obj.actualvalue=qualityarray[i].actualvalue;
         obj.remarks=qualityarray[i].remarks;
+        obj.testdate=qualityarray[i].testdate;
+        obj.measure=qualityarray[i].measure;
         this.updatequalityparameterurl=sessionStorage.getItem("curr_sess_url")+"updatequalityparameter-service";
         this.updatequalityparameterparam=obj;
         this.$.updatequalityparameterajax.generateRequest();
       }
     },
     updatequalityparameterResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
       if(e.detail.response=="succ"){
         no=no+1;
       }
       if(arrlength==no){
         this.qualityparametersequenceurl=sessionStorage.getItem("curr_sess_url")+"qualityparametersequenceupdate-service";
-        //this.qualityparametersequenceparam=obj;
         this.$.qualityparametersequenceajax.generateRequest();
       }
     },
     qualityparametersequenceResponse:function(e){
       if(e.detail.response=="succ") {
         alert("Updated!!");
-        document.querySelector('physicqualifyitem-card').FnShrinkExpand();
+        document.querySelector('physicqualifyitem-card').FnReferesh();
       }
     },
     //Invoking service to fetch item under state according to the role logged in
     physicreadService:function(){
-      var arg={"status":""};
+      var arg={"status":"","roleid":"","empid":""};
+      arg.empid=sessionStorage.getItem("loggeduser");
+      arg.roleid=sessionStorage.getItem("curr_sess_roleflag");
       switch(parseInt(sessionStorage.getItem("curr_sess_roleflag"))){
         case 1:
               arg.status=localStorage.getItem("curr_sess_currflowstatus");
@@ -65,16 +65,13 @@
 
       }
       this.param=arg;
-      //alert(JSON.stringify(arg));
       this.url=sessionStorage.getItem("curr_sess_url")+"forwardflowitem-service";
-      //this.url='http://127.0.0.1:3000/grn-service';
       this.$.physicitemreadajax.generateRequest();
     },
     //Received response for the requested state of items and bind it to the physicins page
     physicitemreadResponse:function(e)
     {
       var arr=e.detail.response;
-      // alert(JSON.stringify(arr));
       document.querySelector('physicins-page').itemArray=arr;
 
     },
@@ -84,24 +81,18 @@
       arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
       arg.status=state;
       this.param1=arg;
-      //alert(arg);
-      //alert(localStorage.getItem("curr_sess_forwardstate"));
       this.url1=sessionStorage.getItem("curr_sess_url")+"backwardflowitem-service";
       this.$.flowphysicitemreadajax.generateRequest();
     },
     //Binding response info to the physicinsread card
     flowphysicitemreadResponse:function(e)
     {
-      var arr=e.detail.response;
-      //alert('coming....');
-      //alert(JSON.stringify(arr));
-      if(localStorage.getItem("curr_sess_forwardstate")=='0'){
-        //document.querySelector('home-page').setPage('Inward Flow');
-        document.querySelector('physicinsread-page').itemArray=arr;
+      var arr=e.detail.response;      
+      var temparr=[];
+      temparr.push(arr[0]);      
+      if(localStorage.getItem("curr_sess_forwardstate")=='0'){        
+        document.querySelector('physicinsread-page').itemArray=temparr;
         document.querySelector('physicqualifyread-card').physicqualifyreadService(sessionStorage.getItem("sess_curr_inwardregno"));
-        //this.$.pqrc.physicqualifyreadService(sessionStorage.getItem("sess_curr_inwardregno"));
-        //alert('done');
-        //document.querySelector('home-page').setPage('Inward Flow');
       }
       if(localStorage.getItem("curr_sess_forwardstate")=='1'){
         document.querySelector('home-page').setPage('Inward Items');
@@ -110,8 +101,7 @@
     },
     //Requesting for item info which is requested by the user
     searchService:function(irn,invoice,item,state)
-    {
-      ///alert(irn+"  "+invoice+"   "+item+"  "+state);
+    {      
       var arg={"irnno":"","invoiceno":"","item":"","state":""};
       arg.irnno=(irn.toUpperCase()).replace(/\s/g, "") ;
       arg.invoiceno=(invoice.toUpperCase()).replace(/\s/g, "") ;
@@ -127,12 +117,9 @@
       var rnflag = e.detail.response.rnflag;
       var inflag = e.detail.response.inflag;
       var itemflag = e.detail.response.itemflag;
-      //alert(rnflag+"  "+inflag+"  "+itemflag);
-      //alert(rnflag);
       if(rnflag=="no match"){
         document.querySelector('no-items').setErrorMessage('Please enter valid IRN/ORN number!');
-        document.querySelector('app-homepage').setPage('no-items');
-       // alert("Please enter valid search item!");
+        document.querySelector('app-homepage').setPage('no-items');       
       }
       else {
         if (arr.length > 0) {
@@ -149,49 +136,35 @@
             document.querySelector('outwardsearchread-page').itemArray = arr;
           }
         }
-        else {
-          //this.$.ID_Show_Dialog.FnShowDialog("No IRN/ORN Number available","");
+        else {          
           if(inflag=="no items"){
             document.querySelector('no-items').setErrorMessage('Sorry, No active Invoice in this number');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No Invoice Number available!");
+          }            
           else if(itemflag=="no items"){
             document.querySelector('no-items').setErrorMessage('Please choose valid item!');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No Matching Item available!");
+          }            
           else
           {
             document.querySelector('no-items').setErrorMessage('Sorry, No active IRN/ORN in this number');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No IRN/ORN Number available!");
+          }            
         }
       }
     },
     FnIntentitemReadService:function(){
-
       this.intenturl=sessionStorage.getItem("curr_sess_url")+"intentitemread-service";
       var arg={"loggeduser":"","state":"","loggedrole":""};
       arg.loggeduser=sessionStorage.getItem("loggeduser");
-      arg.loggedrole=sessionStorage.getItem("loggedrole");
-     // arg.state=state;
+      arg.loggedrole=sessionStorage.getItem("loggedrole");     
       this.intentparam=arg;
-
-      /*if((sessionStorage.getItem("loggedrole")=="Stores manager")||(sessionStorage.getItem("loggedrole")=="Purchase manager")){
-      //alert("yes");
-      this.FnIntentsupplyitemReadService();
-      }
-      else
-      {*/
-        //alert("No");
-        this.$.intentitemreadajax.generateRequest();
-     // }
+      this.$.intentitemreadajax.generateRequest();     
     },
-    intentitemreadResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
+    intentitemreadResponse:function(e){      
       var itemarr=e.detail.response.itemarr;
+      // alert(JSON.stringify(itemarr));
+      // alert(localStorage.getItem('curr_sess_postate'));
       var items=[];
       if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
         for(var i=0;i<itemarr.length;i++){
@@ -204,11 +177,8 @@
       else{
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       }
-
     },
     FnIntentsupplyitemReadService:function(){
-      //alert("coming...");
-      //intentstate=state;
       this.intentsupplyurl=sessionStorage.getItem("curr_sess_url")+"intentsupplyitemread-service";
       var arg={"loggeduser":"","intentstate":"","state":""};
       arg.loggeduser=sessionStorage.getItem("loggeduser");
@@ -219,25 +189,19 @@
       arg.state="internal";
       }
       if(sessionStorage.getItem("loggedrole")=="Purchase manager"){
-      intentstate="Approved";
-      //arg.intentstate="Approved";
+      intentstate="Approved";      
       arg.state="external";
       }
-      this.intentsupplyparam=arg;
-      //(JSON.stringify(arg));
+      this.intentsupplyparam=arg;      
       this.$.intentsupplyitemreadajax.generateRequest();
     },
     intentsupplyitemreadResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
-      //alert(sessionStorage.getItem("loggedrole"));
-      //alert(intentstate);
       if(sessionStorage.getItem("loggedrole")=="Stores manager")
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       if(sessionStorage.getItem("loggedrole")=="Purchase manager")
       {
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       }
-
     },
     FnIntentViewitemReadService:function(){
       this.intentviewurl=sessionStorage.getItem("curr_sess_url")+"intentviewitemread-service";
@@ -249,6 +213,72 @@
     },
     intentviewitemreadResponse:function(e){
       document.querySelector('intentview-card').itemArray=e.detail.response.itemarr;
+    },
+    retestitemreadService:function(){
+      this.retesturl=sessionStorage.getItem("curr_sess_url")+"retestitemread-service";
+      this.$.retestitemreadajax.generateRequest();
+    },
+    retestitemreadResponse:function(e){      
+        document.querySelector('retest-card').itemArray = e.detail.response.itemarr;      
+    },
+    resenditemtoqualityService:function(inwardregno){
+      this.resenditemtoqualityurl=sessionStorage.getItem("curr_sess_url")+"resenditemtoquality-service";      
+        var obj={"inwardregno":"","updatestate":"","checkstate":""};
+        obj.inwardregno=inwardregno;
+        obj.updatestate='Quality';
+        obj.checkstate='Confirm';
+        this.resenditemtoqualityparam=obj;
+        this.$.resenditemtoqualityajax.generateRequest();      
+    },
+    resenditemtoqualityResponse:function(e){      
+      if(e.detail.response=="succ") {
+        alert("Item sent for retesting!");
+      }
+      else
+      alert("Failed to send item!");
+    },
+    FnFetchInternalIntentService:function(){
+      // alert('calling.......');
+      this.internalintentitemreadurl=sessionStorage.getItem("curr_sess_url")+"internalintentitemread-service";
+      var arg={"loggeduser":"","intentstate":"","state":""};
+      arg.loggeduser=sessionStorage.getItem("loggeduser");
+      if(sessionStorage.getItem("loggedrole")=="Stores manager")
+      {
+      arg.intentstate="Approved";
+      arg.state="internal";
+      }
+      this.internalintentitemreadparam=arg;      
+      this.$.internalintentitemreadajax.generateRequest();
+    },
+    internalintentitemreadResponse:function(e){
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++){
+        arr[i].Quantity=arr[i].Quantity+" "+arr[i].Quantity_Measure;
+        arr[i].unit=arr[i].unit+" "+arr[i].Unit_Measure;
+      }
+      if(sessionStorage.getItem("loggedrole")=="Stores manager")
+      document.querySelector('internalintent-page').itemArray=arr;
+    },
+     FnFetchInternalIntentViewService:function(){
+      // alert('calling.......');
+      this.internalintentviewitemreadurl=sessionStorage.getItem("curr_sess_url")+"internalintentviewitemread-service";
+      var arg={"loggeduser":"","intentstate":"","state":""};
+      arg.loggeduser=sessionStorage.getItem("loggeduser");
+     
+      this.internalintentviewitemreadparam=arg;      
+      this.$.internalintentviewitemreadajax.generateRequest();
+    },
+    internalintentviewitemreadResponse:function(e){
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++){
+        arr[i].Quantity=arr[i].Quantity+" "+arr[i].Quantity_Measure;
+        arr[i].unit=arr[i].Container+" "+arr[i].Container_Measure;
+      }
+      // alert(JSON.stringify(arr));
+      if(sessionStorage.getItem("loggedrole")=="Production manager")
+      document.querySelector('internalintentview-page').itemArray=arr;
     }
   });
 })();

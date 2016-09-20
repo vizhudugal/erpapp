@@ -1,0 +1,41 @@
+<!-- Component import -->
+<link rel="import" href="..\..\bower_components/polymer/polymer.html">
+<link rel="import" href="..\..\bower_components/paper-item/paper-item.html">
+<!-- Component Registeration -->
+<dom-module id="contactperson-display-card">
+  <template>
+  <!-- Internal style for the component -->
+    <style>
+      :host {
+        display: block;
+      }
+      .card{
+        @apply(--layout-horizontal);
+      }
+      paper-item{
+       font-family: calibri;
+       font-size: 16px; 
+      }
+    </style>
+    <div class="card">
+    <paper-item>{{designation}}</paper-item>
+    <paper-item>{{mobileno}}</paper-item>
+    <paper-item>{{emailid}}</paper-item>
+    </div>
+  </template>
+  <script>
+  (function() {
+    'use strict';
+    Polymer({
+      is: 'contactperson-display-card',
+      properties: {
+        foo: {
+          type: String,
+          value: 'contactperson-display-card',
+          notify: true
+        }
+      }
+    });
+  })();
+  </script>
+</dom-module>

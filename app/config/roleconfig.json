@@ -11,8 +11,9 @@
         "RoleFlag": "1",
         "status":"Stores",
         "newstatus":"OldStores",
-        "updatestatus":"Production",
-        "menu" : ["GRN Flow","Add Intent","View Intent"]
+        "updatestatus":"Quality",
+        "containerstatus":"",
+        "menu" : ["GRN Flow","Add Intent","View Intent","Internal Intent"]
       },
       {
         "rolename": "Production manager",
@@ -20,7 +21,8 @@
         "status":"Production",
         "newstatus":"OldProduction",
         "updatestatus":"Quality",
-        "menu" : ["GRN Flow","Add Intent","View Intent"]
+        "containerstatus":"OldStores",
+        "menu" : ["GRN Flow","Add Intent","View Intent","Internal Intent"]
       },
       {
         "rolename": "Quality manager",
@@ -28,6 +30,7 @@
         "status":"Quality",
         "newstatus":"OldQuality",
         "updatestatus":"Purchase",
+        "containerstatus":"OldStores",
         "menu" : ["GRN Flow"]
       },
       {
@@ -36,6 +39,7 @@
         "status":"Purchase",
         "newstatus":"OldPurchase",
         "updatestatus":"Confirm",
+        "containerstatus":"OldQuality",
         "menu" : ["GRN Flow","View Intent","Add Supplier"]
       },
       {
@@ -46,7 +50,7 @@
       {
         "rolename": "Administration admin",
         "RoleFlag": "6",
-        "menu" : ["Add Item"]
+        "menu" : ["Add Item","User Management","Department Creation","Role Creation"]
       },
       {
         "rolename": "Maintenance manager",
@@ -61,7 +65,7 @@
       {
         "rolename": "Ceo ceo",
         "RoleFlag": "9",
-        "menu" : ["Add Intent","View Intent","Approve Supplier"]
+        "menu" : ["Add Intent","View Intent","Approve Supplier","Approve Customer","Approve User"]
       },
       {
         "rolename": "Sales manager",

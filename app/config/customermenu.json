@@ -1,3 +1,6 @@
 [{"Menu":"Customer Detail"},
+{"Menu":"Tax Detail"},
+{"Menu":"Excise Detail"},
 {"Menu":"Payment Detail"},
+{"Menu":"Contact Detail"},
 {"Menu":"Item Detail"}]

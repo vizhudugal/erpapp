@@ -5,12 +5,17 @@
 var express    = require("express");
 var mysql      = require('mysql');
 var bodyParser = require('body-parser');
+var htmlToPdf = require('html-to-pdf');
 var app = express();
 var urlencodedParser = bodyParser.urlencoded({ extended: false })
 
 //Method call to read credential information to establish the database connection
 var readcredential = require("./app/scripts/dboperations.js");
 readcredential.FnReadCredentials();
+
+
+var createfile = require("./app/scripts/dboperations.js");
+createfile.FnCreateFile(app,express);
 
 //Lodaing static files like elements from app folder
 app.use(express.static('app'));
@@ -28,6 +33,137 @@ app.post('/mailservice-service',urlencodedParser, function (req, res) {
   });
 });
 
+
+
+app.post('/purchaseordercreatepdf-service',urlencodedParser, function (req, res) {
+  var response={
+        cmpname:req.query.cmpname,
+        cmpaddr1:req.query.cmpaddr1,
+        cmpaddr2:req.query.cmpaddr2,
+        cmpaddr3:req.query.cmpaddr3,
+        cmpemail:req.query.email,
+        cmpphone:req.query.cmpphone,
+        ponumber:req.query.ponumber,
+        podate:req.query.podate,
+        suppliername:req.query.suppliername,
+        location:req.query.location,
+        city:req.query.city,
+        district:req.query.district,
+        state:req.query.state,
+        mobileno:req.query.mobileno,
+        email:req.query.email,
+        productid:req.query.productid,
+        quantity:req.query.quantity,
+        qtymeasure:req.query.qtymeasure,
+        unit:req.query.unit,
+        unitmeasure:req.query.unitmeasure,
+        itemid:req.query.itemid,
+        total:req.query.total,
+        exduty:req.query.exduty,
+        vat:req.query.vat,
+        cst:req.query.cst,
+        grandtot:req.query.grandtot,
+        itemsupplierprice:req.query.itemsupplierprice
+      };
+
+  var content = "<table><tr><td><img src='./app/images/logo.jpg' height='100px' width='100px'></td>"
+  content += "<td><table><tr><th style='font-size:17px;font-family:verdana;color:darkgrey;'>"+response.cmpname+"</th><td style='font-size:17px;font-family:Calibri;color:darkgrey;'></td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;'>"+response.cmpaddr1+"</td></tr>"
+  content += "<tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;'>"+response.cmpaddr2+"</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;'>"+response.cmpemail+"</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;'>"+response.cmpphone+"</td></tr></table></td></table><br><br>"
+
+  content += "<div><h2 style='font-family:verdana;color:darkgrey;text-align:center;'>Purchase Order</h2></div>"
+
+  content += "<table align='right'><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'>"+response.podate+"</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'>Po# "+response.ponumber+"</td></tr></table>"
+
+  content += "<table><tr><th style='font-size:17px;font-family:verdana;color:darkgrey;'>To</th></tr></table><table><tr><th style='font-size:17px;font-family:verdana;color:darkgrey;'>"+response.suppliername+"</th></tr>"
+  content += "<tr><td>"+response.location+"</td></tr><tr><td>"+response.email+"</td></tr>"
+  content += "<tr><td>"+response.mobileno+"</td></tr></table><br><br>"
+
+
+  content += "<table width='700px' border='1' style='border-collapse:collapse;'><tr height='70px'><th style='font-size:17px;font-family:Calibri;color:darkgrey;'>Item description</th><th style='font-size:17px;font-family:Calibri;color:darkgrey;'>Qty</th><th style='font-size:17px;font-family:Calibri;color:darkgrey;'>UOM</th><th style='font-size:17px;font-family:Calibri;color:darkgrey;'>Rate</th><th style='font-size:17px;font-family:Calibri;color:darkgrey;'>Amount</th></tr>"
+  content += "<tr height='70px'><td height='50px'>"+response.productid+"</td><td>"+response.quantity+" "+response.qtymeasure+"</td><td>"+response.unit+" "+response.unitmeasure+"</td><td>"+response.itemsupplierprice+"</td><td style='text-align:right;'>"+response.total+"</td></tr></table><br><br>"
+
+  content += "<table style='margin-left:68%'><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:left;'>Total </td><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'><img src='./app/images/rupee.png' width='5px' height='5px'>"+response.total+"</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:left;'>Excess Duty (12.5%)</td><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'><img src='./app/images/rupee.png' width='5px' height='5px'>"+response.exduty+"</td></tr>"
+  content += "<tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:left;'>VAT (5%)</td><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'><img src='./app/images/rupee.png' width='5px' height='5px'>"+response.vat+"</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-alig:left;'>CST (2%)</td><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'><img src='./app/images/rupee.png' width='5px' height='5px'>"+response.cst+"</td></tr>"
+  content += "<tr><td colspan='2'>---------------------------------------</td></tr><tr><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:margin-left;'>Grand Total </td><td style='font-size:17px;font-family:Calibri;color:darkgrey;text-align:right;'><img src='./app/images/rupee.png' width='5px' height='5px'>"+response.grandtot+"</td></tr></table>";
+
+  // var content = "<table width='700px'><tr><td><img src='./app/images/logo.jpg' height='100px' width='100px'></td><td><h1>Purchase Order</h1></td></tr></table><br><br><br><br>"
+  // content += "<table width='700px' style='margin-left:5%;'><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.cmpname+"</td><td align='right' style='font-size:18px;font-family:Calibri;color:grey;'>Po Date: </td><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.podate+"</td></tr><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.cmpaddr1+"</td><td align='right' style='font-size:18px;font-family:Calibri;color:grey;'>Po Number: </td><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.ponumber+"</td></tr>"
+  // content += "<tr><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.cmpaddr2+"</td></tr><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.cmpemail+"</td></tr><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.cmpphone+"</td></tr></table><br><br><br><br><br>"
+
+  // content += "<table width='700px' style='margin-left:5%;'><tr><td>To</td></tr></table><table style='margin-left:10%'><tr style='margin-left:5%'><td style='font-size:18px;font-family:Calibri;color:grey;'>xyz company</td></tr>"
+  // content += "<tr style='margin-left:5%'><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.suppliername+"</td></tr><tr style='margin-left:5%'><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.location+"</td></tr>"
+  // content += "<tr style='margin-left:5%'><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.email+"</td></tr><tr style='margin-left:5%'><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.mobileno+"</td></tr></table><br><br><br><br>"
+
+
+  // content += "<table width='600px' style='margin-left:5%;border-collapse:collapse;' border='1'><tr height='40px'><td height='40px' style='font-size:18px;font-family:Calibri;color:grey;'>S.No</td><td style='font-size:18px;font-family:Calibri;color:grey;'>Item description</td><td style='font-size:18px;font-family:Calibri;color:grey;'>Quantity</td><td style='font-size:18px;font-family:Calibri;color:grey;'>UOM</td><td style='font-size:18px;font-family:Calibri;color:grey;'>Rate</td><td style='font-size:18px;font-family:Calibri;color:grey;'>Amount</td></tr>"
+  // content += "<tr height='40px'><td height='40px'>1</td><td style='font-size:18px;font-family:Calibri;color:grey;'>"+response.productid+"</td><td>"+response.quantity+" "+response.qtymeasure+"</td><td>"+response.unit+" "+response.unitmeasure+"</td><td>"+response.itemsupplierprice+"</td><td>"+response.total+"</td></tr></table><br><br><br><br>"
+
+  // content += "<table style='margin-left:55%'><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>Total :</td><td style='font-size:18px;font-family:Calibri;color:grey;'><img src='public/rupee.png' width='5px' height='5px'></td></t"+response.total+"r><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>Excess Duty (12.5%):</td><td style='font-size:18px;font-family:Calibri;color:grey;'><img src='public/rupee.png' width='5px' height='5px'>"+response.exduty+"</td></tr>"
+  // content += "<tr><td style='font-size:18px;font-family:Calibri;color:grey;'>VAT (5%):</td><td style='font-size:18px;font-family:Calibri;color:grey;'><img src='public/rupee.png' width='5px' height='5px'>"+response.vat+"</td></tr><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>CST (2%):</td><td style='font-size:18px;font-family:Calibri;color:grey;'><img src='public/rupee.png' width='5px' height='5px'>"+response.cst+"</td></tr>"
+  // content += "<tr><td colspan='2'>---------------------------------------</td></tr><tr><td style='font-size:18px;font-family:Calibri;color:grey;'>Grand Total :</td><td style='font-size:18px;font-family:Calibri;color:grey;'><img src='public/rupee.png' width='5px' height='5px'>"+response.grandtot+"</td></tr></table>";
+
+
+    htmlToPdf.convertHTMLString(content, './app/images/Purchaseorder.pdf',
+    function (error, success) {
+       if (error) {
+        response.flag=0;
+            console.log('Oh noes! Errorz!');
+            console.log(error);
+        } else {
+          response.flag=1;
+          console.log('Converted');
+          res.status(200).json('converted');   
+          // return callback('converted');  
+        }
+    });
+    // if(response.flag==1)
+    // return callback('converted'); 
+/*  var Fnpurchaseordercreatepdfcall = require("./app/scripts/dboperations.js");
+  Fnpurchaseordercreatepdfcall.Fnpurchaseordercreatepdf("purchaseordercreatepdf-service",function(returnval){
+    res.status(200).json(returnval);
+  });*/
+});
+
+
+
+app.post('/purchaseordersendmail-service',urlencodedParser, function (req, res) {
+
+        var response={
+        cmpname:req.query.cmpname,
+        cmpaddr1:req.query.cmpaddr1,
+        cmpaddr2:req.query.cmpaddr2,
+        cmpaddr3:req.query.cmpaddr3,
+        cmpemail:req.query.email,
+        cmpphone:req.query.cmpphone,
+        ponumber:req.query.ponumber,
+        podate:req.query.podate,
+        suppliername:req.query.suppliername,
+        location:req.query.location,
+        city:req.query.city,
+        district:req.query.district,
+        state:req.query.state,
+        mobileno:req.query.mobileno,
+        email:req.query.email,
+        productid:req.query.productid,
+        quantity:req.query.quantity,
+        qtymeasure:req.query.qtymeasure,
+        unit:req.query.unit,
+        unitmeasure:req.query.unitmeasure,
+        itemid:req.query.itemid,
+        total:req.query.total,
+        exduty:req.query.exduty,
+        vat:req.query.vat,
+        cst:req.query.cst,
+        grandtot:req.query.grandtot,
+        itemsupplierprice:req.query.itemsupplierprice
+      };
+
+  var Fnpurchaseordersendmailcall = require("./app/scripts/dboperations.js");
+  Fnpurchaseordersendmailcall.Fnpurchaseordersendmail("purchaseordersendmail-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
 //Receiving post request from login card
 app.post('/login-card', urlencodedParser, function (req, res) {
   //Loading JS file to call the login check function
@@ -40,6 +176,18 @@ app.post('/login-card', urlencodedParser, function (req, res) {
     else
     //Sending error response
       res.status(200).json({'returnval': "invalid"});
+  });
+});
+
+
+//Receiving request to read the logged username
+app.post('/usernameread-service', urlencodedParser, function (req, res) {
+  // console.log(req.query.loggeduserid);
+  //Loading JS file to call the login check function
+  var usernamereadcall = require("./app/scripts/dboperations.js");
+  //calling loginchcek function with connection,username and password to validate the user,here defined callback method to get the asynchronous response
+  usernamereadcall.Fnusernameread("usernameread-service",req.query.loggeduserid,function(returnval){
+      res.status(200).json(returnval);
   });
 });
 
@@ -96,10 +244,21 @@ app.post('/inwardregnoseq-service',urlencodedParser, function (req, res) {
   });
 
 });
+
+app.post('/generatebatchno-service',urlencodedParser, function (req, res) {
+  //Loading JS file to call seq generation
+  var FnGeneratebatchnocall = require("./app/scripts/dboperations.js");
+  /*Function call to generate sequence*/
+  console.log('................................................');
+  console.log(req.query.heatno);
+  FnGeneratebatchnocall.FnGeneratebatchno("generatebatchno-service",req.query.heatno,function(returnval){
+      res.status(200).json({'returnval': returnval});
+  });
+});
+
 app.post('/itemsave-service',urlencodedParser, function (req, res) {
   /*receiving values from item page*/
-  //console.log(req.query.qtymeasure);
-  //console.log(req.query.unitmeasure);
+
   if(req.query.ponumber=="others")
   statevalue='Purchase';
   else
@@ -121,7 +280,9 @@ app.post('/itemsave-service',urlencodedParser, function (req, res) {
     Unit_measure:req.query.unitmeasure,
     Remarks:req.query.remark,
     new_Inward_Register_Number:'',
-    state: statevalue
+    Created_by:req.query.createdby,
+    state: statevalue,
+    Item_ID:req.query.itemid
   };
   //importing js file to invoke the function
   var FnRegisterInwardItemDetailcall = require("./app/scripts/dboperations.js");
@@ -140,10 +301,13 @@ app.post('/itemsave-service',urlencodedParser, function (req, res) {
 //Function to fetch items in the respective states,according to the logged user role
 app.post("/forwardflowitem-service",urlencodedParser,function(req,res){
   cond={state:req.query.status};
+  state=req.query.status;
+  roleid=req.query.roleid;
+  empid=req.query.empid;
   //importing js file to invoke the function
   var FnForwardflowfetchcall = require("./app/scripts/dboperations.js");
   //Invoking function to fetch IRN information under respective states
-  FnForwardflowfetchcall.FnForwardFlowitemFetch("forwardflowitem-service",cond,function(returnval){
+  FnForwardflowfetchcall.FnForwardFlowitemFetch("forwardflowitem-service",state,roleid,empid,function(returnval){
     //Response sending back to the respective page
     res.status(200).json(returnval);
   });
@@ -168,11 +332,12 @@ app.post("/physicqualify-card",urlencodedParser,function(req,res){
 app.post("/physicqualifyexpanditemread-service",urlencodedParser,function(req,res){
   //console.log('req coming...'+req.query.inwardregno);
   var cond={Inward_Register_Number:req.query.inwardregno}
+  var status={status:req.query.status}
   //console.log('coming...........');
   //importing js file to invoke the function
   var Fnphysicqualifyexpanditemreadcall = require("./app/scripts/dboperations.js");
   //Invoking function to fetch the items data under particular IRN
-  Fnphysicqualifyexpanditemreadcall.Fnphysicqualifyexpanditemread("physicqualifyexpanditemread-service",cond,function(returnval){
+  Fnphysicqualifyexpanditemreadcall.Fnphysicqualifyexpanditemread("physicqualifyexpanditemread-service",cond,status,function(returnval){
     //Response Sending back to the service componet
     res.status(200).json(returnval);
   });
@@ -187,6 +352,9 @@ app.post("/physicqualifyitem-card",urlencodedParser,function(req,res) {
   inspectionstatus="Rejected";
 
   var  response={
+    Item_ID:req.body.itemid,
+    Created_By:req.body.createdby,
+    Serial_No:req.body.serialno,
     Inward_Register_Number:req.body.inwardregno,
     Product_ID:req.body.productid,
     PO_Number:req.body.ponumber,
@@ -197,25 +365,88 @@ app.post("/physicqualifyitem-card",urlencodedParser,function(req,res) {
     Quantity:req.body.qtyaccept,
     Quantity_Measure:req.body.qtymeasure,
     Remarks:req.body.remark,
-    status:req.body.status,
-    Inspection_Status:inspectionstatus
+    status:req.body.updatestatus,
+    Inspection_Status:inspectionstatus,
+    Batch_No:req.body.batchno,
+    unit:req.body.contaccepted,
+    Unit_Measure:req.body.contmeasure
   };
 
-  //console.log(response);
+  console.log(response);
+
+  var batchresponse={
+    Heat_No:req.body.heatno,
+    Batch_No:req.body.batchno,
+    Container_Id:req.body.containerid,
+    Inward_Register_Number:req.body.inwardregno
+  };
 
   var cond1={Inward_Register_Number:req.body.inwardregno};
-  var cond2={status:req.body.status};
+  var cond2={status:req.body.updatestatus};
   var cond3={PO_Number:req.body.ponumber};
   var cond4={new_Inward_Register_Number:req.body.inwardregno};
   var cond5={state:req.body.status};
-  var cond6={Container_id:req.body.containerid};
+  var cond6={Container_ID:req.body.containerid};
+  var cond7={Serial_No:req.body.serialno};
+  var cond8={Batch_No:req.body.batchno};
+  var cond9={Heat_Number:req.body.heatno};
+
+  // console.log(JSON.stringify(cond1)+"  "+JSON.stringify(cond2)+"  "+JSON.stringify(cond3)+"  "+JSON.stringify(cond4)+"  "+JSON.stringify(cond5)+"  "+JSON.stringify(cond6)+"  "+JSON.stringify(cond7));
+
   var FnPhysicqualifyitemcall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
-  FnPhysicqualifyitemcall.FnPhysicqualifyitem("physicqualifyitem-card",response,cond1,cond2,cond3,cond4,cond5,cond6,function(returnval){
+  FnPhysicqualifyitemcall.FnPhysicqualifyitem("physicqualifyitem-card",response,cond1,cond2,cond3,cond4,cond5,cond6,cond7,batchresponse,function(returnval){
     if(returnval=="updated")
+      res.status(200).json({"flag":returnval});
+    else if(returnval=="exist")
       res.status(200).json({"flag":returnval});
     else if(returnval=="not updated")
       res.status(200).json({"flag":returnval});
+  });
+});
+
+//Fetching items under IRN to update coil state while promotion
+app.post("/readcontainercoil-service",urlencodedParser,function(req,res){
+  var cond1={Inward_Register_Number:req.query.inwardregno}
+  var cond2={status:req.query.checkstatus}
+
+  //importing js file to invoke the function
+  var Fnreadcontainercoilcall = require("./app/scripts/dboperations.js");
+  //Invoking function to fetch the items data under particular IRN
+  Fnreadcontainercoilcall.Fnreadcontainercoil("readcontainercoil-service",cond1,cond2,function(returnval){
+    //Response Sending back to the service componet
+    res.status(200).json(returnval);
+  });
+});
+
+//Fetching items under IRN to update coil state while promotion
+app.post("/oldcontainerupdate-service",urlencodedParser,function(req,res){
+  //var updatestatus = {status:req.query.updatestatus};
+  //var checkstatus = {status:req.query.checkstatus};
+ var response= {
+  Inward_Register_Number : req.query.Inward_Register_Number,
+  Product_ID : req.query.Product_ID,
+  PO_Number : req.query.PO_Number,
+  PO_Date : req.query.PO_Date,
+  Supplier_ID : req.query.Supplier_ID,
+  Container_ID : req.query.Container_ID,
+  Heat_Number : req.query.Heat_Number,
+  Batch_No : req.query.Batch_No,
+  Quantity : req.query.Quantity,
+  Quantity_Measure : req.query.Quantity_Measure,
+  Remarks : req.query.Remarks,
+  status : req.query.status,
+  Inspection_Status :req.query.Inspection_Status,
+  Created_By: req.query.createdby
+  }
+  var inwardregno={Inward_Register_Number:req.query.Inward_Register_Number};
+  //var newupdatestatus={status:"Old"+req.query.checkstatus};
+  //importing js file to invoke the function
+  var Fnoldcontainerupdatecall = require("./app/scripts/dboperations.js");
+  //Invoking function to fetch the items data under particular IRN
+  Fnoldcontainerupdatecall.Fnoldcontainerupdate("oldcontainerupdate-service",response,inwardregno,function(returnval){
+    //Response Sending back to the service componet
+    res.status(200).json(returnval);
   });
 });
 
@@ -224,10 +455,11 @@ app.post("/physicqualifyitem-card",urlencodedParser,function(req,res) {
 app.post("/physicqualifyinwardacceptcheck-service",urlencodedParser,function(req,res) {
 var inwardregno=req.query.inwardregno;
 var checkstatus=req.query.checkstatus;
+var status=req.query.status;
 var repeatflag=req.query.repeatflag;
   var Fnphysicqualifyinwardacceptcheckcall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
-  Fnphysicqualifyinwardacceptcheckcall.Fnphysicqualifyinwardacceptcheck("physicqualifyinwardacceptcheck-service",inwardregno,checkstatus,repeatflag,function(returnval){
+  Fnphysicqualifyinwardacceptcheckcall.Fnphysicqualifyinwardacceptcheck("physicqualifyinwardacceptcheck-service",inwardregno,status,checkstatus,repeatflag,function(returnval){
     if(returnval=="succ")
       res.status(200).json({"flag":returnval});
     else if(returnval=="fail")
@@ -239,9 +471,10 @@ app.post("/oldphysicinsert-service",urlencodedParser,function(req,res) {
   var inwardregno=req.query.inwardregno;
   var checkstatus=req.query.checkstatus;
   var status=req.query.status;
+  var createdby=req.query.createdby;
   var Fnoldphysicinsertcall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
-  Fnoldphysicinsertcall.Fnoldphysicinsert("oldphysicinsert-service",inwardregno,checkstatus,status,function(returnval){
+  Fnoldphysicinsertcall.Fnoldphysicinsert("oldphysicinsert-service",inwardregno,checkstatus,status,createdby,function(returnval){
     if(returnval=="succ")
       res.status(200).json({"flag":returnval});
     else if(returnval=="fail")
@@ -253,17 +486,21 @@ app.post("/physicqualified-service",urlencodedParser,function(req,res) {
   var inwardregno=req.query.inwardregno;
   var checkstatus=req.query.checkstatus;
   var status=req.query.status;
+  var createdby=req.query.createdby;
   var Fnphysicqualifiedcall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
-  Fnphysicqualifiedcall.Fnphysicqualified("physicqualified-service",inwardregno,checkstatus,status,function(returnval){
+  Fnphysicqualifiedcall.Fnphysicqualified("physicqualified-service",inwardregno,checkstatus,status,createdby,function(returnval){
     res.status(200).json({"flag":returnval.flag,"state":returnval.state});
   });
 });
 
 app.post("/specificationitemread-service",urlencodedParser,function(req,res) {
+  var inwardregno=req.query.inwardregno;
+  var checkstatus=req.query.checkstatus;
+  var productid=req.query.productid;
   var Fnspecificationitemreadcall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
-  Fnspecificationitemreadcall.Fnspecificationitemread("specificationitemread-service",function(returnval){
+  Fnspecificationitemreadcall.Fnspecificationitemread("specificationitemread-service",inwardregno,checkstatus,productid,function(returnval){
     res.status(200).json(returnval);
   });
 });
@@ -277,9 +514,11 @@ app.post("/updatequalityparameter-service",urlencodedParser,function(req,res) {
     Min_Value:req.query.minvalue,
     Max_Value:req.query.maxvalue,
     Actual_Value:req.query.actualvalue,
-    Remarks:req.query.remarks
+    Remarks:req.query.remarks,
+    Test_Date:req.query.testdate,
+    Unit_Measure:req.query.measure
   };
-  //console.log(response);
+  // console.log(response);
   var Fnupdatequalityparametercall = require("./app/scripts/dboperations.js");
   //Invoking function to update the item info
   Fnupdatequalityparametercall.Fnupdatequalityparameter("updatequalityparameter-service",response,function(returnval){
@@ -330,6 +569,7 @@ app.post('/outwardseq-service',urlencodedParser, function (req, res) {
 //Function to store outward items
 app.post('/outwarditem-service',urlencodedParser, function (req, res) {
   response = {
+    Invoice_Date:req.query.invoicedate,
     Outward_Register_Number:'',
     Out_Date:req.query.outdate,
     Out_Time:req.query.outtime,
@@ -346,6 +586,7 @@ app.post('/outwarditem-service',urlencodedParser, function (req, res) {
     Product_ID:req.query.itemdes,
     Quantity:req.query.quantity,
     Weight:req.query.weight,
+    Created_by:req.query.createdby,
     state:'outward'
   };
   var FnOutwardItemSavecall = require("./app/scripts/dboperations.js");
@@ -441,6 +682,7 @@ app.post('/intentitemwrite-service',urlencodedParser, function (req, res) {
     Due_Date:req.query.duedate,
     Intent_Date:req.query.intentdate,
     Product_ID:req.query.itemdes,
+    Item_ID:req.query.itemid,
     Specification:req.query.specification,
     unit:req.query.unit,
     Unit_Measure:req.query.unitmeasure,
@@ -450,8 +692,11 @@ app.post('/intentitemwrite-service',urlencodedParser, function (req, res) {
     state:req.query.state,
     PO_Number:'',
     Intent_Created_By:req.query.loggedrole,
+    Intent_Created_By_ID:req.query.createdby,
+    Intent_Created_By_Date:req.query.createddate,
     Intent_State:'',
-    Item_Type_ID:''
+    Item_Type_ID:'',
+    intent_status:'Open'
   };
   var FnIntentItemWritecall = require("./app/scripts/dboperations.js");
   FnIntentItemWritecall.FnIntentItemWrite("intentitemwrite-service",response,loggeduser,itemdes,function(returnval){
@@ -486,19 +731,34 @@ app.post("/intentstateupdate-service",urlencodedParser,function(req,res){
   //ponumber={PO_Number:req.query.pono}
   //updatecolumn={Intent_State:req.query.updatestate};
   //updaterolecolumn={Intent_Approved_By:req.query.loggedrole};
-  if(req.query.updatestate=="Approved")
+  if(req.query.updatestate=="Approved"){
   updaterolecolumn={Intent_Approved_By:req.query.loggedrole};
-  if(req.query.updatestate=="Supplied")
+  updatebycolumn={Intent_Approved_By_ID:req.query.createdby};
+  updatebydate={Intent_Approved_By_Date:req.query.createddate};
+  }
+  if(req.query.updatestate=="Supplied"){
   updaterolecolumn={Intent_Supplied_By:req.query.loggedrole};
-  if(req.query.updatestate=="POCreated")
+  updatebycolumn={Intent_Supplied_By_ID:req.query.createdby};
+  updatebydate={Intent_Supplied_By_Date:req.query.createddate};
+  }
+  if(req.query.updatestate=="POCreated"){
   updaterolecolumn={PO_Created_By:req.query.loggedrole};
-  if(req.query.updatestate=="POSent")
-  updaterolecolumn={PO_Created_By:req.query.loggedrole};
-  if(req.query.updatestate=="Accepted")
+  updatebycolumn={PO_Created_By_ID:req.query.createdby};
+  updatebydate={PO_Created_By_Date:req.query.createddate};
+  }
+  if(req.query.updatestate=="POSent"){
+  updaterolecolumn={PO_Sent_By:req.query.loggedrole};
+  updatebycolumn={PO_Sent_By_ID:req.query.createdby};
+  updatebydate={PO_Sent_By_Date:req.query.createddate};
+  }
+  if(req.query.updatestate=="Accepted"){
   updaterolecolumn={Intent_Accepted_By:req.query.loggedrole};
+  updatebycolumn={Intent_Accepted_By_ID:req.query.createdby};
+  updatebydate={Intent_Accepted_By_Date:req.query.createddate};
+  }  
   updatecolumn={Intent_State:req.query.updatestate};
   var Fnintentstateupdatecall = require("./app/scripts/dboperations.js");
-  Fnintentstateupdatecall.FnIntentStateUpdate("intentstateupdate-service",cond,cond1,updatecolumn,updaterolecolumn,function(returnval){
+  Fnintentstateupdatecall.FnIntentStateUpdate("intentstateupdate-service",cond,cond1,updatecolumn,updaterolecolumn,updatebycolumn,updatebydate,function(returnval){
     res.status(200).json(returnval);
   });
 });
@@ -674,67 +934,208 @@ app.post("/additemupdate-service",urlencodedParser,function(req,res) {
 app.post("/addsupplier-service",urlencodedParser,function(req,res) {
 
   response = {
-   Supplier_ID:req.query.supplierid,
-   Supplier_Name:req.query.suppliername,
-    LandMark:req.query.landmark,
-    Location:req.query.location,
-    City:req.query.city,
-    District:req.query.district,
-    State:req.query.state,
-    Country:req.query.country,
-    Pincode:req.query.pincode,
-    Phone:req.query.phoneno,
-    Mobile:req.query.mobileno,
-    Email:req.query.emailid,
-    Status:""
+    Supplier_ID: req.query.supplierid,
+    Supplier_Name: req.query.suppliername,
+    Alias_Name: req.query.aliasname,
+    Address1: req.query.address1,
+    Address2: req.query.address2,
+    Doorno: req.query.doorno,
+    Streetno: req.query.streetno,
+    Street_Name: req.query.streetname,
+    Location: req.query.location,
+    City: req.query.city,
+    District: req.query.district,
+    State: req.query.state,
+    Country: req.query.country,
+    Pincode: req.query.pincode,
+    Phoneno: req.query.phoneno,
+    Mobileno: req.query.mobileno,
+    Email: req.query.emailid,
+    Faxno: req.query.faxno,
+    Website: req.query.website,
+    Status: 'New'
 
   };
   var FnAddSuppliercall = require("./app/scripts/dboperations.js");
-  FnAddSuppliercall.FnAddSupplier("addsupplier-service",response,function(returnval){
-    res.status(200).json({'returnval': returnval});
+  FnAddSuppliercall.FnAddSupplier("addsupplier-service", response, function (returnval) {
+    res.status(200).json({'returnval': returnval.msg,'id':returnval.id});
   });
 
 });
+
+//Function to add the customer contac info
+app.post("/supplieraddcontact-service",urlencodedParser,function(req,res) {
+  response = {
+    Supplier_ID:req.query.supplierid,
+    Designation:req.query.designation,
+    Mobile_No:req.query.mobileno,
+    Email_ID:req.query.emailid
+  };
+  var Fnsupplieraddcontactcall = require("./app/scripts/dboperations.js");
+  Fnsupplieraddcontactcall.Fnsupplieraddcontact("supplieraddcontact-service",response,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/supplierreadcontact-service",urlencodedParser,function(req,res) {
+  supplierid = {
+    Supplier_ID:req.query.supplierid
+  };
+  //console.log("In customer read...."+req.query.customerid);
+  var Fnsupplierreadcontactcall = require("./app/scripts/dboperations.js");
+  Fnsupplierreadcontactcall.Fnsupplierreadcontact("supplierreadcontact-service",supplierid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/suppliertaxadd-service",urlencodedParser,function(req,res) {
+  response = {
+    Supplier_ID:req.query.supplierid,
+    TIN:req.query.tin,
+    CST:req.query.cst,
+    PAN:req.query.pan,
+    TAN:req.query.tan,
+    CIN:req.query.cin
+  };
+  var Fnsuppliertaxaddcall = require("./app/scripts/dboperations.js");
+  Fnsuppliertaxaddcall.Fnsuppliertaxadd("suppliertaxadd-service",response,function(returnval){
+    res.status(200).json({"returnval":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/supplierexciseadd-service",urlencodedParser,function(req,res) {
+  response = {
+    Supplier_ID:req.query.supplierid,
+    Reg_No:req.query.regno,
+    Ecc_No:req.query.eccno,
+    Range:req.query.range,
+    Division:req.query.division,
+    Commission:req.query.commission,
+    Service_Tax:req.query.servicetax
+  };
+  var Fnsupplierexciseaddcall = require("./app/scripts/dboperations.js");
+  Fnsupplierexciseaddcall.Fnsupplierexciseadd("supplierexciseadd-service",response,function(returnval){
+    res.status(200).json({"returnval":returnval});
+  });
+});
+
 
 //Function to update the supplier info req receives from the admin service
 app.post("/addpayment-service",urlencodedParser,function(req,res) {
 
   response = {
-   Supplier_ID:req.query.supplierid,
-   Account_No:req.query.accno,
-   Bank_Name:req.query.bankname,
-   Payment_Type:req.query.mode,
-   Payment_Term:req.query.paymentterm,
-   Bank_Address:req.query.address
+    Supplier_ID:req.query.supplierid,
+    Account_Name:req.query.accountname,
+    Account_No:req.query.accountno,
+    Account_Type:req.query.accounttype,
+    Payment_Type:req.query.paymenttype,
+    Bank_Name:req.query.bankname,
+    Branch:req.query.branch,
+    IFSC_Code:req.query.ifsccode,
+    MICR_Code:req.query.micrcode,
+    Swift_Code:req.query.swiftcode,
+    Payment_Term:req.query.paymentterm
 
   };
   var FnAddPaymentcall = require("./app/scripts/dboperations.js");
   FnAddPaymentcall.FnAddPayment("addpayment-service",response,function(returnval){
     res.status(200).json({'returnval': returnval});
   });
-
 });
+
+//Function to add the customer contac info
+app.post("/suppliertaxread-service",urlencodedParser,function(req,res) {
+  supplierid = {
+    Supplier_ID:req.query.supplierid
+  };
+
+  var Fnsuppliertaxreadcall = require("./app/scripts/dboperations.js");
+  Fnsuppliertaxreadcall.Fnsuppliertaxread("suppliertaxread-service",supplierid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/supplierexciseread-service",urlencodedParser,function(req,res) {
+  supplierid = {
+    Supplier_ID:req.query.supplierid
+  };
+  var Fnsupplierexcisereadcall = require("./app/scripts/dboperations.js");
+  Fnsupplierexcisereadcall.Fnsupplierexciseread("supplierexciseread-service",supplierid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
 
 //Function to update the supplier info req receives from the admin service
 app.post("/updatesupplier-service",urlencodedParser,function(req,res) {
 
   response = {
-   Supplier_ID:req.query.supplierid,
-   Supplier_Name:req.query.suppliername,
-    LandMark:req.query.landmark,
+    Supplier_ID:req.query.supplierid,
+    Supplier_Name:req.query.suppliername,
+    Alias_Name:req.query.aliasname,
+    Address1:req.query.address1,
+    Address2:req.query.address2,
+    Doorno:req.query.doorno,
+    Streetno:req.query.streetno,
+    Street_Name:req.query.streetname,
     Location:req.query.location,
     City:req.query.city,
     District:req.query.district,
     State:req.query.state,
     Country:req.query.country,
     Pincode:req.query.pincode,
-    Phone:req.query.phoneno,
-    Mobile:req.query.mobileno,
-    Email:req.query.emailid
-
+    Phoneno:req.query.phoneno,
+    Mobileno:req.query.mobileno,
+    Email:req.query.emailid,
+    Faxno:req.query.faxno,
+    Website:req.query.website
   };
+  //console.log(response);
   var FnUpdateSuppliercall = require("./app/scripts/dboperations.js");
-  FnUpdateSuppliercall.FnUpdateSupplier("updatesupplier-service",response,function(returnval){
+  FnUpdateSuppliercall.FnUpdateSupplier("updateSupplier-service",response,function(returnval){
+    res.status(200).json({'returnval': returnval});
+  });
+
+
+});
+
+//Function to update the supplier info req receives from the admin service
+app.post("/supplierupdatetax-service",urlencodedParser,function(req,res) {
+
+  response = {
+    Supplier_ID:req.query.supplierid,
+    TIN:req.query.tin,
+    CST:req.query.cst,
+    PAN:req.query.pan,
+    TAN:req.query.tan,
+    CIN:req.query.cin
+  };
+  //console.log(response);
+  var FnSupplierUpdatetaxcall = require("./app/scripts/dboperations.js");
+  FnSupplierUpdatetaxcall.FnSupplierUpdatetax("supplierupdatetax-service",response,function(returnval){
+    res.status(200).json({'returnval': returnval});
+  });
+
+});
+
+//Function to update the supplier info req receives from the admin service
+app.post("/supplierupdateexcise-service",urlencodedParser,function(req,res) {
+  response = {
+    Supplier_ID:req.query.supplierid,
+    Reg_No:req.query.regno,
+    Ecc_No:req.query.eccno,
+    Range:req.query.range,
+    Division:req.query.division,
+    Commission:req.query.commission,
+    Service_Tax:req.query.servicetax
+  };
+  //console.log(response);
+  var FnSupplierUpdateexcisecall = require("./app/scripts/dboperations.js");
+  FnSupplierUpdateexcisecall.FnSupplierUpdateexcise("supplierupdateexcise-service",response,function(returnval){
     res.status(200).json({'returnval': returnval});
   });
 
@@ -742,24 +1143,27 @@ app.post("/updatesupplier-service",urlencodedParser,function(req,res) {
 
 //Function to update the supplier info req receives from the admin service
 app.post("/updatepayment-service",urlencodedParser,function(req,res) {
-
   response = {
-   Supplier_ID:req.query.supplierid,
-   Account_No:req.query.accno,
-   Bank_Name:req.query.bankname,
-   Payment_Type:req.query.mode,
-   Payment_Term:req.query.paymentterm,
-   Bank_Address:req.query.address
-
+    Supplier_ID:req.query.supplierid,
+    Account_Name:req.query.accountname,
+    Account_No:req.query.accountno,
+    Account_Type:req.query.accounttype,
+    Payment_Type:req.query.paymenttype,
+    Bank_Name:req.query.bankname,
+    Branch:req.query.branch,
+    IFSC_Code:req.query.ifsccode,
+    MICR_Code:req.query.micrcode,
+    Swift_Code:req.query.swiftcode,
+    Payment_Term:req.query.paymentterm
   };
+  //console.log(response);
+  //console.log(response);
   var FnUpdatePaymentcall = require("./app/scripts/dboperations.js");
   FnUpdatePaymentcall.FnUpdatePayment("updatepayment-service",response,function(returnval){
     res.status(200).json({'returnval': returnval});
   });
 
 });
-
-
 
 //Function to fetch the searched item info using id or name according to the search type
 app.post('/readsupplierinfo-service',urlencodedParser, function (req, res) {
@@ -879,6 +1283,7 @@ app.post('/itempocreate-service',urlencodedParser, function (req, res) {
     Supplier_Name:req.query.supplier,
     Intent_Register_Number:req.query.intentregno,
     Product_ID:req.query.itemdes,
+    Created_By:req.query.createdby,
     PO_Number:''
   };
 
@@ -903,7 +1308,6 @@ app.post('/intentviewitemread-service',urlencodedParser, function (req, res) {
 //Function fetches the expanded intent view item info
 app.post("/intentviewitemexpand-card",urlencodedParser,function(req,res){
   cond={Intent_Register_Number:req.query.intentregno}
-
   var FnIntentviewExpandItemFetchcall = require("./app/scripts/dboperations.js");
   FnIntentviewExpandItemFetchcall.FnIntentviewExpandItemFetch("intentviewitemexpand-card",cond,function(returnval){
     res.status(200).json({"itemarr":returnval.itemarr});
@@ -926,17 +1330,21 @@ app.post("/viewintentpromote-service",urlencodedParser,function(req,res){
   intentno={Intent_Register_Number:req.query.intentregno};
   itemdes={Product_ID:req.query.itemdes};
   updaterolecolumn={PO_Created_By:'Purchase manager'};
+  updateroleid={PO_Created_By_ID:req.query.createdby};
+  updatedate={PO_Created_By_Date:req.query.createddate};
   updatecolumn={Intent_State:'POCreated'};
   oldcolumn={Intent_State:'Approved'};
-   var response={
+  // createdby={Created_By:req.query.createdby};
+  var response={
     Supplier_Name:req.query.supplier,
     Intent_Register_Number:req.query.intentregno,
     Product_ID:req.query.itemdes,
+    Created_By:req.query.createdby,
     PO_Number:req.query.ponumber
    };
 
   var FnViewintentpromotecall = require("./app/scripts/dboperations.js");
-  FnViewintentpromotecall.FnViewintentpromote("viewintentpromote-service",response,intentno,itemdes,updaterolecolumn,updatecolumn,oldcolumn,function(returnval){
+  FnViewintentpromotecall.FnViewintentpromote("viewintentpromote-service",response,intentno,itemdes,updaterolecolumn,updateroleid,updatedate,updatecolumn,oldcolumn,function(returnval){
     res.status(200).json({"itemarr":returnval});
   });
 });
@@ -949,28 +1357,95 @@ app.post("/posequpdate-service",urlencodedParser,function(req,res){
   });
 });
 
+//Function to add the customer contac info
+app.post("/customeraddcontact-service",urlencodedParser,function(req,res) {
+  response = {
+    Customer_ID:req.query.customerid,
+    Designation:req.query.designation,
+    Mobile_No:req.query.mobileno,
+    Email_ID:req.query.emailid
+  };
+  var Fncustomeraddcontactcall = require("./app/scripts/dboperations.js");
+  Fncustomeraddcontactcall.Fncustomeraddcontact("customeraddcontact-service",response,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/customerreadcontact-service",urlencodedParser,function(req,res) {
+  customerid = {
+    Customer_ID:req.query.customerid
+  };
+  console.log("In customer read...."+req.query.customerid);
+  var Fncustomerreadcontactcall = require("./app/scripts/dboperations.js");
+  Fncustomerreadcontactcall.Fncustomerreadcontact("customerreadcontact-service",customerid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/customertaxadd-service",urlencodedParser,function(req,res) {
+  response = {
+    Customer_ID:req.query.customerid,
+    TIN:req.query.tin,
+    CST:req.query.cst,
+    PAN:req.query.pan,
+    TAN:req.query.tan,
+    CIN:req.query.cin
+  };
+  var Fncustomertaxaddcall = require("./app/scripts/dboperations.js");
+  Fncustomertaxaddcall.Fncustomertaxadd("customertaxadd-service",response,function(returnval){
+    res.status(200).json({"returnval":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/customerexciseadd-service",urlencodedParser,function(req,res) {
+  response = {
+    Customer_ID:req.query.customerid,
+    Reg_No:req.query.regno,
+    Ecc_No:req.query.eccno,
+    Range:req.query.range,
+    Division:req.query.division,
+    Commission:req.query.commission,
+    Service_Tax:req.query.servicetax
+  };
+  var Fncustomerexciseaddcall = require("./app/scripts/dboperations.js");
+  Fncustomerexciseaddcall.Fncustomerexciseadd("customerexciseadd-service",response,function(returnval){
+    res.status(200).json({"returnval":returnval});
+  });
+});
 
 //Function to update the supplier info req receives from the admin service
 app.post("/addcustomer-service",urlencodedParser,function(req,res) {
 
   response = {
+    Category:req.query.category,
    Customer_ID:req.query.supplierid,
    Customer_Name:req.query.suppliername,
-    LandMark:req.query.landmark,
-    Location:req.query.location,
-    City:req.query.city,
-    District:req.query.district,
-    State:req.query.state,
-    Country:req.query.country,
-    Pincode:req.query.pincode,
-    Phone:req.query.phoneno,
-    Mobile:req.query.mobileno,
-    Email:req.query.emailid
+   Alias_Name:req.query.aliasname,
+   Address1:req.query.address1,
+   Address2:req.query.address2,
+   Doorno:req.query.doorno,
+   Streetno:req.query.streetno,
+   Street_Name:req.query.streetname,
+   Location:req.query.location,
+   City:req.query.city,
+   District:req.query.district,
+   State:req.query.state,
+   Country:req.query.country,
+   Pincode:req.query.pincode,
+   PhoneNo1:req.query.phoneno,
+   Mobileno:req.query.mobileno,
+   Email:req.query.emailid,
+   Faxno:req.query.faxno,
+   Website:req.query.website,
+   Status:'Created'
 
   };
   var FnAddCustomercall = require("./app/scripts/dboperations.js");
   FnAddCustomercall.FnAddCustomer("addcustomer-service",response,function(returnval){
-    res.status(200).json({'returnval': returnval});
+    res.status(200).json({'returnval': returnval.msg,'id':returnval.id});
   });
 
 });
@@ -979,12 +1454,17 @@ app.post("/addcustomer-service",urlencodedParser,function(req,res) {
 app.post("/addcustomerpayment-service",urlencodedParser,function(req,res) {
 
   response = {
-   Customer_ID:req.query.supplierid,
-   Account_No:req.query.accno,
+   Customer_ID:req.query.customerid,
+   Account_Name:req.query.accountname,
+   Account_No:req.query.accountno,
+   Account_Type:req.query.accounttype,
+   Payment_Type:req.query.paymenttype,
    Bank_Name:req.query.bankname,
-   Payment_Type:req.query.mode,
-   Payment_Term:req.query.paymentterm,
-   Bank_Address:req.query.address
+   Branch:req.query.branch,
+   IFSC_Code:req.query.ifsccode,
+   MICR_Code:req.query.micrcode,
+   Swift_Code:req.query.swiftcode,
+   Payment_Term:req.query.paymentterm
 
   };
   var FnAddcustomerPaymentcall = require("./app/scripts/dboperations.js");
@@ -994,26 +1474,55 @@ app.post("/addcustomerpayment-service",urlencodedParser,function(req,res) {
 
 });
 
+//Function to add the customer contac info
+app.post("/taxread-service",urlencodedParser,function(req,res) {
+  customerid = {
+    Customer_ID:req.query.customerid
+  };
+
+  var Fntaxreadcall = require("./app/scripts/dboperations.js");
+  Fntaxreadcall.Fntaxread("taxread-service",customerid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
+
+//Function to add the customer contac info
+app.post("/exciseread-service",urlencodedParser,function(req,res) {
+  customerid = {
+    Customer_ID:req.query.customerid
+  };
+  var Fnexcisereadcall = require("./app/scripts/dboperations.js");
+  Fnexcisereadcall.Fnexciseread("exciseread-service",customerid,function(returnval){
+    res.status(200).json({"itemarr":returnval});
+  });
+});
 
 //Function to update the supplier info req receives from the admin service
 app.post("/updatecustomer-service",urlencodedParser,function(req,res) {
 
   response = {
-   Customer_ID:req.query.supplierid,
-   Customer_Name:req.query.suppliername,
-    LandMark:req.query.landmark,
+    Category:req.query.category,
+    Customer_ID:req.query.supplierid,
+    Customer_Name:req.query.suppliername,
+    Alias_Name:req.query.aliasname,
+    Address1:req.query.address1,
+    Address2:req.query.address2,
+    Doorno:req.query.doorno,
+    Streetno:req.query.streetno,
+    Street_Name:req.query.streetname,
     Location:req.query.location,
     City:req.query.city,
     District:req.query.district,
     State:req.query.state,
     Country:req.query.country,
     Pincode:req.query.pincode,
-    Phone:req.query.phoneno,
-    Mobile:req.query.mobileno,
-    Email:req.query.emailid
-
+    Phoneno:req.query.phoneno,
+    Mobileno:req.query.mobileno,
+    Email:req.query.emailid,
+    Faxno:req.query.faxno,
+    Website:req.query.website
   };
-  console.log(response);
+  //console.log(response);
   var FnUpdateCustomercall = require("./app/scripts/dboperations.js");
   FnUpdateCustomercall.FnUpdateCustomer("updatecustomer-service",response,function(returnval){
     res.status(200).json({'returnval': returnval});
@@ -1022,19 +1531,60 @@ app.post("/updatecustomer-service",urlencodedParser,function(req,res) {
 });
 
 //Function to update the supplier info req receives from the admin service
-app.post("/updatecustomerpayment-service",urlencodedParser,function(req,res) {
-  console.log('in.............');
-console.log(req.query.supplierid);
-  response = {
-   Customer_ID:req.query.supplierid,
-   Account_No:req.query.accno,
-   Bank_Name:req.query.bankname,
-   Payment_Type:req.query.mode,
-   Payment_Term:req.query.paymentterm,
-   Bank_Address:req.query.address
+app.post("/updatetax-service",urlencodedParser,function(req,res) {
 
+  response = {
+    Customer_ID:req.query.customerid,
+    TIN:req.query.tin,
+    CST:req.query.cst,
+    PAN:req.query.pan,
+    TAN:req.query.tan,
+    CIN:req.query.cin
   };
-  console.log(response);
+  //console.log(response);
+  var FnUpdatetaxcall = require("./app/scripts/dboperations.js");
+  FnUpdatetaxcall.FnUpdatetax("updatetax-service",response,function(returnval){
+    res.status(200).json({'returnval': returnval});
+  });
+
+});
+
+//Function to update the supplier info req receives from the admin service
+app.post("/updateexcise-service",urlencodedParser,function(req,res) {
+  response = {
+    Customer_ID:req.query.customerid,
+    Reg_No:req.query.regno,
+    Ecc_No:req.query.eccno,
+    Range:req.query.range,
+    Division:req.query.division,
+    Commission:req.query.commission,
+    Service_Tax:req.query.servicetax
+  };
+  //console.log(response);
+  var FnUpdateexcisecall = require("./app/scripts/dboperations.js");
+  FnUpdateexcisecall.FnUpdateexcise("updateexcise-service",response,function(returnval){
+    res.status(200).json({'returnval': returnval});
+  });
+
+});
+
+//Function to update the supplier info req receives from the admin service
+app.post("/updatecustomerpayment-service",urlencodedParser,function(req,res) {
+  response = {
+    Customer_ID:req.query.customerid,
+    Account_Name:req.query.accountname,
+    Account_No:req.query.accountno,
+    Account_Type:req.query.accounttype,
+    Payment_Type:req.query.paymenttype,
+    Bank_Name:req.query.bankname,
+    Branch:req.query.branch,
+    IFSC_Code:req.query.ifsccode,
+    MICR_Code:req.query.micrcode,
+    Swift_Code:req.query.swiftcode,
+    Payment_Term:req.query.paymentterm
+  };
+  //console.log(response);
+  //console.log(response);
   var FnUpdatecustomerPaymentcall = require("./app/scripts/dboperations.js");
   FnUpdatecustomerPaymentcall.FnUpdatecustomerPayment("updatecustomerpayment-service",response,function(returnval){
     res.status(200).json({'returnval': returnval});
@@ -1178,10 +1728,423 @@ app.post('/readsuppliertoapprove-service',urlencodedParser, function (req, res) 
 
 app.post('/approvesupplierforpurchase-service',urlencodedParser, function (req, res) {
   var supplierid=req.query.supplierid;
+  var status=req.query.status;
   var Fnapprovesupplierforpurchasecall = require("./app/scripts/dboperations.js");
-  Fnapprovesupplierforpurchasecall.Fnapprovesupplierforpurchase("approvesupplierforpurchase-service",supplierid,function(returnval){
+  Fnapprovesupplierforpurchasecall.Fnapprovesupplierforpurchase("approvesupplierforpurchase-service",supplierid,status,function(returnval){
     res.status(200).json({'itemarr': returnval});
   });
+});
+
+app.post('/readcustomertoapprove-service',urlencodedParser, function (req, res) {
+  var Fnreadcustomertoapprovecall = require("./app/scripts/dboperations.js");
+  Fnreadcustomertoapprovecall.Fnreadcustomertoapprove("readcustomertoapprove-service",function(returnval){
+    res.status(200).json({'itemarr': returnval});
+  });
+});
+
+app.post('/approvecustomerforsales-service',urlencodedParser, function (req, res) {
+  var customerid=req.query.customerid;
+  var status=req.query.status;
+  var Fnapprovecustomerforsalescall = require("./app/scripts/dboperations.js");
+  Fnapprovecustomerforsalescall.Fnapprovecustomerforsales("approvecustomerforsales-service",customerid,status,function(returnval){
+    res.status(200).json({'itemarr': returnval});
+  });
+});
+
+app.post('/retestitemread-service',urlencodedParser, function (req, res) {
+
+  var Fnretestitemreadcall = require("./app/scripts/dboperations.js");
+  Fnretestitemreadcall.Fnretestitemread("retestitemread-service",function(returnval){
+    res.status(200).json({'itemarr': returnval});
+  });
+});
+
+app.post('/resenditemtoquality-service',urlencodedParser, function (req, res) {
+  var inwardregno={new_Inward_Register_Number:req.query.inwardregno};
+  var updatestate={state:req.query.updatestate};
+  var checkstate={state:req.query.checkstate};
+  var Fnresenditemtoqualitycall = require("./app/scripts/dboperations.js");
+  Fnresenditemtoqualitycall.Fnresenditemtoquality("resenditemtoquality-service",inwardregno,updatestate,checkstate,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+
+app.post('/customerinforead-service',urlencodedParser, function (req, res) {
+  var customerid={Customer_ID:req.query.customerid};
+  var Fncustomerinforeadcall = require("./app/scripts/dboperations.js");
+  Fncustomerinforeadcall.Fncustomerinforead("customerinforead-service",req.query.customerid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+
+app.post('/supplierinforead-service',urlencodedParser, function (req, res) {
+  var supplierid={Supplier_ID:req.query.supplierid};
+  var Fnsupplierinforeadcall = require("./app/scripts/dboperations.js");
+  Fnsupplierinforeadcall.Fnsupplierinforead("supplierinforead-service",req.query.supplierid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/passwordchange-service',urlencodedParser, function (req, res) {
+  var empid={Emp_ID:req.query.empid};
+  var oldpass={Password:req.query.oldpassword};
+  var newpass={Password:req.query.newpassword};
+  var Fnpasswordchangecall = require("./app/scripts/dboperations.js");
+  Fnpasswordchangecall.Fnpasswordchange("passwordchange-service",empid,oldpass,newpass,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/resetpassword-service',urlencodedParser, function (req, res) {
+  var empid={Emp_ID:req.query.empid};
+  var newpass={Password:req.query.newpassword};
+  var Fnresetpasswordcall = require("./app/scripts/dboperations.js");
+  Fnresetpasswordcall.Fnresetpassword("resetpassword-service",empid,newpass,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/verifymail-service',urlencodedParser, function (req, res) {
+  var empid={Employee_ID:req.query.empid};
+  var Fnverifymailcall = require("./app/scripts/dboperations.js");
+  Fnverifymailcall.Fnverifymail("verifymail-service",empid,req.query.code,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/readdepartment-service',urlencodedParser, function (req, res) {
+  
+  var Fnreaddepartmentcall = require("./app/scripts/dboperations.js");
+  Fnreaddepartmentcall.Fnreaddepartment("readdepartment-service",function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/readrole-service',urlencodedParser, function (req, res) {
+  
+  var Fnreadrolecall = require("./app/scripts/dboperations.js");
+  Fnreadrolecall.Fnreadrole("readrole-service",function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/readdepartment-service',urlencodedParser, function (req, res) {
+  
+  var Fnreaddepartmentcall = require("./app/scripts/dboperations.js");
+  Fnreaddepartmentcall.Fnreaddepartment("readdepartment-service",function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/userinfo-service',urlencodedParser, function (req, res) {
+  response = {
+   Employee_Name:req.query.employeename,
+   Date_Of_Birth:req.query.dob,
+   Sex:req.query.sex,
+   Age:req.query.age,
+   Street_Name:req.query.streetname,
+   Location:req.query.location,
+   City:req.query.city,
+   District:req.query.district,
+   State:req.query.state,
+   Country:req.query.country,
+   // Pincode:req.query.pincode,
+   Phone:req.query.phoneno,
+   Mobile:req.query.mobileno,
+   Email:req.query.emailid,
+   Status:'Created'
+ }
+
+  
+  var Fnuserinfocall = require("./app/scripts/dboperations.js");
+  Fnuserinfocall.Fnuserinfo("userinfo-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/useraccount-service',urlencodedParser, function (req, res) {
+  
+  response = {
+    Employee_ID:req.query.employeeid,
+    Account_Name:req.query.accountname,
+    Account_Number:req.query.accountno,
+    Account_Type:req.query.accounttype,
+    Bank_Name:req.query.bankname,
+    Branch:req.query.branch,
+    IFSC_Code:req.query.ifsccode
+      };
+
+  var Fnuseraccountcall = require("./app/scripts/dboperations.js");
+  Fnuseraccountcall.Fnuseraccount("useraccount-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/userrole-service',urlencodedParser, function (req, res) {  
+ 
+  var Fnuserrolecall = require("./app/scripts/dboperations.js");
+  Fnuserrolecall.Fnuserrole("userrole-service",req.query.employeeid,req.query.departmentname,req.query.rolename,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/readusertoapprove-service',urlencodedParser, function (req, res) {
+  var Fnreadusertoapprovecall = require("./app/scripts/dboperations.js");
+  Fnreadusertoapprovecall.Fnreadusertoapprove("readusertoapprove-service",function(returnval){
+    res.status(200).json({'itemarr': returnval});
+  });
+});
+
+
+app.post('/userinforead-service',urlencodedParser, function (req, res) {
+  var employeeid={Employee_ID:req.query.employeeid};
+  var Fnuserinforeadcall = require("./app/scripts/dboperations.js");
+  Fnuserinforeadcall.Fnuserinforead("userinforead-service",req.query.employeeid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/approveuser-service',urlencodedParser, function (req, res) {
+  var employeeid=req.query.employeeid;
+  var status=req.query.status;
+  var Fnapproveusercall = require("./app/scripts/dboperations.js");
+  Fnapproveusercall.Fnapproveuser("approveuser-service",employeeid,status,function(returnval){
+    res.status(200).json({'itemarr': returnval});
+  });
+});
+
+app.post('/updateuserinfo-service',urlencodedParser, function (req, res) {
+  response = {
+   Employee_Name:req.query.employeename,
+   Date_Of_Birth:req.query.dob,
+   Sex:req.query.sex,
+   Age:req.query.age,
+   Street_Name:req.query.streetname,
+   Location:req.query.location,
+   City:req.query.city,
+   District:req.query.district,
+   State:req.query.state,
+   Country:req.query.country,
+   // Pincode:req.query.pincode,
+   Phone:req.query.phoneno,
+   Mobile:req.query.mobileno,
+   Email:req.query.emailid,
+   Status:'Created'
+ }
+
+  
+  var Fnupdateuserinfocall = require("./app/scripts/dboperations.js");
+  Fnupdateuserinfocall.Fnupdateuserinfo("updateuserinfo-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/updateuseraccount-service',urlencodedParser, function (req, res) {
+  
+  response = {
+    Employee_ID:req.query.employeeid,
+    Account_Name:req.query.accountname,
+    Account_Number:req.query.accountno,
+    Account_Type:req.query.accounttype,
+    Bank_Name:req.query.bankname,
+    Branch:req.query.branch,
+    IFSC_Code:req.query.ifsccode
+      };
+
+  var Fnupdateuseraccountcall = require("./app/scripts/dboperations.js");
+  Fnupdateuseraccountcall.Fnupdateuseraccount("updateuseraccount-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/updateuserrole-service',urlencodedParser, function (req, res) {  
+ 
+  var Fnupdateuserrolecall = require("./app/scripts/dboperations.js");
+  Fnupdateuserrolecall.Fnupdateuserrole("updateuserrole-service",req.query.employeeid,req.query.departmentname,req.query.rolename,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/userread-service',urlencodedParser, function (req, res) {
+  var employeeid={Employee_ID:req.query.employeeid};
+  var Fnuserreadcall = require("./app/scripts/dboperations.js");
+  Fnuserreadcall.Fnuserread("userread-service",req.query.employeeid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/usersearch-service',urlencodedParser, function (req, res) {
+  var employeename={Employee_Name:req.query.employeename};
+  var Fnusersearchcall = require("./app/scripts/dboperations.js");
+  Fnusersearchcall.Fnusersearch("usersearch-service",req.query.employeename,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/useraccount1-service',urlencodedParser, function (req, res) {
+  var employeeid={Employee_ID:req.query.employeeid};
+  var Fnuseraccount1call = require("./app/scripts/dboperations.js");
+  Fnuseraccount1call.Fnuseraccount1("useraccount1-service",req.query.employeeid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/role-service',urlencodedParser, function (req, res) {
+  var employeeid={Employee_ID:req.query.employeeid};
+  var Fnrolecall = require("./app/scripts/dboperations.js");
+  Fnrolecall.Fnrole("role-service",req.query.employeeid,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/createdepartment-service',urlencodedParser, function (req, res) {
+  var response={
+    Department_ID:req.query.departmentid,
+    Department_Name:req.query.departmentname
+  };
+
+  var Fncreatedepartmentcall = require("./app/scripts/dboperations.js");
+  Fncreatedepartmentcall.Fncreatedepartment("createdepartment-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });
+});
+
+app.post('/createrole-service',urlencodedParser, function (req, res) {
+  var response={
+    Role_ID:req.query.roleid,
+    Role_Name:req.query.rolename
+  };
+
+  var Fncreaterolecall = require("./app/scripts/dboperations.js");
+  Fncreaterolecall.Fncreaterole("createrole-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+
+app.post('/fetchbatchno-service',urlencodedParser, function (req, res) {
+  var response={
+  Inward_Register_Number:req.query.inwardregno    
+  };
+  // console.log(req.query.inwardregno);
+  var FnFetchbatchnocall = require("./app/scripts/dboperations.js");
+  FnFetchbatchnocall.FnFetchbatchno("fetchbatchno-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+
+app.post('/inventoryupdate-service',urlencodedParser, function (req, res) {
+  var response={
+  new_Inward_Register_Number:req.query.inwardregno,
+  Batch_No:req.query.batchno,
+  Container_ID:req.query.containerid,
+  State: req.query.state    
+  };
+
+  var FnInventoryupdatecall = require("./app/scripts/dboperations.js");
+  FnInventoryupdatecall.FnInventoryupdate("inventoryupdate-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+app.post('/internalintentitemread-service',urlencodedParser, function (req, res) {
+  var response={
+  loggeduser:req.query.loggeduser,
+  intentstate: req.query.intentstate, 
+  state: req.query.state   
+  };
+
+  var FnInternalintentitemreadcall = require("./app/scripts/dboperations.js");
+  FnInternalintentitemreadcall.FnInternalintentitemread("internalintentitemread-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+app.post('/internalintentexpandread-service',urlencodedParser, function (req, res) {
+  var response={
+  itemid:req.query.itemno,
+  intentregno: req.query.intentregno  
+  };
+
+  var FnInternalintentexpandreadcall = require("./app/scripts/dboperations.js");
+  FnInternalintentexpandreadcall.FnInternalintentexpandread("internalintentexpandread-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+app.post('/intentsupply-service',urlencodedParser, function (req, res) {
+  var response={
+  itemid:req.query.itemid,
+  batchno:req.query.batchno,
+  containerid:req.query.containerid,
+  contquantity:req.query.contquantity,
+  intentregno: req.query.intentregno,
+  selunit:req.query.selunit,
+  selquantity:req.query.selquantity,
+  reqquantity:req.query.reqquantity,
+  requnit:req.query.requnit 
+  };
+
+  var FnIntentsupplycall = require("./app/scripts/dboperations.js");
+  FnIntentsupplycall.FnIntentsupply("intentsupply-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+
+app.post('/intentsupplystatus-service',urlencodedParser, function (req, res) {
+  var response={
+  itemid:req.query.itemid,
+  batchno:req.query.batchno,
+  containerid:req.query.containerid,
+  contquantity:req.query.contquantity,
+  intentregno: req.query.intentregno,
+  selunit:req.query.selunit,
+  selquantity:req.query.selquantity,
+  reqquantity:req.query.reqquantity,
+  requnit:req.query.requnit 
+  };
+
+  var Fnintentsupplystatuscall = require("./app/scripts/dboperations.js");
+  Fnintentsupplystatuscall.Fnintentsupplystatus("intentsupplystatus-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+app.post('/fetchbatchnos-service',urlencodedParser, function (req, res) {
+  var response={
+  Item_ID:req.query.itemno    
+  };
+  // console.log(req.query.inwardregno);
+  var FnFetchbatchnoscall = require("./app/scripts/dboperations.js");
+  FnFetchbatchnoscall.FnFetchbatchnos("fetchbatchnos-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+app.post('/fetchcontainer-service',urlencodedParser, function (req, res) {
+  var response={
+  Batch_No:req.query.batchno    
+  };
+  // console.log(req.query.inwardregno);
+  var FnFetchcontainercall = require("./app/scripts/dboperations.js");
+  FnFetchcontainercall.FnFetchcontainer("fetchcontainer-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
+});
+
+
+app.post('/internalintentviewitemread-service',urlencodedParser, function (req, res) {
+  var response={
+  loggeduser:req.query.loggeduser};
+
+  var FnInternalintentviewitemreadcall = require("./app/scripts/dboperations.js");
+  FnInternalintentviewitemreadcall.FnInternalintentviewitemread("internalintentviewitemread-service",response,function(returnval){
+    res.status(200).json(returnval);
+  });  
 });
 //Node server running port number
 app.listen(4000);

@@ -14,14 +14,14 @@
     },
     FnWebcomponentreadResponse:function(e) {
       this.current_page=localStorage.getItem("curr_sess_showpage");
-      //alert(this.current_page);
+      // alert(this.current_page);
       var arr = e.detail.response;
       //alert(JSON.stringify(arr));
       var labelvalue=[];
       var errorlabelvalue=[];
       //Binding labels to login-card
       for(var i=1;i<arr.length;i++) {
-
+        //alert((arr[i].Page[0].page[0]));
         if ((arr[i].Page[0].page[0]) == this.current_page) {
 
           labelvalue = arr[i].Page[1].Label;
@@ -50,9 +50,14 @@
           localStorage.setItem("curr_sess_currflowstatus",roleconfig[0].role[i].status);
           localStorage.setItem("curr_sess_currflownewstatus",roleconfig[0].role[i].newstatus);
           localStorage.setItem("curr_sess_currflowupdatestatus",roleconfig[0].role[i].updatestatus);
+          localStorage.setItem("curr_sess_currflowcontainerstatus",roleconfig[0].role[i].containerstatus);
           //alert(roleconfig[0].role[i].RoleFlag+" "+roleconfig[0].role[i].status+" "+roleconfig[0].role[i].newtatus+" "+roleconfig[0].role[i].updatetatus);
           if(sessionStorage.getItem("curr_sess_roleflag")=="6")
           localStorage.setItem("curr_sess_wardflag","");
+          if(sessionStorage.getItem("curr_sess_roleflag")=="9")
+          localStorage.setItem("curr_sess_wardflag","3");
+          if(sessionStorage.getItem("curr_sess_roleflag")=="10")
+          localStorage.setItem("curr_sess_wardflag","5");
           if(sessionStorage.getItem("curr_sess_roleflag")!=null)
           window.location.href="../elements/indexhome.html";
         }
@@ -70,11 +75,25 @@
       var sessrole=sessionStorage.getItem("curr_sess_roleflag");
       for(var i=0;i<arr[0].role.length;i++) {
         if (arr[0].role[i].RoleFlag == sessrole) {
-          //alert(JSON.stringify(arr[0].role[i].menu));
-          //Binding response to the drawer menulist card
           document.querySelector('drawermenu-list').itemArray = arr[0].role[i].menu;
         }
       }
+    },
+    FnusernamereadService:function(){
+      // alert('hi');
+      this.usernamereadurl=sessionStorage.getItem("curr_sess_url")+"usernameread-service";
+      var obj={"loggeduserid":""};      
+      obj.loggeduserid=sessionStorage.getItem("loggeduser");
+      // alert(sessionStorage.getItem("loggeduser"));
+      this.usernamereadparam=obj;
+      this.$.usernamereadajax.generateRequest();
+    },
+    usernamereadResponse:function(e){      
+      // alert(JSON.stringify(e.detail.response));
+      var arr=e.detail.response;
+      sessionStorage.setItem("curr_sess_loggeduser",arr[0].Employee_Name);
+      this.roleconfigreadService();
+      // document.querySelector('app-homepage').FnSetUsername(e.detail.response);
     }
   });
 })();

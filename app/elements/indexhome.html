@@ -7,9 +7,56 @@
 <!--Component imports-->
   <script src="../bower_components/webcomponentsjs/webcomponents-lite.js"></script>
 
-  <link rel="import" href="../elements/elements.vulcanized.html">
+  <link rel="import" href="../bower_components/paper-styles/demo-pages.html">
+  <link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
+  <link rel="import" href="../bower_components/paper-drawer-panel/paper-drawer-panel.html">
+  <link rel="import" href="../bower_components/paper-header-panel/paper-header-panel.html">
+  <link rel="import" href="../bower_components/paper-toolbar/paper-toolbar.html">
+  <link rel="import" href="../bower_components/paper-item/paper-item.html">
+  <link rel="import" href="../bower_components/paper-card/paper-card.html">
+  <link rel="import" href="../bower_components/paper-input/paper-input.html">
+  <link rel="import" href="../bower_components/iron-icons/iron-icons.html">
+  <link rel="import" href="../bower_components/iron-pages/iron-pages.html">
+  <link rel="import" href="../bower_components/paper-button/paper-button.html">
+  <link rel="import" href="../bower_components/paper-styles/paper-styles.html">
+  <link rel="import" href="../bower_components/paper-dialog/paper-dialog.html">
+  <link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
+  <link rel="import" href="../bower_components/paper-menu-button/paper-menu-button.html">
 
-  <!-- <link rel="import" href="intentflow-card/intentflow-card.html"> -->
+  <link rel="import" href="admin-page/admin-page.html">
+  <link rel="import" href="home-page/home-page.html">
+  <link rel="import" href="physicins-page/physicins-page.html">
+  <link rel="import" href="grnflow-card/grnflow-card.html">
+  <link rel="import" href="physicqualify-card/physicqualify-card.html">
+  <link rel="import" href="inwardslip-page/inwardslip-page.html">
+  <link rel="import" href="drawermenu-list/drawermenu-list.html">
+  <link rel="import" href="static-service/static-service.html">
+  <link rel="import" href="viewtype-card/viewtype-card.html">
+  <link rel="import" href="flowbutton-card/flowbutton-card.html">
+  <link rel="import" href="outwardslip-page/outwardslip-page.html">
+  <link rel="import" href="searchread-page/searchread-page.html">
+  <link rel="import" href="menusearch-card/menusearch-card.html">
+  <link rel="import" href="outwardsearchread-page/outwardsearchread-page.html">
+  <link rel="import" href="intenthome-page/intenthome-page.html">
+  <link rel="import" href="no-items/no-items.html">
+  <link rel="import" href="supplier-page/supplier-page.html">
+  <link rel="import" href="outwardreport-card/outwardreport-card.html">
+  <link rel="import" href="intentviewtype-card/intentviewtype-card.html">
+  <link rel="import" href="customer-page/customer-page.html">
+  <link rel="import" href="promotebutton-card/promotebutton-card.html">
+  <link rel="import" href="intentflow-card/intentflow-card.html">
+  <link rel="import" href="approvecustomer-card/approvecustomer-card.html">
+  <link rel="import" href="approvesupplier-card/approvesupplier-card.html">
+  <link rel="import" href="dynamicbutton-card/dynamicbutton-card.html">
+  <link rel="import" href="production-recheck-card/production-recheck-card.html">
+  <link rel="import" href="retest-card/retest-card.html">
+  <link rel="import" href="usercreation-home-card/usercreation-home-card.html">
+  <link rel="import" href="approveuser-card/approveuser-card.html">
+
+  <link rel="import" href="departmentcreation-card/departmentcreation-card.html">
+  <link rel="import" href="rolecreation-card/rolecreation-card.html">
+
+  <link rel="import" href="supplybutton-card/supplybutton-card.html">
 </head>
 
 <body unresolved>
@@ -76,7 +123,7 @@
      // border-bottom: thin;
       background-color: white;
       //background-color: #e6e6e6;
-      height: 4.5%;
+      height: 6%;
       color: black;
       //border-radius: 2px;
       //box-shadow: rgba(0, 0, 0, 0.0980392) 10px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
@@ -108,7 +155,8 @@
       font-size:5px;
     }
     .logo{
-      margin-top: -10px;
+      margin-top: 50px;
+      margin-left: 50px;
     }
     .search{
       margin-top: 0px;
@@ -129,8 +177,8 @@
       margin-left: -87%;
     }
     #flowbutton{
-      margin-top:-3%;
-    //margin-left:10%;
+      margin-top:-2%;
+      margin-left:-5%;
     }
     .pagetitle{
       font-size: 23px;
@@ -141,7 +189,7 @@
     }
     #promotebutton{
       margin-left: -13%;
-      margin-top: -3%;
+      margin-top: -2%;
     }
     #intentview{
       margin-left: 95%;
@@ -149,12 +197,28 @@
     }
     #list{
       margin-left: -20%;
+      margin-top: -3%;
     }
     #dynamicbutton{
       margin-left: -5%;
       margin-top: -3%;
     }
-   
+    #recheck{
+      margin-left: -20%;
+      margin-top: -2%;
+    }
+    #username{
+      text-transform: none;
+      margin-top: -4%;
+      margin-left: -20%;
+    }
+    #signin{
+      margin-top: -4%;
+    }
+    #supplybutton{
+      margin-top: -2%;
+    }
+
   </style>
   <template>
     <grn-service id="gs"></grn-service>
@@ -165,7 +229,9 @@
 
         <!--Drawer menu dynamically change for the logged role-->
         <div class="sidemenu">
-          <div id="logo">Logo goes here.....</div>
+          <div id="logo">
+            <img src="../../images/logo.jpg" height="100px" width="140px">
+          </div>
           <drawermenu-list id="drawerlist"></drawermenu-list>
           <menusearch-card id="searchmenu"></menusearch-card>
         </div>
@@ -173,20 +239,19 @@
       <paper-header-panel main>
         <!-- Top Toolbar for label change-->
         <paper-toolbar class="maintoolbar">
+
           <paper-icon-button icon="menu" paper-drawer-toggle></paper-icon-button>
           <div>
+          <div><paper-item class="pagetitle">{{pagetitle}}</paper-item></div>
           <!-- <paper-item class="title" style="font-size:15px;color: black;">Applications link....</paper-item> -->
           </div>
           <div class="flex"></div>
           <!-- Component for the signin signout button -->
-          <paper-icon-button id="signin" icon="icons:arrow-drop-down" on-click="FnToggleSignin" style="margin-top:-10px;" ></paper-icon-button>
+          <paper-button id="username">{{loggedusername}}</paper-button>
+          <paper-icon-button id="signin" icon="icons:arrow-drop-down" on-click="FnToggleSignin" ></paper-icon-button>
           <paper-tooltip for="signin" offset="0">{{userlabel}}</paper-tooltip>
         </paper-toolbar>
         <!-- Top Toolbar for search and cart-->
-        <paper-toolbar class="top1">
-          <div><paper-item class="pagetitle">{{pagetitle}}</paper-item></div>
-          <div class="flex"></div>
-        </paper-toolbar>
         <paper-toolbar class="top2">
           <div id="intentview">
             <!--Component for create button in UI-->
@@ -196,11 +261,9 @@
             <!--Component for create button in UI-->
             <viewtype-card></viewtype-card>
           </div>
-
           <div id="dynamicbutton">
             <dynamicbutton-card></dynamicbutton-card>
           </div>
-         
           <div class="flex"></div>
 
         </paper-toolbar>
@@ -211,6 +274,10 @@
           <!--Component for the flow approve button visible to each role-->
           <div id="flowbutton"><flowbutton-card></flowbutton-card></div>
           <div id="promotebutton"><promotebutton-card></promotebutton-card></div>
+          <div id="supplybutton"><supplybutton-card></supplybutton-card></div>
+          <div id="recheck">
+            <production-recheck-card></production-recheck-card>
+          </div>
           <div class="flex"></div>
         </paper-toolbar>
         <div class="content">
@@ -234,9 +301,7 @@
             <section data-category="intenthome-page">
               <intenthome-page></intenthome-page>
             </section>
-            <!-- <section data-category="viewintenthome-page"> -->
-              <!-- <viewintenthome-page></viewintenthome-page> -->
-            <!-- </section> -->
+            
             <section data-category="no-items">
               <no-items></no-items>
             </section>
@@ -249,13 +314,32 @@
             <section data-category="customer-page">
               <customer-page></customer-page>
             </section>
-            <section data-category="outwardreport-card">
-              <outwardreport-card></outwardreport-card>
-            </section>
+
             <section data-category="approvesupplier-card">
               <approvesupplier-card></approvesupplier-card>
             </section>
-        
+            <section data-category="approvecustomer-card">
+              <approvecustomer-card></approvecustomer-card>
+            </section>
+            <section data-category="retest-card">
+              <retest-card></retest-card>
+            </section>
+            
+             <section data-category="usercreation-home-card">
+              <usercreation-home-card></usercreation-home-card>
+            </section>
+             <section data-category="approveuser-card">
+              <approveuser-card></approveuser-card>
+            </section>
+            <section data-category="departmentcreation-card">
+              <departmentcreation-card></departmentcreation-card>
+            </section>
+            <section data-category="rolecreation-card">
+              <rolecreation-card></rolecreation-card>
+            </section>
+            <section data-category="outwardreport-card">
+              <outwardreport-card></outwardreport-card>
+            </section>
           </iron-pages>
         </div>
         <div class="bottom">

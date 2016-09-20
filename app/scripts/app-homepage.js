@@ -4,27 +4,27 @@
 Polymer({
   is: "app-homepage",
   ready: function() {
-    //this.page='home-page';
+    this.userlabel="Signout"; 
+    // alert(sessionStorage.getItem("curr_sess_roleflag")+" "+localStorage.getItem("curr_sess_wardflag"));
+    this.loggedusername="Hello! "+sessionStorage.getItem("curr_sess_loggeduser");   
 
-    //alert(localStorage.getItem("curr_sess_intenttoggleflag"));
-
-    this.userlabel="Signout";
     this.$.intentview.style.visibility='hidden';
     this.$.promotebutton.style.visibility='hidden';
     this.$.intentflow.style.visibility='hidden';
-
+    this.$.recheck.style.visibility='hidden';
+    this.$.searchmenu.style.visibility='hidden';
     this.$.dynamicbutton.style.visibility='hidden';
-    
+    this.$.flowbutton.style.visibility='hidden';
+    this.$.supplybutton.style.visibility='hidden';
+    // Condition which shows the outward report card
     if(sessionStorage.getItem("curr_sess_roleflag")=="10"){
-      //alert("sales");
       if(localStorage.getItem("curr_sess_wardflag")=="5") {
-        //localStorage.setItem("curr_sess_wardflag", "");
         document.querySelector('app-homepage').setPage('outwardreport-card');
         this.page = "outwardreport-card";
       }
+      // Function which shows the Add customer card
       if(localStorage.getItem("curr_sess_wardflag")=="6") {
         localStorage.setItem("curr_sess_showpage", "Add Customer");
-        //document.querySelector("supplier-page").setPage("Add Supplier");
         this.page = "customer-page";
       }
       this.$.flow.style.visibility='hidden';
@@ -33,10 +33,8 @@ Polymer({
       this.$.drawerlist.style.visibility='visible';
       this.$.searchmenu.style.visibility='hidden';
     }
-
     /*Condition which allow to see the search page and hide the respective components in UI*/
     if(sessionStorage.getItem("curr_sess_roleflag")=="5"&&sessionStorage.getItem("curr_sess_roleflag")!="6"){
-     //alert("search");
       localStorage.setItem("curr_sess_showpage","Search Items");
       this.page="Search Items";
       this.$.flow.style.visibility='hidden';
@@ -46,17 +44,21 @@ Polymer({
       this.$.searchmenu.style.visibility='visible';
     }
     if(sessionStorage.getItem("curr_sess_roleflag")=="6"){
-      
-      //alert(localStorage.getItem("curr_sess_wardflag"));
-      if(localStorage.getItem("curr_sess_wardflag")=="") {
-        //localStorage.setItem("curr_sess_wardflag", "");
+      if(localStorage.getItem("curr_sess_wardflag")=="") {        
         localStorage.setItem("curr_sess_showpage", "additem-card");
         this.page = "admin-page";
       }
-      if(localStorage.getItem("curr_sess_wardflag")=="4") {
-        localStorage.setItem("curr_sess_showpage", "Add Supplier");
-        //document.querySelector("supplier-page").setPage("Add Supplier");
-		    this.page = "supplier-page";
+      if(localStorage.getItem("curr_sess_wardflag")=="11") {
+        localStorage.setItem("curr_sess_showpage", "Employee Detail");        
+		    this.page = "usercreation-home-card";
+      }
+      if(localStorage.getItem("curr_sess_wardflag")=="13") {
+        // localStorage.setItem("curr_sess_showpage", "Employee Detail");        
+        this.page = "departmentcreation-card";
+      }
+      if(localStorage.getItem("curr_sess_wardflag")=="14") {
+        // localStorage.setItem("curr_sess_showpage", "Employee Detail");        
+        this.page = "rolecreation-card";
       }
       this.$.flow.style.visibility='hidden';
       this.$.list.style.visibility='visible';
@@ -65,10 +67,8 @@ Polymer({
       this.$.searchmenu.style.visibility='hidden';
     }
     /*Condition which allow security gaurd(role flag is 0) to navigate to his respective inward/outward item entry page*/
-    //if(sessionStorage.getItem("loggedrole")=="Security guard")
     if(sessionStorage.getItem("curr_sess_roleflag")=="0"&&sessionStorage.getItem("curr_sess_roleflag")!="5"&&sessionStorage.getItem("curr_sess_roleflag")!="6")
     {
-      //alert("inwardoutward");
       /*Condtion to navigate to the inward item entry page when he initially logged in or changing options in drawer menu*/
       if(localStorage.getItem("curr_sess_wardflag")!="1"){
         localStorage.setItem("curr_sess_showpage","Vehicle Info");
@@ -86,32 +86,43 @@ Polymer({
       this.$.searchmenu.style.visibility='hidden';
     }
     /*Condtion to navigate to the grn flow page according to the role(role flags of the managers),who logged in*/
-    //if(sessionStorage.getItem("loggedrole")=="Stores manager"||sessionStorage.getItem("loggedrole")=="Production manager"||sessionStorage.getItem("loggedrole")=="Quality manager"||sessionStorage.getItem("loggedrole")=="Purchase manager")
-    if(sessionStorage.getItem("curr_sess_roleflag")!="0"&&sessionStorage.getItem("curr_sess_roleflag")!="5"&&sessionStorage.getItem("curr_sess_roleflag")!="6"&&sessionStorage.getItem("curr_sess_roleflag")!="7"&&sessionStorage.getItem("curr_sess_roleflag")!="8"&&sessionStorage.getItem("curr_sess_roleflag")!="9"&&sessionStorage.getItem("curr_sess_roleflag")!="10")
+    if(sessionStorage.getItem("curr_sess_roleflag")!="0"&&sessionStorage.getItem("curr_sess_roleflag")!="5"&&sessionStorage.getItem("curr_sess_roleflag")!="6"&&sessionStorage.getItem("curr_sess_roleflag")!="7"&&sessionStorage.getItem("curr_sess_roleflag")!="8"&&sessionStorage.getItem("curr_sess_roleflag")!="9"&&sessionStorage.getItem("curr_sess_roleflag")!="10"&&sessionStorage.getItem("curr_sess_roleflag")!="11")
     {
-      //alert("oldintent");
       if(localStorage.getItem("curr_sess_wardflag")=="2"&&sessionStorage.getItem("curr_sess_intentrefreshflag")=="0"){
-      this.$.flow.style.visibility='hidden';    
-      // this.$.intentflow.style.visibility='visible';  
+      this.$.flow.style.visibility='hidden';
       document.querySelector('app-homepage').setPage('intenthome-page');
       document.querySelector('intenthome-page').setPage('Add Intent');
       }
       else if(localStorage.getItem("curr_sess_wardflag")=="3"&&sessionStorage.getItem("curr_sess_intentrefreshflag")=="1"){
-        this.$.flow.style.visibility='hidden';
-        this.$.intentflow.style.visibility='visible';
+      this.$.flow.style.visibility='hidden';
+      this.$.intentflow.style.visibility='visible';
       document.querySelector('app-homepage').setPage('intenthome-page');
       document.querySelector('intenthome-page').setPage('View Intent');
       }
+      else if(localStorage.getItem("curr_sess_wardflag")=="15"){
+      this.$.flow.style.visibility='hidden';
+      this.$.intentflow.style.visibility='hidden';
+      document.querySelector('app-homepage').setPage('intenthome-page');
+      
+      if(sessionStorage.getItem("curr_sess_roleflag")=='2')
+        document.querySelector('intenthome-page').setPage('internalintentview-page');
+      else
+        document.querySelector('intenthome-page').setPage('Internal Intent');
+      }
+      
       else{
       localStorage.setItem("curr_sess_showpage","physicins-page");
       this.page="home-page";
       this.$.flow.style.visibility='visible';
+
+      if(sessionStorage.getItem("curr_sess_roleflag")=="2")
+        this.$.recheck.style.visibility='visible';
       }
       this.$.list.style.visibility='visible';
       this.$.flowbutton.style.visibility='hidden';
       this.$.searchmenu.style.visibility='hidden';
     }
-
+    // Condition which shows the intent category pages according to the type either intent based view or item based intent view
     if(sessionStorage.getItem("curr_sess_roleflag")=="7"||sessionStorage.getItem("curr_sess_roleflag")=="8"||sessionStorage.getItem("curr_sess_roleflag")=="9"){
       if(localStorage.getItem("curr_sess_wardflag")=="2"&&sessionStorage.getItem("curr_sess_intentrefreshflag")=="0"){
       document.querySelector('app-homepage').setPage('intenthome-page');
@@ -119,6 +130,7 @@ Polymer({
       }
       else
       {
+      this.$.intentflow.style.visibility='visible';
       document.querySelector('app-homepage').setPage('intenthome-page');
       document.querySelector('intenthome-page').setPage('View Intent');
       }
@@ -128,29 +140,43 @@ Polymer({
       this.$.drawerlist.style.visibility='visible';
       this.$.searchmenu.style.visibility='hidden';
     }
+    // Condition which shows the outwardreport page
     if(sessionStorage.getItem("curr_sess_roleflag")=="11"){
       this.$.flow.style.visibility='hidden';
       document.querySelector('app-homepage').setPage('outwardreport-card');
     }
-    if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
+    // Condition which shows the supplier approve card
+    if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"){
       this.$.flow.style.visibility='hidden';
+      this.$.intentflow.style.visibility='hidden';
       this.$.dynamicbutton.style.visibility='visible';
       document.querySelector('app-homepage').setPage('approvesupplier-card');
     }
-    if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
-      if(localStorage.getItem("curr_sess_wardflag")=="3")
-      this.$.intentview.style.visibility='visible';
-      //this.$.intentflow.style.visibility='visible';
-      if(localStorage.getItem("curr_sess_wardflag")=="3"&&localStorage.getItem("curr_sess_intenttoggleflag")=="1"){
-        //alert("intent view");
-      this.$.intentview.style.visibility='visible';
+    // Condition which shows the customer approve card
+    if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"){
       this.$.flow.style.visibility='hidden';
-      // this.$.intentflow.style.visibility='hidden';
+      this.$.intentflow.style.visibility='hidden';
+      this.$.dynamicbutton.style.visibility='visible';
+      document.querySelector('app-homepage').setPage('approvecustomer-card');
+    }
+     // Condition which shows the customer approve card
+    if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"){
+      this.$.flow.style.visibility='hidden';
+      this.$.intentflow.style.visibility='hidden';
+      this.$.dynamicbutton.style.visibility='visible';
+      document.querySelector('app-homepage').setPage('approveuser-card');
+    }
+    // Function which shows the intent page according to the category
+    if(sessionStorage.getItem("curr_sess_roleflag")=="4"){      
+      if(localStorage.getItem("curr_sess_wardflag")=="3")
+      this.$.intentview.style.visibility='visible';      
+      if(localStorage.getItem("curr_sess_wardflag")=="3"&&localStorage.getItem("curr_sess_intenttoggleflag")=="1"){        
+      this.$.intentview.style.visibility='visible';
+      this.$.flow.style.visibility='hidden';      
       document.querySelector('app-homepage').setPage('intenthome-page');
       document.querySelector('intenthome-page').setPage('Intent View');
       }
-      if(localStorage.getItem("curr_sess_wardflag")=="3"&&localStorage.getItem("curr_sess_intenttoggleflag")=="0"){
-        //alert("item view");
+      if(localStorage.getItem("curr_sess_wardflag")=="3"&&localStorage.getItem("curr_sess_intenttoggleflag")=="0"){        
       this.$.intentflow.style.visibility='visible';
       this.$.intentview.style.visibility='visible';
       this.$.flow.style.visibility='hidden';
@@ -159,12 +185,10 @@ Polymer({
       }
       if(localStorage.getItem("curr_sess_wardflag")=="4") {
       this.$.flow.style.visibility='hidden';
-      localStorage.setItem("curr_sess_showpage", "Add Supplier");
-      //document.querySelector("supplier-page").setPage("Add Supplier");
+      localStorage.setItem("curr_sess_showpage", "Add Supplier");      
       this.page = "supplier-page";
       }
     }
-
   },
   /*when user click signout button it will clear the user session*/
   FnToggleSignin:function(){
@@ -183,36 +207,46 @@ Polymer({
     if(flag=="false")
       this.$.flowbutton.style.visibility='hidden';
   },
+  // Function which toggle the view of grn flow
   setFlowVisibility:function(flag){
     if(flag=="true")
       this.$.flow.style.visibility='visible';
     if(flag=="false")
       this.$.flow.style.visibility='hidden';
-  },  
+  },
+  // Function which toggle the view of intent view toggle button
   FnSetIntentFlowVisibility:function(flag){
     if(flag=="true")
       this.$.intentview.style.visibility='visible';
     if(flag=="false")
       this.$.intentview.style.visibility='hidden';
   },
+  // Function which set the title for the page
   setPageTitle:function(title){
     this.pagetitle=title;
   },
+  // Function which toggle the view of promote button
   FnSetPromoteVisibility:function(flag){
     if(flag=="true")
       this.$.promotebutton.style.visibility='visible';
     if(flag=="false")
       this.$.promotebutton.style.visibility='hidden';
   },
-  FnSetIntentFlowcardVisibility:function(flag){
-    //alert(flag);
+   // Function which toggle the view of supply button
+  FnSetSupplyVisibility:function(flag){
+    if(flag=="true")
+      this.$.supplybutton.style.visibility='visible';
+    if(flag=="false")
+      this.$.supplybutton.style.visibility='hidden';
+  },
+  // Function to toggle the view of intent flow card
+  FnSetIntentFlowcardVisibility:function(flag){    
      if(flag=="true")
       this.$.intentflow.style.visibility='visible';
     if(flag=="false")
       this.$.intentflow.style.visibility='hidden';
   },
-   FnSetDynamicButtonVisibility:function(flag){
-    //alert(flag);
+   FnSetDynamicButtonVisibility:function(flag){    
      if(flag=="true")
       this.$.dynamicbutton.style.visibility='visible';
     if(flag=="false")

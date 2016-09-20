@@ -9,12 +9,12 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../intentviewitem-card/intentviewitem-card.html">
 <link rel="import" href="../grn-service/grn-service.html">
 <link rel="import" href="../webcomponent-service/webcomponent-service.html">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
+<!-- Component registeration -->
 <dom-module id="intentview-card">
   <template>
     <style is="custom-style">
@@ -22,7 +22,7 @@
       paper-tabs{
         background-color: #e6e6e6;
         width: 90%;
-      //margin-top: 5%;
+        margin-top: -5%;
         height: 4%;
         margin-left: 5%;
         text-align: start;
@@ -36,7 +36,7 @@
     <!--Template which has card template-->
     <template is="dom-repeat" items="{{label}}" as="lbl">
       <div class="card">
-        <paper-tabs selected="0" noink id="ptab">
+        <paper-tabs selected="0" no-ink no-bar no-slide id="ptab">
           <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
             <paper-tab><paper-button>{{tabs.tab}}</paper-button></paper-tab>
           </template>
@@ -47,7 +47,6 @@
             <div><intentviewitem-card intentregno="{{item.intentregno}}" intentdate="{{item.intentdate}}"></intentviewitem-card>
             </div></div>
         </template>
-
       </div>
     </template>
     <!--Calling webcomponent service to bind label info-->
@@ -57,5 +56,4 @@
   </template>
   <!--JS file import-->
   <script src="../../scripts/intentview-card.js"></script>
-
 </dom-module>

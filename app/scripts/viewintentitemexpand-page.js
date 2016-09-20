@@ -49,11 +49,9 @@ Polymer({is:"viewintentitemexpand-page",
       obj.intentstate=arr[i].intentstate;
       obj.state=arr[i].state;      
       this.createdby=arr[i].createdby;
-      //alert(obj.intentstate);
+      
       if(obj.state=='external'){
-      for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+      for(var j=0;j<(this.promotestate).length;j++){           
         if(obj.intentstate==this.promotestate[j]){
           this.promote=this.promotebtn[j];
           if(this.promote=="Send PO"){
@@ -64,23 +62,19 @@ Polymer({is:"viewintentitemexpand-page",
       }
       if(obj.state=='internal'){
       for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+           
         if(obj.intentstate==this.inpromotestate[j]){
           this.promote=this.inpromotebtn[j]; 
-          //if(this.promote=="Supply")
-            //this.hidesupplier=true;
+          
         }
       }
       }
       if(obj.state=='spot'){
       for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+           
         if(obj.intentstate==this.spotpromotestate[j]){
           this.promote=this.spotpromotebtn[j]; 
-          //if(this.promote=="Supply")
-            //this.hide=true;
+          
         }
       }
       }
@@ -112,7 +106,12 @@ Polymer({is:"viewintentitemexpand-page",
     }
   },
   FnPromoteState:function(e){
-    //alert(this.promote+" "+this.poraiseflag);  
+  // alert(this.promote); 
+
+  if(this.promote=="Send PO"){
+    this.$.intentservice.FnPurchaseorderServicemail();
+  }
+  
   if(this.promote=="Create PO"&&this.poraiseflag==0){
   //alert('show supplier');
     for(var i=0;i<(this.promotebtn).length;i++){
@@ -128,7 +127,7 @@ Polymer({is:"viewintentitemexpand-page",
       if(this.promote==this.promotebtn[i])
         this.$.intentservice.FnIntentStateUpdate(this.promotestate[i+1]);
     }
-  }
+  }  
   else{
   for(var i=0;i<(this.promotebtn).length;i++){
     if(this.promote==this.promotebtn[i]){      
@@ -145,6 +144,7 @@ Polymer({is:"viewintentitemexpand-page",
     }
   }
   }
+  
   },
    FnIntentPoItemRead:function(){
          var obj={"intentregno":"","itemdes":""};
@@ -157,10 +157,6 @@ Polymer({is:"viewintentitemexpand-page",
       FnintentpoitemResponse:function(e){
         this.suppliernamearr=e.detail.response.itemarr;
         this.hidesupplier=false;
-        // alert(JSON.stringify(e.detail.response.itemarr));
-        //document.querySelector('viewintentitemexpand-page').suppliernamearr=e.detail.response.itemarr;
-        //alert(document.querySelector('viewintentitemexpand-page').suppliernamearr);
-        //document.querySelector('viewintentitemexpand-page').FnShowSupplierDiv();
       },
   FnShowSupplierDiv:function(){
     //alert("hi");
@@ -173,7 +169,6 @@ Polymer({is:"viewintentitemexpand-page",
       this.$.intentservice.FnCreatePO(selectedsupplier);      
   },
   FnSetPoRaiseFlag:function(){
-
     this.poraiseflag=1;
   }
 });

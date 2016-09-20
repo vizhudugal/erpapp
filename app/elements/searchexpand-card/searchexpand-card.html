@@ -9,13 +9,12 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../bower_components/paper-item/paper-item.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
-
 <link rel="import" href="../searchexpanditem-card/searchexpanditem-card.html">
 <link rel="import" href="../datepicker-card/datepicker-card.html">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,19 +27,10 @@
       .repeatcard{
         @apply(--layout-horizontal);
         width: 90%;
-
       }
-
       #card1{
         margin-top: 0.5%;
-        //border-radius: 2px;
-        //box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
         width: 100%;
-        //margin-left:5%;
-      //height:50%;
-        background-color:white;
-        border-bottom:2px solid #e6e6e6;
-      //border-color:#dbe9d6;
         overflow-x:hidden;
       }
 
@@ -87,6 +77,10 @@
       #pinput{
         margin-left: 5%;
       }
+      paper-input{
+        font-family: calibri;
+        font-size: 16px;
+      }
     </style>
 
     <!--template to show item info of currently expended card-->
@@ -102,7 +96,7 @@
         </div>
     </div>
   </template>
-  <paper-tabs selected="0" noink id="ptab">
+  <paper-tabs selected="0" no-ink no-bar no-slide id="ptab">
     <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
     <paper-tab><paper-button >{{tabs.tab}}</paper-button></paper-tab>
     </template>
@@ -113,13 +107,11 @@
         <searchexpanditem-card inwardno="{{inwardno}}" ponumber="{{ponumber}}" podate="{{podate}}" suppliername="{{suppliername}}" itemdes="{{item.itemdes}}" qtyreceived="{{item.qtyreceived}}" qtyaccepted="{{item.qtyaccepted}}" remarks="{{item.remarks}}"></searchexpanditem-card>
       </div>
     </template>
-
   </div>
   </div>
   </template>
   <!--Component to read the expended search IRN  no info-->
-  <iron-ajax
-    
+  <iron-ajax    
     id="searchitemreadajax"
     url="{{url}}"
     method="post"
@@ -138,6 +130,6 @@
     on-response="FnWebcomponentreadResponse">
   </iron-ajax>
   </template>
+  <!-- JS file import -->
   <script src="../../scripts/searchexpand-card.js"></script>
-
 </dom-module>

@@ -40,6 +40,48 @@
       content-type="application/json"
       on-response="flowstateupdateResponse">
     </iron-ajax>
+    <!--Reading Coil info-->
+    <iron-ajax
+      id="readcontainerajax"
+      url="{{readcontainerurl}}"
+      method="post"
+      params='{{readcontainerparam}}'
+      handle-as="json"
+      content-type="application/json"
+      on-response="readcontainerResponse">
+    </iron-ajax>
+    <!--Updating coil info-->
+    <iron-ajax
+      id="oldcontainerupdateajax"
+      url="{{oldcontainerupdateurl}}"
+      method="post"
+      params='{{oldcontainerupdateparam}}'
+      handle-as="json"
+      content-type="application/json"
+      on-response="oldcontainerupdateResponse">
+    </iron-ajax>
+
+    <!--Updating coil info-->
+    <iron-ajax
+      id="inventoryupdateajax"
+      url="{{inventoryupdateurl}}"
+      method="post"
+      params='{{inventoryupdateparam}}'
+      handle-as="json"
+      content-type="application/json"
+      on-response="inventoryupdateResponse">
+    </iron-ajax>
+
+      <!--fetching batch no-->
+    <iron-ajax
+      id="fetchbatchnoajax"
+      url="{{fetchbatchnourl}}"
+      method="post"
+      params='{{fetchbatchnoparam}}'
+      handle-as="json"
+      content-type="application/json"
+      on-response="fetchbatchnoResponse">
+    </iron-ajax>
     <grn-service id="gs"></grn-service>
   </template>
 

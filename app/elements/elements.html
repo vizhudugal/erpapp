@@ -15,6 +15,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../bower_components/iron-selector/iron-selector.html">
 <link rel="import" href="../bower_components/iron-icons/iron-icons.html">
 <link rel="import" href="../bower_components/iron-pages/iron-pages.html">
+<link rel="import" href="../bower_components/iron-form/iron-form.html">
 <!-- Paper elements -->
 <link rel="import" href="../bower_components/paper-drawer-panel/paper-drawer-panel.html">
 <link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
@@ -67,11 +68,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="datepicker-card/datepicker-card.html">
 <link rel="import" href="item-card/item-card.html">
 <link rel="import" href="item-service/item-service.html">
+
 <link rel="import" href="physicqualified-service/physicqualified-service.html">
 <link rel="import" href="grn-service/grn-service.html">
 <link rel="import" href="physicins-page/physicins-page.html">
 <link rel="import" href="physicinsitem-card/physicinsitem-card.html">
-<link rel="import" href="physicqualified-service/physicqualified-service.html">
 <link rel="import" href="physicqualify-card/physicqualify-card.html">
 <link rel="import" href="physicqualifyitem-card/physicqualifyitem-card.html">
 <link rel="import" href="autocompleteitemlist-card/autocompleteitemlist-card.html">
@@ -156,27 +157,53 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="specification-card/specification-card.html">
 <link rel="import" href="specification-item-crd/specification-item-crd.html">
 <link rel="import" href="quality-parameter-displaycard/quality-parameter-displaycard.html">
-  <link rel="import" href="admin-page/admin-page.html">
-  <link rel="import" href="home-page/home-page.html">
-  <link rel="import" href="physicins-page/physicins-page.html">
-  <link rel="import" href="grnflow-card/grnflow-card.html">
-  <link rel="import" href="physicqualify-card/physicqualify-card.html">
-  <link rel="import" href="inwardslip-page/inwardslip-page.html">
-  <link rel="import" href="drawermenu-list/drawermenu-list.html">
-  <link rel="import" href="viewtype-card/viewtype-card.html">
-  <link rel="import" href="flowbutton-card/flowbutton-card.html">
-  <link rel="import" href="outwardslip-page/outwardslip-page.html">
-  <link rel="import" href="searchread-page/searchread-page.html">
-  <link rel="import" href="menusearch-card/menusearch-card.html">
-  <link rel="import" href="outwardsearchread-page/outwardsearchread-page.html">
-  <link rel="import" href="intenthome-page/intenthome-page.html">
-  <link rel="import" href="no-items/no-items.html">
-  <link rel="import" href="supplier-page/supplier-page.html">
-  <link rel="import" href="outwardreport-card/outwardreport-card.html">
-  <link rel="import" href="intentviewtype-card/intentviewtype-card.html">
-  <link rel="import" href="customer-page/customer-page.html">
-  <link rel="import" href="promotebutton-card/promotebutton-card.html">  
-  <link rel="import" href="intentflow-card/intentflow-card.html">  
-  
-  <link rel="import" href="approvesupplier-card/approvesupplier-card.html">
-  <link rel="import" href="dynamicbutton-card/dynamicbutton-card.html">
+<link rel="import" href="production-recheck-card/production-recheck-card.html">
+<link rel="import" href="retest-items-card/retest-items-card.html">
+<link rel="import" href="retest-card/retest-card.html">
+<link rel="import" href="quality-parameter-displayitem-card/quality-parameter-displayitem-card.html">
+<link rel="import" href="retestqualify-card/retestqualify-card.html">
+<link rel="import" href="retestqualify-item-card/retestqualify-item-card.html">
+<link rel="import" href="contactperson-card/contactperson-card.html">
+<link rel="import" href="tax-card/tax-card.html">
+<link rel="import" href="excise-card/excise-card.html">
+<link rel="import" href="contactperson-item-card/contactperson-item-card.html">
+<link rel="import" href="customerdialog-card/customerdialog-card.html">
+<link rel="import" href="contactperson-display-card/contactperson-display-card.html">
+<link rel="import" href="approvecustomer-card/approvecustomer-card.html">
+<link rel="import" href="approvecustomer-detailcard/approvecustomer-detailcard.html">
+<link rel="import" href="suppliercontactperson-card/suppliercontactperson-card.html">
+<link rel="import" href="suppliercontactperson-item-card/suppliercontactperson-item-card.html">
+<link rel="import" href="suppliertax-card/suppliertax-card.html">
+<link rel="import" href="supplierexcise-card/supplierexcise-card.html">
+<link rel="import" href="suppliercontactperson-display-card/suppliercontactperson-display-card.html">
+<link rel="import" href="customer-detail-read/customer-detail-read.html">
+<link rel="import" href="customer-tax-read/customer-tax-read.html">
+<link rel="import" href="customer-excise-read/customer-excise-read.html">
+<link rel="import" href="customer-payment-read/customer-payment-read.html">
+<link rel="import" href="customer-read-page/customer-read-page.html">
+<link rel="import" href="supplier-read-page/supplier-read-page.html">
+<link rel="import" href="supplier-detail-read/supplier-detail-read.html">
+<link rel="import" href="out-datepicker/out-datepicker.html">
+<link rel="import" href="passwordchange-card/passwordchange-card.html">
+<link rel="import" href="user-service/user-service.html">
+<link rel="import" href="app-card/app-card.html">
+<link rel="import" href="usercreation-home-card/usercreation-home-card.html">
+<link rel="import" href="user-info-card/user-info-card.html">
+<link rel="import" href="userrole-info-card/userrole-info-card.html">
+<link rel="import" href="useraccount-info-card/useraccount-info-card.html">
+<link rel="import" href="approveuser-card/approveuser-card.html">
+<link rel="import" href="approveuser-detailcard/approveuser-detailcard.html">
+<link rel="import" href="user-read-page/user-read-page.html">
+<link rel="import" href="userinfo-read-card/userinfo-read-card.html">
+<link rel="import" href="useraccount-read-card/useraccount-read-card.html">
+<link rel="import" href="userrole-read-card/userrole-read-card.html">
+<link rel="import" href="rolecreation-card/rolecreation-card.html">
+<link rel="import" href="departmentcreation-card/departmentcreation-card.html">
+<link rel="import" href="dobpicker-card/dobpicker-card.html">
+<link rel="import" href="internalintent-page/internalintent-page.html">
+<link rel="import" href="internalintentitem-page/internalintentitem-page.html">
+<link rel="import" href="internalintentexpand-page/internalintentexpand-page.html">
+<link rel="import" href="supplybutton-card/supplybutton-card.html">
+<link rel="import" href="internalintentview-page/internalintentview-page.html">
+<link rel="import" href="internalintentview-itempage/internalintentview-itempage.html">
+<link rel="import" href="supplybatch-card/supplybatch-card.html">

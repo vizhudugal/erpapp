@@ -25,7 +25,6 @@
       this.supid=supplierid;
       this.customername=suppliername;
       this.nullflag=1;
-  
     },
     FnRefreshPage:function(){
       this.flag=0;
@@ -141,7 +140,8 @@
           }
         }
         if(existflag==0){
-          var obj={"outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+          var obj={"invoicedate":"","outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+          obj.invoicedate=localStorage.getItem("curr_sess_outdate");
           obj.outdate=this.outdate;
           obj.outtime=this.outtime;
           obj.customername=this.customername;
@@ -224,7 +224,8 @@
             }
           }
           if(existflag==0){
-            var obj={"outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+            var obj={"invoicedate":"","outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+            obj.invoicedate=localStorage.getItem("curr_sess_outdate");
             obj.outdate=this.outdate;
             obj.outtime=this.outtime;
             obj.customername=this.customername;

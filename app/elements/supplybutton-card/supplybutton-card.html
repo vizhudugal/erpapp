@@ -1,0 +1,56 @@
+<!-- Component import -->
+<link rel="import" href="..\..\bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../intent-service/intent-service.html">
+<!-- Component registeration -->
+<dom-module id="supplybutton-card">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+      paper-button{
+        text-transform: none;
+      }
+      paper-button{
+        text-align: center;
+        border-radius: 2px;
+        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
+        background-color: #bfbfbf;
+        color: black;
+        height: 30px;
+      }
+    </style>
+    <div class="promotebtn">
+    <paper-button id="promote"  name="promote" on-click="FnSupply" noink>Supply</paper-button>
+    </div>
+    <!-- Component to call the service -->
+    <intent-service id="intentservice"></intent-service>
+  </template>
+  <script>
+  (function() {
+    'use strict';
+    var supplyarr,reqquantity,selquantity,requnit,selunit,aunit,aquantity;
+    Polymer({
+    is: 'supplybutton-card',
+
+    FnSetSupplyContainer:function(supplyarray,choosenquantity,quantity,choosenunit,unit,availunit,availquantity){
+      supplyarr=supplyarray;
+      reqquantity=quantity;
+      selquantity=choosenquantity;
+      requnit=unit;
+      selunit=choosenunit;
+      aunit=availunit;
+      aquantity=availquantity;
+    },
+    // Function which calls service to create the PO for the item in intent view
+    FnSupply:function(){
+      alert(JSON.stringify(supplyarr));
+      // alert(selquantity+" "+reqquantity+" "+selunit+" "+requnit);
+      this.$.intentservice.FnIntentSupplyService(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity);
+      this.$.intentservice.intentsupplystatusService(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity);
+    }
+    });
+  })();
+  </script>
+</dom-module>

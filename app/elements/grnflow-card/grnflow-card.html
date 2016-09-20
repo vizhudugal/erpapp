@@ -1,4 +1,4 @@
-
+<!-- Component import -->
 <link rel="import" href="../../bower_components/polymer/polymer.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
@@ -11,6 +11,7 @@
 <link rel="import" href="../physicqualified-service/physicqualified-service.html">
 <link rel="import" href="../grn-service/grn-service.html">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Component registeration -->
 <dom-module id="grnflow-card">
   <template>
     <style is="custom-style">
@@ -18,17 +19,17 @@
         @apply(--layout-horizontal);
       }
       div.main {
-        margin-right5%;
+        margin-right:5%;
         margin-left:0px;
+        margin-top: 0.9%;
       }
       ol > li {
         display: table-cell;
-        height: 34px;
+        height: 40px;
         position: relative;
         padding: 0px;
         margin: 0px;
         text-align: center;
-      //padding-left: 10px;
         border: 1px solid #f2f2f2;
       }
       ol > li > div {
@@ -45,7 +46,7 @@
       }
       ol {
         display: table;
-        width: 60%;
+        width: 75%;
         padding: 0px;
         margin: 0px;
         position: relative;
@@ -53,7 +54,7 @@
       ol > li > div:after, ol > li > div:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -61,19 +62,19 @@
         top: -1px;
         position: absolute;
         z-index: 1;
-        border-color: transparent transparent transparent #c0dbb7;
+		    border-color: transparent transparent transparent #123456;
       }
       ol > li > div:before {
-        border-width: 14px;
+        border-width: 20px;
         display: block;
-        border-color: transparent transparent transparent  #f2f2f2;
+        border-color: transparent transparent transparent #f2f2f2;
         z-index: 2;
-        top:1px;
+        top:-1px;
       }
       ol > li > #Stores:after, ol > li > #Stores:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -86,7 +87,7 @@
       ol > li > #Production:after, ol > li > #Production:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -99,7 +100,7 @@
       ol > li > #Quality:after, ol > li > #Quality:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -112,7 +113,7 @@
       ol > li > #Purchase:after, ol > li > #Purchase:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -125,7 +126,7 @@
       ol > li > #Confirm:after, ol > li > #Confirm:before {
         content:"";
         display:inline-block;
-        border-width: 16px;
+        border-width: 20px;
         border-style: solid;
         width: 0px;
         height: 0px;
@@ -138,6 +139,10 @@
       .flowbutton{
         margin-left: 20%;
       }
+      li{
+        font-family: calibri;
+        font-size: 17px;
+      }
     </style>
 
     <div class="main">
@@ -145,9 +150,9 @@
         <li>
           <div id="Stores1"><paper-button noink id="Stores" style="height:9px;width:10px;text-transform:none;margin-top:-10px;" on-click="click">Stores</paper-button></div>
         </li>
-        <li>
+        <!-- <li>
           <div id="Production1"><paper-button noink id="Production" style="height:9px;width:10px;text-transform:none;margin-top:-10px;" on-click="click">Production</paper-button></div>
-        </li>
+        </li> -->
         <li>
           <div id="Quality1"><paper-button noink id="Quality" style="height:9px;width:10px;text-transform:none;margin-top:-10px;" on-click="click">Quality</paper-button></div>
         </li>
@@ -159,8 +164,9 @@
         </li>
       </ol>
     </div>
-
+    <!-- Component to call the service -->
     <grn-service ></grn-service>
   </template>
+  <!-- JS file import -->
   <script src="../../scripts/grnflow-card.js"></script>
 </dom-module>

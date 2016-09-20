@@ -8,8 +8,6 @@
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
@@ -26,17 +24,12 @@
     .repeatcard{
       @apply(--layout-horizontal);
       width: 130%;
-      overflow: scroll;
-    //margin-top:2%;
+      overflow: scroll;    
     }
-    paper-input{
-    //width: 35%;
-    //margin-top: -2%;
-      font-size: 8px;
-    //margin-left: 10%;
+    paper-input{    
+      font-size: 8px;    
     }
-    autocompleteitemlist-card{
-    //margin-top: -2%;
+    autocompleteitemlist-card{    
       width:14%;
     }
     .container{
@@ -72,8 +65,7 @@
   <template>
     <paper-input name="itemdes" value="{{itemdes}}"  hidden></paper-input>
     <div class="repeatcard">
-      <!--Imorting auto complete item list card-->
-      
+      <!--Imorting auto complete item list card-->      
       <autocompleteitemlist-card id="autoinput{{id}}"></autocompleteitemlist-card>
       <paper-input id="textinput6{{id}}" class="specification" name="specification" value="{{specification}}"  required id="specification" on-change="FnInputChanged"></paper-input>
       <paper-input id="textinput1{{id}}" class="container" name="container" value="{{container}}" allowed-pattern="[/^\d+(.\d{1,4})?$/]" required id="container" on-change="FnInputChanged"></paper-input>
@@ -86,5 +78,4 @@
   </template>
   <!--Importing JS file-->
   <script src="../../scripts/item-card.js"></script>
-
 </dom-module>

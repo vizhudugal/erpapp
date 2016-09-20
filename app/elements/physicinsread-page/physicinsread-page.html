@@ -9,7 +9,7 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../physicinsitemread-card/physicinsitemread-card.html">
 <link rel="import" href="../grn-service/grn-service.html">
 <link rel="import" href="../webcomponent-service/webcomponent-service.html">
@@ -21,30 +21,33 @@
 
       paper-tabs{
         background-color: #e6e6e6;
-        width: 100%;
-      //margin-top: 5%;
+        width: 120%;
         height: 4%;
-        //margin-left: 5%;
+        margin-left: -10%;
+        margin-top: -5%;
       }
       paper-button{
         font-size: 15px;
         text-transform: none;
         width: 30%;
+        font-family: calibri;
+        font-size: 16px;
       }
       .itemcard{
         @apply(--layout-horizontal);
-        width: 100%;
-        border-radius: 2px;
-        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
+        width: 120%;
+        border-bottom: 1px solid #dedede;
+        /*border-radius: 2px;*/
+        /*box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;*/
         margin-top:2%;
-        //margin-left: 5%;
+        margin-left: -10%;
       }
     </style>
     <!--Template which has card template-->
     <template is="dom-repeat" items="{{label}}" as="lbl">
     <div class="card">
 
-      <paper-tabs selected="0" noink id="ptab">
+      <paper-tabs selected="0" no-ink no-bar no-slide id="ptab">
         <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
         <paper-tab><paper-button>{{tabs.tab}}</paper-button></paper-tab>
         </template>
@@ -52,9 +55,15 @@
       <!--Template which bind items under the current logged role state-->
       <template is="dom-repeat" items="{{itemArray}}" as="item">
         <div class="itemcard">
-          <paper-button  name="inwardregno" value="{{item.inwardregno}}" noink>{{item.inwardregno}}</paper-button>
-          <paper-button  name="inwardno" value="{{item.inwardno}}"  noink>{{item.inwardno}}</paper-button>
-          <paper-button  name="inwarddate" value="{{item.inwarddate}}"  noink>{{item.inwarddate}}</paper-button>
+          <paper-button  name="productid" value="{{item.productid}}" noink>{{item.Product_ID}}</paper-button>
+          <paper-button  name="suppliername" value="{{item.suppliername}}" noink>{{item.Supplier_ID}}</paper-button>
+          <paper-button  name="contqty" value="{{item.contreceived}}" noink>{{item.unit}}{{item.Unit_measure}}/{{item.Qty_Received}}{{item.Qty_measure}}</paper-button>
+          <paper-button  name="inwardregno" value="{{item.inwardregno}}" noink>{{item.new_Inward_Register_Number}}</paper-button>
+          <paper-button  name="inwardno" value="{{item.inwardno}}" noink>{{item.Inward_Bill_Number}}</paper-button>
+          <paper-button  name="inwarddate" value="{{item.inwarddate}}" noink>{{item.Inward_Register_Date}}</paper-button>
+          <!--<paper-button  name="inwardregno" value="{{item.inwardregno}}" noink>{{item.inwardregno}}</paper-button>-->
+          <!--<paper-button  name="inwardno" value="{{item.inwardno}}"  noink>{{item.inwardno}}</paper-button>-->
+          <!--<paper-button  name="inwarddate" value="{{item.inwarddate}}"  noink>{{item.inwarddate}}</paper-button>-->
           <!--<div><physicinsitemread-card inwardregno="{{item.inwardregno}}" inwardno="{{item.inwardno}}" inwarddate="{{item.inwarddate}}"></physicinsitemread-card>-->
           <!--</div></div>-->
           </div>

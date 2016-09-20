@@ -6,223 +6,124 @@
 <link rel="import" href="..\..\bower_components/iron-ajax/iron-ajax.html">
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.6.2.js"></script>
 <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.14/jquery-ui.js"></script>
-<script type="text/javascript" src="http://mrrio.github.io/jsPDF/dist/jspdf.debug.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.2.61/jspdf.debug.js"></script>
 <script type="text/javascript" src="http://html2canvas.hertzen.com/build/html2canvas.js"></script>
 
 <dom-module id="purchaseorder-card">
   <template>
     <style>
-      /*:host {*/
-        /*display: block;*/
-      /*}*/
-      .card{
-        /*margin-top: -3%;*/
+      .card{        
         @apply(--layout-vertical);
         width: 700px;
         height: 1050px;
-        margin-left: 15%;
-        border-radius: 1px;
-        border-style: groove;
+        margin-left: 5%;
+        border-style: none;
         padding-bottom: -10%;
+        background-color: #ffffff;
+        color: darkgrey; 
+        font-family: Calibri;  
+        padding-right: 1%;
+        border: 0.5px solid #dedede;     
       }
-      .title{
-        margin-top: 8%;
-        font-size: 24px;
-        font-weight: bold;
-        text-align: center;
-      }
-      .cheader{
+      .companylogo{
         @apply(--layout-horizontal);
-        margin-top: 7%;
-        margin-left: 5%;
-      }
-      .companyheader{
-        font-size: 15px;
-        @apply(--layout-vertical);
-      }
-      .dateheader{
-        font-size: 15px;
-        @apply(--layout-vertical);
-        margin-left: 30%;
-      }
-      .toheader{
-        @apply(--layout-vertical);
-        text-align: left;
-        margin-left: 5%;
-      }
-      .total{
-        @apply(--layout-vertical);
-      }
-      .summary{
-        @apply(--layout-horizontal);
-      }
-      table{
-        border-collapse: collapse;
-        cellspacing: 8px;
-      }
-      .company{
-        @apply(--layout-horizontal);
-      }
-      paper-dialog{
-        width: 700px;
-        height: 600px;
       }
       .address{
-        margin-left: 4%;
-        text-align: left;                
-      }
-      .comp{
-        width:150px;
-        text-align: left;
-      }
-      .todetail{
-        margin-left: 10%;
-        font-size: 15px;
-      }
-      .to{
+        @apply(--layout-vertical);
         margin-left: 2%;
-        font-size: 15px;
-        margin-top: 2%;
+        line-height: 6px;
       }
-      .itemdetail{
-        margin-left: 10%;
-        margin-top: 4%;
-      }
-      table{
-        width: 95%;
-        height: 10%;
+      .title{
         text-align: center;
       }
-      textarea{
-        margin-top: 20%;
-        margin-left: 0%;
-        width:130%;
-        height:7%;
+      .dateheader{
+        text-align: right;
+      }
+      .toheader{
+        margin-left: 2%;
+      }
+      .itemdetail{
+        margin-left: 2%;
+      }
+      #itemtable{
+        width: 101%;
+        border-collapse: collapse;
+        height: 50px;
+        border: 0.5px solid #dedede;
       }
       .total{
-        font-size: 15px;
-        margin-top: 3%;
-        margin-left: 35%;
-        text-align: left;
+        margin-left: 63%;
+        width: 40%;
       }
-       paper-button{
-        text-align: center;      
-        border-radius: 2px;
-        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-        background-color: #3d6868;
-        color: white;
-        height: 30px;
-        margin-top: 5%;
-        text-transform:none;
-        margin-left: 30%;
-        width: 20%;
+      #head,th{
+        font-family: verdana;
+      }
+      tr{
+        font-family: Calibri;
+        color: darkgrey;
+      }
 
-      }
-      .align{
-       @apply(--layout-horizontal); 
-      }
-      .p1{
-        width: 80%;
-      }
-      .p2{
-        margin-left: 5%;
-        text-align: left;;
-      }
-      #canvas{
-        @apply(--layout-vertical); 
-      }
-      hr{
-        height: 1px;
-        width: 120%;
-        margin-left: -10%;
-      }
-      .grandalign{
-        @apply(--layout-horizontal);
-        
-        margin-left: -10%;
-      }
-      .gp1{
-        width: 80%;
-      }
-      .img{
-        /*margin-top: 2%;*/
-      }
-      p{
-        font-size: 17px;
-      }
-    </style>
-    <!-- <paper-dialog id="dialog"> -->
-     <!-- <paper-dialog-scrollable> -->
-    <div> 
-    <div class="card" id="card">
-    <div id="canvas">
-    
-      <div class="title">Purchase Order</div>
-      
-      <div class="cheader">
-        <div class="companyheader">
-        <div class="company">
-          <div><img src='../../images/logo.jpg' width="80px" height="100px" /></div>
-          <div class="address">
-          <p class="comp">{{cmpname}}</p>
+      </style>
+      <div class='card' id='card'>
+      <div id='canvas'>
+
+      <div class="companylogo">
+        <div style="margin-left: 2%;"><img src='../../images/logo.jpg' width="80px" height="100px" /></div>
+        <div class="address">        
+          <b><p class="comp" id='head'>{{cmpname}}</p></b>
           <p class="comp">{{cmpaddr1}}</p>
-          <p class="comp">{{cmpaddr2}}</p>  
-          <!-- <p class="comp">{{cmpaddr3}}</p> -->
+          <p class="comp">{{cmpaddr2}}</p>         
           <p class="comp">{{cmpemail}}</p>
           <p class="comp">{{cmpphone}}</p>            
-          </div>
-        </div>          
         </div>
-        <template is="dom-repeat" items="{{poarray}}" as="po">
-        <div class="dateheader">
-          <p>PO Date: {{po.PO_Date}}</p>
-          <p>PO Number: {{po.PO_Number}}</p>
-        </div>
-        </template>
       </div>
+
+      <div class='title'><h2 id='head'>Purchase Order</h2></div>
+
+      <template is="dom-repeat" items="{{poarray}}" as="po">
+        <div class="dateheader">
+          <p>{{po.PO_Date}}</p>
+          <p>PO #  {{po.PO_Number}}</p>
+        </div>
+      </template>
+
       <template is="dom-repeat" items="{{poarray}}" as="po">
       <div class="toheader">
-        <div class="to"><p>To</p></div>
+        <div class="to" id='head'><b><p>To</p></b></div>
         <div class="todetail">
-        <p>{{po.Supplier_Name}}</p>
+        <b id='head'><p>{{po.Supplier_Name}}</p></b>
         <p>{{po.Location}}</p>
         <p>{{po.City}}</p>
         <p>{{po.District}}</p>
         </div>
       </div>
       </template>
+
       <template is="dom-repeat" items="{{poitemarray}}" as="poitem">
       <div class="itemdetail">
-        <table border="1">
-          <tr><th>S.No</th><th>Item Description</th><th>Qty</th><th>UOM</th><th>Rate</th><th>Amount</th></tr>
-          <tr><td>1</td><td>{{poitem.Product_ID}}</td><td>{{poitem.Quantity}} {{poitem.Quantity_Measure}}</td>
-          <td>{{poitem.unit}} {{poitem.Unit_Measure}}</td><td>{{poitem.price}}</td><td>{{poitem.total}}</td></tr>          
+        <table border="1" id='itemtable'>
+          <tr style="line-height: 25px;"><th>Item Description</th><th>Qty</th><th>UOM</th><th>Rate</th><th>Amount</th></tr>
+          <tr style="line-height: 35px;text-align: center;"><td>{{poitem.Product_ID}}</td><td>{{poitem.Quantity}} {{poitem.Quantity_Measure}}</td>
+          <td>{{poitem.unit}} {{poitem.Unit_Measure}}</td><td>{{poitem.price}}</td><td style="text-align: right;">{{poitem.total}}</td></tr>          
         </table>
-      <!-- </div> -->
-      <div class="summary">
-      <div>
-        <textarea>Notes....</textarea>
-      </div>
-      <div class="total">
-        <div class="align"><p class="p1">Total: </p><p class="img"><img src="../../images/rupee.png" width="8px" height="8px"/></p><p class="p2">{{poitem.total}}</p></div>
-        <div class="align"><p class="p1">Excise Duty (12.5%): </p><p class="img"><img src="../../images/rupee.png" width="8px" height="8px"/></p><p class="p2">{{poitem.exduty}}</p></div>
-        <div class="align"><p class="p1">VAT (5%): </p><p class="img"><img src="../../images/rupee.png" width="8px" height="8px"/></p><p class="p2">{{poitem.vat}}</p></div>
-        <div class="align"><p class="p1">CST (2%): </p><p class="img"><img src="../../images/rupee.png" width="8px" height="8px"/></p><p class="p2">{{poitem.cst}}</p></div>
-        <hr/>
-        <div class="align"><p class="p1">Grand Total: </p><p class="img"><img src="../../images/rupee.png" width="8px" height="8px"/></p><p class="p2">{{poitem.grandtot}}</p></div>
       </div>
       
-      </div> 
-      </div>     
-      </template>      
 
-    </div>
-    </div>
-    <paper-button id="pdf" on-click="click">View PDF</paper-button>
-    </div>
-     <!-- </paper-dialog-scrollable> -->
-    <!-- </paper-dialog> -->
+      <div class="total">
+        <table >
+          <tr style="line-height: 30px;text-align: left;"><td style="line-height: 30px;text-align: left;">Total </td><td style="text-align: right;"><img src="../../images/rupee.png" width="8px" height="8px"/> {{poitem.total}}</td></tr>
+          <tr style="line-height: 30px;text-align: left;"><td style="line-height: 30px;text-align: left;">Excise Duty (12.5%) </td><td style="text-align: right;"><img src="../../images/rupee.png" width="8px" height="8px"/> {{poitem.exduty}}</td></tr>
+          <tr style="line-height: 30px;text-align: left;"><td style="line-height: 30px;text-align: left;">VAT (5%) </td><td style="text-align: right;"><img src="../../images/rupee.png" width="8px" height="8px"/> {{poitem.vat}}</td></tr>
+          <tr style="line-height: 30px;text-align: left;"><td style="line-height: 30px;text-align: left;">CST (2%) </td><td style="text-align: right;"><img src="../../images/rupee.png" width="8px" height="8px"/> {{poitem.cst}}</td></tr>
+          <tr style="text-align: left;"><td style="text-align: left;" colspan="2">-----------------------------------------------------</td></tr>
+          <tr style="line-height: 30px;"><td style='text-align: left;'>Grand Total </td><td style='text-align: right;'><img src="../../images/rupee.png" width="8px" height="8px"/> {{poitem.grandtot}}</td></tr>
+        </table>
+        </div>
+      </template>
 
+      </div>
+      </div>
+      
     <iron-ajax
       auto
       id="companyprofilereadAjax"
@@ -275,21 +176,6 @@
   </template>  
   
   <script>
-   /*$(window).load(function(){
-    $(document).ready(function() {
-     $('#pdf').click(function() {          
-        html2canvas($("#canvas"), {          
-            onrendered: function(canvas) {                 
-                var imgData = canvas.toDataURL('image/png'); 
-                $("#imgRes").attr("src", imgData);             
-                var doc = new jsPDF('p', 'mm');
-                doc.addImage(imgData, 'PNG', 10, 8);
-                doc.save('sample.pdf');
-            }
-        });
-    });
-    });
-    });*/
   (function() {
     'use strict';
     var productid="";
@@ -306,12 +192,10 @@
     Polymer({
       is: 'purchaseorder-card',
       ready:function(){
-      // alert('yes');
       this.FnPurchaseorderService();
       },
       companyprofilereadResponse:function(e){
         var cmparr=e.detail.response;
-        //alert(JSON.stringify(cmparr));
         this.cmpname=cmparr[0].name;
         this.cmpaddr1=cmparr[0].addressline1;
         this.cmpaddr2=cmparr[0].addressline2;
@@ -319,122 +203,107 @@
         this.cmpemail=cmparr[0].email;
         this.cmpphone=cmparr[0].phoneno;
       },
+      // Function which calls service to fetch item info
        FnPurchaseorderService:function(){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderurl=sessionStorage.getItem("curr_sess_url")+"purchaseorder-service";
          this.purchaseorderparam=obj;
-         // alert(JSON.stringify(obj));
-         this.$.purchaseorderajax.generateRequest(); 
-
+         this.$.purchaseorderajax.generateRequest();
       },
       FnPurchaseorderResponse:function(e){
           poarr=e.detail.response.itemarr;
          if(poarr.length>0){
-         var d=new Date(poarr[0].PO_Date);
-         //alert(d);
+         var d=new Date(poarr[0].PO_Date);         
          var y=d.getFullYear();
          var m=d.getMonth();
          var d=d.getDate();
-         poarr[0].PO_Date=d+"/"+m+"/"+y;
-         this.poarray=poarr;
-         // document.querySelector("purchaseorder-home").poarray=poarr;
-         // document.querySelector("purchaseorder-card").poarray=poarr;
+         var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+         poarr[0].PO_Date=d+"-"+months[m+1]+"-"+y;
+         this.poarray=poarr;         
+         document.querySelector("purchaseorder-card").poarray=poarr;
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitemurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitem-service";
          this.purchaseorderitemparam=obj;
-         this.$.purchaseorderitemajax.generateRequest(); 
-         //alert(JSON.stringify(poarr));
+         this.$.purchaseorderitemajax.generateRequest();         
          }
       },
+      // Function which calls item info for po creation
       FnPurchaseorderitemResponse:function(e){
-         poitemarr=e.detail.response.itemarr;         
+         poitemarr=e.detail.response.itemarr;
          if(poitemarr.length>0){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitemtaxurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemtax-service";
          this.purchaseorderitemtaxparam=obj;
-         this.$.purchaseorderitemtaxajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitemtaxajax.generateRequest();         
          }
       },
       FnPurchaseorderitemtaxResponse:function(e){
-         poitemtax=e.detail.response.itemarr;  
-         //alert(JSON.stringify(poitemtax));       
+         poitemtax=e.detail.response.itemarr;         
          if(poitemtax.length>0){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitempriceurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemprice-service";
          this.purchaseorderitempriceparam=obj;
-         this.$.purchaseorderitempriceajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitempriceajax.generateRequest();         
          }
       },
       FnPurchaseorderitempriceResponse:function(e){
           poitemprice=e.detail.response.itemarr;
-          if(poitemprice.length>0){
-          //alert(JSON.stringify(poitemprice));
+          if(poitemprice.length>0){          
           var tax1=((parseFloat(poitemtax[0].Excise_Duty))/100);
           var tax2=((parseFloat(poitemtax[0].VAT))/100);
           var tax3=((parseFloat(poitemtax[0].CST))/100);
-          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
-          //alert(total);
+          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
           var exduty=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity).toFixed(2);
           poitemarr[(poitemarr.length)-1].price=(poitemprice[0].Item_Supplier_price).toFixed(2);
           poitemarr[(poitemarr.length)-1].total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].exduty=((parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity)).toFixed(2);
-
-          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax2));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseInt(poitemarr[0].Quantity));
+          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){ 
           poitemarr[(poitemarr.length)-1].vat=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].cst=parseFloat("0").toFixed(2);
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax2))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
           else{
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax3));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseInt(poitemarr[0].Quantity));
           poitemarr[(poitemarr.length)-1].vat=parseFloat("0").toFixed(2);
-          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
+          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax3))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
-         
-
-          //poitemarr.push(poitemprice[0].Item_Supplier_price);
-          //alert(JSON.stringify(poitemarr));
+          poitemarr[(poitemarr.length)-1].totaltax=parseFloat(exduty)+parseFloat(poitemarr[(poitemarr.length)-1].vat)+parseFloat(poitemarr[(poitemarr.length)-1].cst);
           }
           this.poitemarray=poitemarr;
-          // document.querySelector("purchaseorder-home").poitemarray=poitemarr;
-          // document.querySelector("purchaseorder-card").poitemarray=poitemarr;
+          document.querySelector("purchaseorder-card").poitemarray=poitemarr;
+          var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
+           html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
+            }
+          });
       },
       FnToggle:function(){
         this.$.dialog.toggle();
       },
-      click:function(){
+      click:function(){        
         var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
-        //window.location.href="../elements/printhome.html";
-        //window.print();
-         html2canvas($("#card"), {          
-            onrendered: function(canvas) {                 
-                var imgData = canvas.toDataURL('image/png'); 
-                //alert(imgData);
-                $("#imgRes").attr("src", imgData);             
-                var doc = new jsPDF('p', 'mm');
-                //alert(JSON.stringify(doc));
-                doc.addImage(imgData, 'PNG', 10, 8);
-                doc.save(porder+'.pdf');
-                //doc.output('datauri');
+         html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
             }
-          });
+      });
       }
     });
   })();

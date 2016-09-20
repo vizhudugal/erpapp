@@ -39,19 +39,19 @@ var intentregno;
         localStorage.setItem("curr_sess_saveflag","true");
         document.querySelector('item-page').FnBtnDisable();        
         this.$.ID_Show_Dialog.FnShowDialog("Inward Register Note is created!",e.detail.response.inwardregno);
-
         //alert("Invoice Stored: "+e.detail.response.inwardregno);
       }
     },
     //Response received for inward seq creation req on successful creation it will call itemsave request to the server
     FnSeqItemwriteResponse:function(e)
     {
-      //alert(e.detail.response);
+      // alert(JSON.stringify(e.detail.response));
       //Sending row by row of item info to the server
       if(e.detail.response.returnval=="succ"){
         for(var i=0;i<this.items.length;i++){
-          var obj={"purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","createdby":"","purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           //obj.purchasetype=this.items[i].purchasetype;
+          obj.itemid=this.items[i].itemid;
           obj.purchasetypeflag=this.items[i].purchasetypeflag;
           obj.podate=this.items[i].podate;
           obj.ponumber=this.items[i].ponumber;
@@ -64,6 +64,7 @@ var intentregno;
           obj.qtymeasure=this.items[i].qtymeasure;
           obj.unitmeasure=this.items[i].unitmeasure;
           obj.remark=this.items[i].remark;
+          obj.createdby=sessionStorage.getItem("loggeduser");
           this.params=obj;
           this.$.itemwriteAjax.generateRequest();
         }
@@ -86,9 +87,17 @@ var intentregno;
       //alert(sessionStorage.getItem("loggeduser"));
       if(e.detail.response.returnval=="succ"){
         for(var i=0;i<this.items.length;i++){
-          var obj={"state":"","loggedrole":"","loggeduser":"","duedate":"","intentdate":"","specification":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","createdby":"","createddate":"","state":"","loggedrole":"","loggeduser":"","duedate":"","intentdate":"","specification":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           obj.loggedrole=sessionStorage.getItem("loggedrole");
           obj.loggeduser=sessionStorage.getItem("loggeduser");
+          obj.createdby=sessionStorage.getItem("loggeduser");
+          var dt=new Date();
+          var d = dt.getDate();
+          var m = dt.getMonth();
+          var y = dt.getFullYear();
+          var dmy = d + "/" + (m+1) + "/" + y;
+          obj.createddate=dmy;
+          obj.itemid=this.items[i].itemid;
           obj.duedate=this.items[i].duedate;
           obj.state=this.items[i].state;
           obj.intentdate=this.items[i].invoicedate;
@@ -99,6 +108,7 @@ var intentregno;
           obj.qtymeasure=this.items[i].qtymeasure;
           obj.unitmeasure=this.items[i].unitmeasure;
           obj.remark=this.items[i].remark;
+          // obj.createdby=sessionStorage.getItem("loggeduser");
           this.intentwrite=obj;
           this.intentwriteurl=sessionStorage.getItem("curr_sess_url")+"intentitemwrite-service";
           this.$.intentitemwriteAjax.generateRequest();

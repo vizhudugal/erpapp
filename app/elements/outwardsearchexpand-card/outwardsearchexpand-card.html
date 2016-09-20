@@ -9,16 +9,15 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../bower_components/paper-item/paper-item.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
-
 <link rel="import" href="../outwardsearchexpanditem-card/outwardsearchexpanditem-card.html">
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Component Registeartion -->
 <dom-module id="outwardsearchexpand-card">
   <template>
     <style>
@@ -28,23 +27,13 @@
       .repeatcard{
         @apply(--layout-horizontal);
         width: 80%;
-
       }
-
       #card1{
-        border-bottom:2px solid #e6e6e6;
-        //margin-top: 0.5%;
-        //border-radius: 2px;
-        //box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-        width: 88.5%;
+       border-bottom:2px solid #e6e6e6;
+       width: 88.5%;
        margin-left:5.8%;
-      //height:50%;
-        background-color:white;
-        //border:2px solid #e6e6e6;
-        //border-color:#dbe9d6;
-        overflow-x:hidden;
+       overflow-x:hidden;
       }
-
       .topright{
         @apply(--layout-horizontal);
         width: 100%;
@@ -93,7 +82,7 @@
     <template is="dom-repeat" items="{{label}}" as="lbl">
     <div class="card" id="card1">
 
-      <paper-tabs selected="0" noink id="ptab">
+      <paper-tabs selected="0"no-ink no-bar no-slide id="ptab">
         <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
         <paper-tab><paper-button>{{tabs.tab}}</paper-button></paper-tab>
         </template>
@@ -104,12 +93,11 @@
             <outwardsearchexpanditem-card itemdes="{{item.itemdes}}" quantity="{{item.quantity}}" weight="{{item.weight}}"></outwardsearchexpanditem-card>
           </div>
         </template>
-
       </div>
     </div>
     </template>
+    <!-- Component to search the ORN items -->
     <iron-ajax
-      
       id="outwardsearchitemreadajax"
       url="{{url}}"
       method="post"
@@ -128,6 +116,6 @@
       on-response="FnWebcomponentreadResponse">
     </iron-ajax>
   </template>
+  <!-- JS file import -->
   <script src="../../scripts/outwardsearchexpand-card.js"></script>
-
 </dom-module>

@@ -43,13 +43,15 @@
       text-align:left;
       width:35%;
       margin-left:5%;
+      font-family: calibri;
+      font-size: 16px;
       }
-	 .input,.type,.drop{
-	 @apply(--layout-horizontal);
-	 }
-	 :host{
-		--paper-input-container-label: {
-		color:red;
+	    .input,.type,.drop{
+	    @apply(--layout-horizontal);
+	    }
+	    :host{
+		   --paper-input-container-label: {
+		   color:red;
       }}
       paper-dropdown-menu{
       margin-left:5%;
@@ -63,16 +65,17 @@
       paper-button{
 	  	        text-align: center;
 	  	        width: 35%;
-	  	        border-radius: 2px;
-	  	        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-	  	        background-color: #3d6868;
-	  	        color: white;
+	  	        background-color: #A0A0A0;
+              font-family: calibri;
+              font-size: 17px;
+              color: black;
+              height: 35px;
 	  	        margin-top: 4%;
 	  	        margin-left:5%;
       }
       .storescard{
-        margin-left:5%;       
-        @apply(--layout-horizontal);     
+        margin-left:5%;
+        @apply(--layout-horizontal);
       }
       itemprice-card{
         margin-left: 17.5%;
@@ -86,30 +89,22 @@
         margin-left: 10%;
         width:30%;
       }
-      
+
     </style>
 
     <!--Template to show card for entering item info-->
     <template is="dom-repeat" items="{{label}}">
       <div class="card">
         <div class="input">
-			<itemsearch-card></itemsearch-card>
-            <!--<paper-input  label="{{item.Item_Id}}" name="itemid" value="{{itemid}}" required id="itemid"  error-message="{{item.Item_Id_error}}"></paper-input>
-            <paper-input label="{{item.Item_Name}}" name="itemname" value="{{itemname}}" required id="itemname"  error-message="{{item.Item_Name_error}}"></paper-input>-->
-
+			   <itemsearch-card id="itemsearchcard"></itemsearch-card>
         </div>
-		<div class="input">
-
+		    <div class="input">
           <paper-input readonly="{{read}}" label="{{item.Item_Description}}" name="itemdes" value="{{itemdes}}" required  on-change="FnDesChange" id="itemdes" error-message="{{item.Item_Description_error}}"></paper-input>
           <paper-input readonly="true" label="{{item.Supplier}}" name="supplier" value="{{supplier}}" required id="supplier" error-message="{{item.Supplier_error}}"></paper-input>
-
         </div>
         <div class="input">
         <container-card></container-card>
         <unit-card></unit-card>
-          <!--<paper-input readonly="{{read}}" label="{{item.Container}}" name="container" value="{{container}}" required on-change="FnContainerChange" id="container" error-message="{{item.Container_error}}"></paper-input>
-          <paper-input readonly="{{read}}" label="{{item.Quantity}}" name="quantity" value="{{quantity}}" required on-change="FnQuantityChange" id="quantity" error-message="{{item.Quantity_error}}"></paper-input>-->
-
         </div>
         <div class="drop">
           <paper-dropdown-menu id="dropitemtype" label="Select Item Type" disabled="{{read}}" required>
@@ -129,7 +124,7 @@
         </div>
         <div class="storescard">
           <stores-card id="storescard"></stores-card>
-          <itemprice-card></itemprice-card>
+          <itemprice-card id="itempricecard"></itemprice-card>
         </div>
         <div class="type">
           <paper-item class="ptype" value="{{item.Purchase_Type}}">{{item.Purchase_Type}}</paper-item>

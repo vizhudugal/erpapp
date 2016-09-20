@@ -9,10 +9,9 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
-<!--<link rel="import" href="../outwarditem-card/outwarditem-card.html">-->
 <link rel="import" href="../item-card/item-card.html">
 <link rel="import" href="../outwarditem-service/outwarditem-service.html">
 <link rel="import" href="../webcomponent-service/webcomponent-service.html">
@@ -21,13 +20,13 @@
 <link rel="import" href="../datepicker-card/datepicker-card.html">
 <link rel="import" href="../timepicker-card/timepicker-card.html">
 <link rel="import" href="../customer-list/customer-list.html">
+<link rel="import" href="../out-datepicker/out-datepicker.html">
 <dom-module id="outwarditem-page">
   <template>
     <style is="custom-style">
       .card{
         @apply(--layout-vertical);
         position: relative;
-      //background-color: rgb(255, 255, 255);
         width: 80%;
         left: 5%;
         margin-top: 2%;
@@ -52,7 +51,6 @@
       paper-button{
         font-size: 15px;
         text-transform: none;
-
       }
       paper-input{
         text-align: left;
@@ -90,14 +88,12 @@
         margin-top:2%;
       }
       .additem,.save{
-        text-align: center;
-      //width: 35%;
-        border-radius: 2px;
-        box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
-        background-color: #3d6868;
-        color: white;
-        height: 30px;
-      //margin-top: 4%;
+        text-align: center;      
+        background-color: #A0A0A0;
+        font-family: calibri;
+        font-size: 17px;
+        color: black;
+        height: 35px;
       }
       item-card{
         //width:200%;
@@ -114,6 +110,9 @@
       #customerlist{
         margin-left: 5%;
       }
+      out-datepicker{
+        margin-left: 5%;
+      }
     </style>
     <!--Template which binds dynamic label to this page-->
     <template is="dom-repeat" items="{{label}}" as="lbl">
@@ -121,20 +120,18 @@
       <div class="outcard">
       <paper-input label="{{lbl.Invoice_Number}}" name="invoiceno" value="{{invoiceno}}" required  id="invoiceno"  error-message="{{lbl.Invoice_Number_error}}"></paper-input>
       <customer-list id="customerlist"></customer-list>
-      <!-- <paper-input label="{{lbl.Customer_Name}}" name="customername" value="{{customername}}" required  allowed-pattern="[a-zA-Z ]" id="customername" error-message="{{lbl.Customer_Name_error}}"></paper-input> -->
+      <out-datepicker></out-datepicker>      
       </div>
       <!--Outward item card template-->
       <div class="banner2">
 
-        <paper-tabs selected="0" noink id="ptab">
+        <paper-tabs selected="0" no-ink no-bar no-slide id="ptab">
           <template is="dom-repeat" items="{{lbl.tabs}}" as="tabs">
           <paper-tab><paper-button>{{tabs.tab}}</paper-button></paper-tab>
           </template>
         </paper-tabs>
         <template is="dom-repeat" items="{{itemArray}}" as="item">
           <div class="itemcard">
-            <!--<div><outwarditem-card id="{{item.id}}"  description="{{item.description}}" quantity="{{item.quantity}}" weight="{{item.weight}}"></outwarditem-card>-->
-            <!--</div>-->
             <div><item-card id="{{item.id}}" description="{{item.description}}" measure="{{item.measure}}" received="{{item.received}}"></item-card>
             </div>
             <div class="delete"><paper-icon-button icon="icons:delete" on-click="FnDeleteItem" style="right:10px;height:40px;"></paper-icon-button></div>
@@ -154,8 +151,6 @@
     <!--Calling item service to make request to the server-->
     <outwarditem-service id="itemservice"></outwarditem-service>
   </template>
-  <script src="../../scripts/outwarditem-page.js">
-
-  </script>
-
+  <!-- JS file import -->
+  <script src="../../scripts/outwarditem-page.js"></script>
 </dom-module>

@@ -9,7 +9,7 @@
 <link rel="import" href="../../bower_components/iron-input/iron-input.html">
 <link rel="import" href="../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
-<link rel="import" href="../../bower_components/paper-tabs/paper-tab.html">
+
 <link rel="import" href="../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
@@ -22,13 +22,14 @@
     .expandcard{
       @apply(--layout-horizontal);
       width: 80%;
-      border-radius: 2px;
-      box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
+      border-bottom: 1px solid #dedede;
       margin-top:2%;
       margin-left: 10%;
     }
     paper-button{
       width: 35%;
+      font-family: calibri;
+      font-size: 16px;
     }
     paper-item{
       width: 20%;
@@ -52,8 +53,6 @@
     .collapse{
       width:90%;
       margin-left: 5%;
-    //border-radius: 2px;
-    //box-shadow: rgba(0, 0, 0, 0.0980392) 5px 5px 4px, rgba(0, 0, 0, 0.0980392) 0px 0px 10px;
     }
   </style>
   <template>
@@ -71,9 +70,7 @@
         <outwardsearchexpand-card id="osc"></outwardsearchexpand-card>
       </div>
     </iron-collapse>
-
   </template>
   <!--JS file import-->
-  <script src="../../scripts/outwardsearchitem-card.js">  </script>
-
+  <script src="../../scripts/outwardsearchitem-card.js"></script>
 </dom-module>
