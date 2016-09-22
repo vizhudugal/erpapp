@@ -393,7 +393,6 @@ this._marshalBehavior(this);
 });
 Polymer.Base._behaviorProperties = {
 hostAttributes: true,
-beforeRegister: true,
 registered: true,
 properties: true,
 observers: true,
@@ -645,7 +644,31 @@ return value != null ? value : undefined;
 }
 }
 });
-Polymer.version = '1.2.4';
+Polymer.Base._addFeature({
+_setupDebouncers: function () {
+this._debouncers = {};
+},
+debounce: function (jobName, callback, wait) {
+return this._debouncers[jobName] = Polymer.Debounce.call(this, this._debouncers[jobName], callback, wait);
+},
+isDebouncerActive: function (jobName) {
+var debouncer = this._debouncers[jobName];
+return debouncer && debouncer.finish;
+},
+flushDebouncer: function (jobName) {
+var debouncer = this._debouncers[jobName];
+if (debouncer) {
+debouncer.complete();
+}
+},
+cancelDebouncer: function (jobName) {
+var debouncer = this._debouncers[jobName];
+if (debouncer) {
+debouncer.stop();
+}
+}
+});
+Polymer.version = '1.2.3';
 Polymer.Base._addFeature({
 _registerFeatures: function () {
 this._prepIs();
@@ -660,6 +683,7 @@ _marshalBehavior: function (b) {
 },
 _initFeatures: function () {
 this._marshalHostAttributes();
+this._setupDebouncers();
 this._marshalBehaviors();
 }
 });
@@ -696,8 +720,6 @@ this.dataHost = host = host || Polymer.Base._hostStack[Polymer.Base._hostStack.l
 if (host && host._clients) {
 host._clients.push(this);
 }
-this._clients = null;
-this._clientsReadied = false;
 },
 _beginHosting: function () {
 Polymer.Base._hostStack.push(this);
@@ -709,7 +731,6 @@ _endHosting: function () {
 Polymer.Base._hostStack.pop();
 },
 _tryReady: function () {
-this._readied = false;
 if (this._canReady()) {
 this._ready();
 }
@@ -1022,6 +1043,7 @@ if (node instanceof HTMLTemplateElement)
 node = node.content;
 var s = '';
 var c$ = Polymer.dom(node).childNodes;
+c$ = composed ? node._composedChildren : c$;
 for (var i = 0, l = c$.length, child; i < l && (child = c$[i]); i++) {
 s += getOuterHTML(child, node, composed);
 }
@@ -1029,213 +1051,24 @@ return s;
 }
 return { getInnerHTML: getInnerHTML };
 }();
-(function () {
-'use strict';
-var nativeInsertBefore = Element.prototype.insertBefore;
-var nativeAppendChild = Element.prototype.appendChild;
-var nativeRemoveChild = Element.prototype.removeChild;
-var TreeApi = Polymer.TreeApi = {
-arrayCopyChildNodes: function (parent) {
-var copy = [], i = 0;
-for (var n = parent.firstChild; n; n = n.nextSibling) {
-copy[i++] = n;
-}
-return copy;
-},
-arrayCopyChildren: function (parent) {
-var copy = [], i = 0;
-for (var n = parent.firstElementChild; n; n = n.nextElementSibling) {
-copy[i++] = n;
-}
-return copy;
-},
-arrayCopy: function (a$) {
-var l = a$.length;
-var copy = new Array(l);
-for (var i = 0; i < l; i++) {
-copy[i] = a$[i];
-}
-return copy;
-}
-};
-Polymer.TreeApi.Logical = {
-hasParentNode: function (node) {
-return Boolean(node.__dom && node.__dom.parentNode);
-},
-hasChildNodes: function (node) {
-return Boolean(node.__dom && node.__dom.childNodes !== undefined);
-},
-getChildNodes: function (node) {
-return this.hasChildNodes(node) ? this._getChildNodes(node) : node.childNodes;
-},
-_getChildNodes: function (node) {
-if (!node.__dom.childNodes) {
-node.__dom.childNodes = [];
-for (var n = node.__dom.firstChild; n; n = n.__dom.nextSibling) {
-node.__dom.childNodes.push(n);
-}
-}
-return node.__dom.childNodes;
-},
-getParentNode: function (node) {
-return node.__dom && node.__dom.parentNode !== undefined ? node.__dom.parentNode : node.parentNode;
-},
-getFirstChild: function (node) {
-return node.__dom && node.__dom.firstChild !== undefined ? node.__dom.firstChild : node.firstChild;
-},
-getLastChild: function (node) {
-return node.__dom && node.__dom.lastChild !== undefined ? node.__dom.lastChild : node.lastChild;
-},
-getNextSibling: function (node) {
-return node.__dom && node.__dom.nextSibling !== undefined ? node.__dom.nextSibling : node.nextSibling;
-},
-getPreviousSibling: function (node) {
-return node.__dom && node.__dom.previousSibling !== undefined ? node.__dom.previousSibling : node.previousSibling;
-},
-getFirstElementChild: function (node) {
-return node.__dom && node.__dom.firstChild !== undefined ? this._getFirstElementChild(node) : node.firstElementChild;
-},
-_getFirstElementChild: function (node) {
-var n = node.__dom.firstChild;
-while (n && n.nodeType !== Node.ELEMENT_NODE) {
-n = n.__dom.nextSibling;
-}
-return n;
-},
-getLastElementChild: function (node) {
-return node.__dom && node.__dom.lastChild !== undefined ? this._getLastElementChild(node) : node.lastElementChild;
-},
-_getLastElementChild: function (node) {
-var n = node.__dom.lastChild;
-while (n && n.nodeType !== Node.ELEMENT_NODE) {
-n = n.__dom.previousSibling;
-}
-return n;
-},
-getNextElementSibling: function (node) {
-return node.__dom && node.__dom.nextSibling !== undefined ? this._getNextElementSibling(node) : node.nextElementSibling;
-},
-_getNextElementSibling: function (node) {
-var n = node.__dom.nextSibling;
-while (n && n.nodeType !== Node.ELEMENT_NODE) {
-n = n.__dom.nextSibling;
-}
-return n;
-},
-getPreviousElementSibling: function (node) {
-return node.__dom && node.__dom.previousSibling !== undefined ? this._getPreviousElementSibling(node) : node.previousElementSibling;
-},
-_getPreviousElementSibling: function (node) {
-var n = node.__dom.previousSibling;
-while (n && n.nodeType !== Node.ELEMENT_NODE) {
-n = n.__dom.previousSibling;
-}
-return n;
-},
-saveChildNodes: function (node) {
-if (!this.hasChildNodes(node)) {
-node.__dom = node.__dom || {};
-node.__dom.firstChild = node.firstChild;
-node.__dom.lastChild = node.lastChild;
-node.__dom.childNodes = [];
-for (var n = node.firstChild; n; n = n.nextSibling) {
-n.__dom = n.__dom || {};
-n.__dom.parentNode = node;
-node.__dom.childNodes.push(n);
-n.__dom.nextSibling = n.nextSibling;
-n.__dom.previousSibling = n.previousSibling;
-}
-}
-},
-recordInsertBefore: function (node, container, ref_node) {
-container.__dom.childNodes = null;
-if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-for (var n = node.firstChild; n; n = n.nextSibling) {
-this._linkNode(n, container, ref_node);
-}
-} else {
-this._linkNode(node, container, ref_node);
-}
-},
-_linkNode: function (node, container, ref_node) {
-node.__dom = node.__dom || {};
-container.__dom = container.__dom || {};
-if (ref_node) {
-ref_node.__dom = ref_node.__dom || {};
-}
-node.__dom.previousSibling = ref_node ? ref_node.__dom.previousSibling : container.__dom.lastChild;
-if (node.__dom.previousSibling) {
-node.__dom.previousSibling.__dom.nextSibling = node;
-}
-node.__dom.nextSibling = ref_node;
-if (node.__dom.nextSibling) {
-node.__dom.nextSibling.__dom.previousSibling = node;
-}
-node.__dom.parentNode = container;
-if (ref_node) {
-if (ref_node === container.__dom.firstChild) {
-container.__dom.firstChild = node;
-}
-} else {
-container.__dom.lastChild = node;
-if (!container.__dom.firstChild) {
-container.__dom.firstChild = node;
-}
-}
-container.__dom.childNodes = null;
-},
-recordRemoveChild: function (node, container) {
-node.__dom = node.__dom || {};
-container.__dom = container.__dom || {};
-if (node === container.__dom.firstChild) {
-container.__dom.firstChild = node.__dom.nextSibling;
-}
-if (node === container.__dom.lastChild) {
-container.__dom.lastChild = node.__dom.previousSibling;
-}
-var p = node.__dom.previousSibling;
-var n = node.__dom.nextSibling;
-if (p) {
-p.__dom.nextSibling = n;
-}
-if (n) {
-n.__dom.previousSibling = p;
-}
-node.__dom.parentNode = node.__dom.previousSibling = node.__dom.nextSibling = undefined;
-container.__dom.childNodes = null;
-}
-};
-Polymer.TreeApi.Composed = {
-getChildNodes: function (node) {
-return Polymer.TreeApi.arrayCopyChildNodes(node);
-},
-getParentNode: function (node) {
-return node.parentNode;
-},
-clearChildNodes: function (node) {
-node.textContent = '';
-},
-insertBefore: function (parentNode, newChild, refChild) {
-return nativeInsertBefore.call(parentNode, newChild, refChild || null);
-},
-appendChild: function (parentNode, newChild) {
-return nativeAppendChild.call(parentNode, newChild);
-},
-removeChild: function (parentNode, node) {
-return nativeRemoveChild.call(parentNode, node);
-}
-};
-}());
 Polymer.DomApi = function () {
 'use strict';
 var Settings = Polymer.Settings;
-var TreeApi = Polymer.TreeApi;
-var DomApi = function (node) {
-this.node = needsToWrap ? DomApi.wrap(node) : node;
-};
+var getInnerHTML = Polymer.domInnerHTML.getInnerHTML;
+var nativeInsertBefore = Element.prototype.insertBefore;
+var nativeRemoveChild = Element.prototype.removeChild;
+var nativeAppendChild = Element.prototype.appendChild;
+var nativeCloneNode = Element.prototype.cloneNode;
+var nativeImportNode = Document.prototype.importNode;
 var needsToWrap = Settings.hasShadow && !Settings.nativeShadow;
-DomApi.wrap = window.wrap ? window.wrap : function (node) {
+var wrap = window.wrap ? window.wrap : function (node) {
 return node;
+};
+var DomApi = function (node) {
+this.node = needsToWrap ? wrap(node) : node;
+if (this.patch) {
+this.patch();
+}
 };
 DomApi.prototype = {
 flush: function () {
@@ -1246,17 +1079,306 @@ if (this.node.contains(node)) {
 return true;
 }
 var n = node;
-var doc = node.ownerDocument;
-while (n && n !== doc && n !== this.node) {
+var wrappedDocument = wrap(document);
+while (n && n !== wrappedDocument && n !== this.node) {
 n = Polymer.dom(n).parentNode || n.host;
 }
 return n === this.node;
+},
+_lazyDistribute: function (host) {
+if (host.shadyRoot && host.shadyRoot._distributionClean) {
+host.shadyRoot._distributionClean = false;
+Polymer.dom.addDebouncer(host.debounce('_distribute', host._distributeContent));
+}
+},
+appendChild: function (node) {
+return this._addNode(node);
+},
+insertBefore: function (node, ref_node) {
+return this._addNode(node, ref_node);
+},
+_addNode: function (node, ref_node) {
+this._removeNodeFromParent(node);
+var addedInsertionPoint;
+var root = this.getOwnerRoot();
+if (root) {
+addedInsertionPoint = this._maybeAddInsertionPoint(node, this.node);
+}
+if (this._nodeHasLogicalChildren(this.node)) {
+if (ref_node) {
+var children = this.childNodes;
+var index = children.indexOf(ref_node);
+if (index < 0) {
+throw Error('The ref_node to be inserted before is not a child ' + 'of this node');
+}
+}
+this._addLogicalInfo(node, this.node, index);
+}
+this._addNodeToHost(node);
+if (!this._maybeDistribute(node, this.node) && !this._tryRemoveUndistributedNode(node)) {
+if (ref_node) {
+ref_node = ref_node.localName === CONTENT ? this._firstComposedNode(ref_node) : ref_node;
+}
+var container = this.node._isShadyRoot ? this.node.host : this.node;
+addToComposedParent(container, node, ref_node);
+if (ref_node) {
+nativeInsertBefore.call(container, node, ref_node);
+} else {
+nativeAppendChild.call(container, node);
+}
+}
+if (addedInsertionPoint) {
+this._updateInsertionPoints(root.host);
+}
+this.notifyObserver();
+return node;
+},
+removeChild: function (node) {
+if (factory(node).parentNode !== this.node) {
+console.warn('The node to be removed is not a child of this node', node);
+}
+this._removeNodeFromHost(node);
+if (!this._maybeDistribute(node, this.node)) {
+var container = this.node._isShadyRoot ? this.node.host : this.node;
+if (container === node.parentNode) {
+removeFromComposedParent(container, node);
+nativeRemoveChild.call(container, node);
+}
+}
+this.notifyObserver();
+return node;
+},
+replaceChild: function (node, ref_node) {
+this.insertBefore(node, ref_node);
+this.removeChild(ref_node);
+return node;
+},
+_hasCachedOwnerRoot: function (node) {
+return Boolean(node._ownerShadyRoot !== undefined);
+},
+getOwnerRoot: function () {
+return this._ownerShadyRootForNode(this.node);
+},
+_ownerShadyRootForNode: function (node) {
+if (!node) {
+return;
+}
+if (node._ownerShadyRoot === undefined) {
+var root;
+if (node._isShadyRoot) {
+root = node;
+} else {
+var parent = Polymer.dom(node).parentNode;
+if (parent) {
+root = parent._isShadyRoot ? parent : this._ownerShadyRootForNode(parent);
+} else {
+root = null;
+}
+}
+node._ownerShadyRoot = root;
+}
+return node._ownerShadyRoot;
+},
+_maybeDistribute: function (node, parent) {
+var fragContent = node.nodeType === Node.DOCUMENT_FRAGMENT_NODE && !node.__noContent && Polymer.dom(node).querySelector(CONTENT);
+var wrappedContent = fragContent && Polymer.dom(fragContent).parentNode.nodeType !== Node.DOCUMENT_FRAGMENT_NODE;
+var hasContent = fragContent || node.localName === CONTENT;
+if (hasContent) {
+var root = this._ownerShadyRootForNode(parent);
+if (root) {
+var host = root.host;
+this._lazyDistribute(host);
+}
+}
+var parentNeedsDist = this._parentNeedsDistribution(parent);
+if (parentNeedsDist) {
+this._lazyDistribute(parent);
+}
+return parentNeedsDist || hasContent && !wrappedContent;
+},
+_maybeAddInsertionPoint: function (node, parent) {
+var added;
+if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE && !node.__noContent) {
+var c$ = factory(node).querySelectorAll(CONTENT);
+for (var i = 0, n, np, na; i < c$.length && (n = c$[i]); i++) {
+np = factory(n).parentNode;
+if (np === node) {
+np = parent;
+}
+na = this._maybeAddInsertionPoint(n, np);
+added = added || na;
+}
+} else if (node.localName === CONTENT) {
+saveLightChildrenIfNeeded(parent);
+saveLightChildrenIfNeeded(node);
+added = true;
+}
+return added;
+},
+_tryRemoveUndistributedNode: function (node) {
+if (this.node.shadyRoot) {
+var parent = getComposedParent(node);
+if (parent) {
+nativeRemoveChild.call(parent, node);
+}
+return true;
+}
+},
+_updateInsertionPoints: function (host) {
+var i$ = host.shadyRoot._insertionPoints = factory(host.shadyRoot).querySelectorAll(CONTENT);
+for (var i = 0, c; i < i$.length; i++) {
+c = i$[i];
+saveLightChildrenIfNeeded(c);
+saveLightChildrenIfNeeded(factory(c).parentNode);
+}
+},
+_nodeHasLogicalChildren: function (node) {
+return Boolean(node._lightChildren !== undefined);
+},
+_parentNeedsDistribution: function (parent) {
+return parent && parent.shadyRoot && hasInsertionPoint(parent.shadyRoot);
+},
+_removeNodeFromParent: function (node) {
+var parent = node._lightParent || node.parentNode;
+if (parent && hasDomApi(parent)) {
+factory(parent).notifyObserver();
+}
+this._removeNodeFromHost(node, true);
+},
+_removeNodeFromHost: function (node, ensureComposedRemoval) {
+var hostNeedsDist;
+var root;
+var parent = node._lightParent;
+if (parent) {
+factory(node)._distributeParent();
+root = this._ownerShadyRootForNode(node);
+if (root) {
+root.host._elementRemove(node);
+hostNeedsDist = this._removeDistributedChildren(root, node);
+}
+this._removeLogicalInfo(node, parent);
+}
+this._removeOwnerShadyRoot(node);
+if (root && hostNeedsDist) {
+this._updateInsertionPoints(root.host);
+this._lazyDistribute(root.host);
+} else if (ensureComposedRemoval) {
+removeFromComposedParent(getComposedParent(node), node);
+}
+},
+_removeDistributedChildren: function (root, container) {
+var hostNeedsDist;
+var ip$ = root._insertionPoints;
+for (var i = 0; i < ip$.length; i++) {
+var content = ip$[i];
+if (this._contains(container, content)) {
+var dc$ = factory(content).getDistributedNodes();
+for (var j = 0; j < dc$.length; j++) {
+hostNeedsDist = true;
+var node = dc$[j];
+var parent = node.parentNode;
+if (parent) {
+removeFromComposedParent(parent, node);
+nativeRemoveChild.call(parent, node);
+}
+}
+}
+}
+return hostNeedsDist;
+},
+_contains: function (container, node) {
+while (node) {
+if (node == container) {
+return true;
+}
+node = factory(node).parentNode;
+}
+},
+_addNodeToHost: function (node) {
+var root = this.getOwnerRoot();
+if (root) {
+root.host._elementAdd(node);
+}
+},
+_addLogicalInfo: function (node, container, index) {
+var children = factory(container).childNodes;
+index = index === undefined ? children.length : index;
+if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+var c$ = arrayCopyChildNodes(node);
+for (var i = 0, n; i < c$.length && (n = c$[i]); i++) {
+children.splice(index++, 0, n);
+n._lightParent = container;
+}
+} else {
+children.splice(index, 0, node);
+node._lightParent = container;
+}
+},
+_removeLogicalInfo: function (node, container) {
+var children = factory(container).childNodes;
+var index = children.indexOf(node);
+if (index < 0 || container !== node._lightParent) {
+throw Error('The node to be removed is not a child of this node');
+}
+children.splice(index, 1);
+node._lightParent = null;
+},
+_removeOwnerShadyRoot: function (node) {
+if (this._hasCachedOwnerRoot(node)) {
+var c$ = factory(node).childNodes;
+for (var i = 0, l = c$.length, n; i < l && (n = c$[i]); i++) {
+this._removeOwnerShadyRoot(n);
+}
+}
+node._ownerShadyRoot = undefined;
+},
+_firstComposedNode: function (content) {
+var n$ = factory(content).getDistributedNodes();
+for (var i = 0, l = n$.length, n, p$; i < l && (n = n$[i]); i++) {
+p$ = factory(n).getDestinationInsertionPoints();
+if (p$[p$.length - 1] === content) {
+return n;
+}
+}
+},
+querySelector: function (selector) {
+return this.querySelectorAll(selector)[0];
+},
+querySelectorAll: function (selector) {
+return this._query(function (n) {
+return matchesSelector.call(n, selector);
+}, this.node);
+},
+_query: function (matcher, node) {
+node = node || this.node;
+var list = [];
+this._queryElements(factory(node).childNodes, matcher, list);
+return list;
+},
+_queryElements: function (elements, matcher, list) {
+for (var i = 0, l = elements.length, c; i < l && (c = elements[i]); i++) {
+if (c.nodeType === Node.ELEMENT_NODE) {
+this._queryElement(c, matcher, list);
+}
+}
+},
+_queryElement: function (node, matcher, list) {
+if (matcher(node)) {
+list.push(node);
+}
+this._queryElements(factory(node).childNodes, matcher, list);
+},
+getDestinationInsertionPoints: function () {
+return this.node._destinationInsertionPoints || [];
+},
+getDistributedNodes: function () {
+return this.node._distributedNodes || [];
 },
 queryDistributedElements: function (selector) {
 var c$ = this.getEffectiveChildNodes();
 var list = [];
 for (var i = 0, l = c$.length, c; i < l && (c = c$[i]); i++) {
-if (c.nodeType === Node.ELEMENT_NODE && DomApi.matchesSelector.call(c, selector)) {
+if (c.nodeType === Node.ELEMENT_NODE && matchesSelector.call(c, selector)) {
 list.push(c);
 }
 }
@@ -1267,7 +1389,7 @@ var list = [];
 var c$ = this.childNodes;
 for (var i = 0, l = c$.length, c; i < l && (c = c$[i]); i++) {
 if (c.localName === CONTENT) {
-var d$ = dom(c).getDistributedNodes();
+var d$ = factory(c).getDistributedNodes();
 for (var j = 0; j < d$.length; j++) {
 list.push(d$[j]);
 }
@@ -1276,6 +1398,49 @@ list.push(c);
 }
 }
 return list;
+},
+_clear: function () {
+while (this.childNodes.length) {
+this.removeChild(this.childNodes[0]);
+}
+},
+setAttribute: function (name, value) {
+this.node.setAttribute(name, value);
+this._distributeParent();
+},
+removeAttribute: function (name) {
+this.node.removeAttribute(name);
+this._distributeParent();
+},
+_distributeParent: function () {
+if (this._parentNeedsDistribution(this.parentNode)) {
+this._lazyDistribute(this.parentNode);
+}
+},
+cloneNode: function (deep) {
+var n = nativeCloneNode.call(this.node, false);
+if (deep) {
+var c$ = this.childNodes;
+var d = factory(n);
+for (var i = 0, nc; i < c$.length; i++) {
+nc = factory(c$[i]).cloneNode(true);
+d.appendChild(nc);
+}
+}
+return n;
+},
+importNode: function (externalNode, deep) {
+var doc = this.node instanceof Document ? this.node : this.node.ownerDocument;
+var n = nativeImportNode.call(doc, externalNode, false);
+if (deep) {
+var c$ = factory(externalNode).childNodes;
+var d = factory(n);
+for (var i = 0, nc; i < c$.length; i++) {
+nc = factory(doc).importNode(c$[i], true);
+d.appendChild(nc);
+}
+}
+return n;
 },
 observeNodes: function (callback) {
 if (callback) {
@@ -1294,467 +1459,90 @@ notifyObserver: function () {
 if (this.observer) {
 this.observer.notify();
 }
-},
-_query: function (matcher, node, halter) {
-node = node || this.node;
-var list = [];
-this._queryElements(TreeApi.Logical.getChildNodes(node), matcher, halter, list);
-return list;
-},
-_queryElements: function (elements, matcher, halter, list) {
-for (var i = 0, l = elements.length, c; i < l && (c = elements[i]); i++) {
-if (c.nodeType === Node.ELEMENT_NODE) {
-if (this._queryElement(c, matcher, halter, list)) {
-return true;
-}
-}
-}
-},
-_queryElement: function (node, matcher, halter, list) {
-var result = matcher(node);
-if (result) {
-list.push(node);
-}
-if (halter && halter(result)) {
-return result;
-}
-this._queryElements(TreeApi.Logical.getChildNodes(node), matcher, halter, list);
 }
 };
-var CONTENT = DomApi.CONTENT = 'content';
-var dom = DomApi.factory = function (node) {
-node = node || document;
-if (!node.__domApi) {
-node.__domApi = new DomApi.ctor(node);
-}
-return node.__domApi;
-};
-DomApi.hasApi = function (node) {
-return Boolean(node.__domApi);
-};
-DomApi.ctor = DomApi;
-Polymer.dom = function (obj, patch) {
-if (obj instanceof Event) {
-return Polymer.EventApi.factory(obj);
-} else {
-return DomApi.factory(obj, patch);
-}
-};
-var p = Element.prototype;
-DomApi.matchesSelector = p.matches || p.matchesSelector || p.mozMatchesSelector || p.msMatchesSelector || p.oMatchesSelector || p.webkitMatchesSelector;
-return DomApi;
-}();
-(function () {
-'use strict';
-var Settings = Polymer.Settings;
-var DomApi = Polymer.DomApi;
-var dom = DomApi.factory;
-var TreeApi = Polymer.TreeApi;
-var getInnerHTML = Polymer.domInnerHTML.getInnerHTML;
-var CONTENT = DomApi.CONTENT;
-if (Settings.useShadow) {
-return;
-}
-var nativeCloneNode = Element.prototype.cloneNode;
-var nativeImportNode = Document.prototype.importNode;
-Polymer.Base.extend(DomApi.prototype, {
-_lazyDistribute: function (host) {
-if (host.shadyRoot && host.shadyRoot._distributionClean) {
-host.shadyRoot._distributionClean = false;
-Polymer.dom.addDebouncer(host.debounce('_distribute', host._distributeContent));
-}
-},
-appendChild: function (node) {
-return this.insertBefore(node);
-},
-insertBefore: function (node, ref_node) {
-if (ref_node && TreeApi.Logical.getParentNode(ref_node) !== this.node) {
-throw Error('The ref_node to be inserted before is not a child ' + 'of this node');
-}
-if (node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
-var parent = TreeApi.Logical.getParentNode(node);
-if (parent) {
-if (DomApi.hasApi(parent)) {
-dom(parent).notifyObserver();
-}
-this._removeNode(node);
-} else {
-this._removeOwnerShadyRoot(node);
-}
-}
-if (!this._addNode(node, ref_node)) {
-if (ref_node) {
-ref_node = ref_node.localName === CONTENT ? this._firstComposedNode(ref_node) : ref_node;
-}
-var container = this.node._isShadyRoot ? this.node.host : this.node;
-if (ref_node) {
-TreeApi.Composed.insertBefore(container, node, ref_node);
-} else {
-TreeApi.Composed.appendChild(container, node);
-}
-}
-this.notifyObserver();
-return node;
-},
-_addNode: function (node, ref_node) {
-var root = this.getOwnerRoot();
-if (root) {
-var ipAdded = this._maybeAddInsertionPoint(node, this.node);
-if (!root._invalidInsertionPoints) {
-root._invalidInsertionPoints = ipAdded;
-}
-this._addNodeToHost(root.host, node);
-}
-if (TreeApi.Logical.hasChildNodes(this.node)) {
-TreeApi.Logical.recordInsertBefore(node, this.node, ref_node);
-}
-var handled = this._maybeDistribute(node) || this.node.shadyRoot;
-if (handled) {
-if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-while (node.firstChild) {
-TreeApi.Composed.removeChild(node, node.firstChild);
-}
-} else {
-var parent = TreeApi.Composed.getParentNode(node);
-if (parent) {
-TreeApi.Composed.removeChild(parent, node);
-}
-}
-}
-return handled;
-},
-removeChild: function (node) {
-if (TreeApi.Logical.getParentNode(node) !== this.node) {
-throw Error('The node to be removed is not a child of this node: ' + node);
-}
-if (!this._removeNode(node)) {
-var container = this.node._isShadyRoot ? this.node.host : this.node;
-var parent = TreeApi.Composed.getParentNode(node);
-if (container === parent) {
-TreeApi.Composed.removeChild(container, node);
-}
-}
-this.notifyObserver();
-return node;
-},
-_removeNode: function (node) {
-var logicalParent = TreeApi.Logical.hasParentNode(node) && TreeApi.Logical.getParentNode(node);
-var distributed;
-var root = this._ownerShadyRootForNode(node);
-if (logicalParent) {
-distributed = dom(node)._maybeDistributeParent();
-TreeApi.Logical.recordRemoveChild(node, logicalParent);
-if (root && this._removeDistributedChildren(root, node)) {
-root._invalidInsertionPoints = true;
-this._lazyDistribute(root.host);
-}
-}
-this._removeOwnerShadyRoot(node);
-if (root) {
-this._removeNodeFromHost(root.host, node);
-}
-return distributed;
-},
-replaceChild: function (node, ref_node) {
-this.insertBefore(node, ref_node);
-this.removeChild(ref_node);
-return node;
-},
-_hasCachedOwnerRoot: function (node) {
-return Boolean(node._ownerShadyRoot !== undefined);
-},
-getOwnerRoot: function () {
-return this._ownerShadyRootForNode(this.node);
-},
-_ownerShadyRootForNode: function (node) {
-if (!node) {
-return;
-}
-var root = node._ownerShadyRoot;
-if (root === undefined) {
-if (node._isShadyRoot) {
-root = node;
-} else {
-var parent = TreeApi.Logical.getParentNode(node);
-if (parent) {
-root = parent._isShadyRoot ? parent : this._ownerShadyRootForNode(parent);
-} else {
-root = null;
-}
-}
-if (root || document.documentElement.contains(node)) {
-node._ownerShadyRoot = root;
-}
-}
-return root;
-},
-_maybeDistribute: function (node) {
-var fragContent = node.nodeType === Node.DOCUMENT_FRAGMENT_NODE && !node.__noContent && dom(node).querySelector(CONTENT);
-var wrappedContent = fragContent && TreeApi.Logical.getParentNode(fragContent).nodeType !== Node.DOCUMENT_FRAGMENT_NODE;
-var hasContent = fragContent || node.localName === CONTENT;
-if (hasContent) {
-var root = this.getOwnerRoot();
-if (root) {
-this._lazyDistribute(root.host);
-}
-}
-var needsDist = this._nodeNeedsDistribution(this.node);
-if (needsDist) {
-this._lazyDistribute(this.node);
-}
-return needsDist || hasContent && !wrappedContent;
-},
-_maybeAddInsertionPoint: function (node, parent) {
-var added;
-if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE && !node.__noContent) {
-var c$ = dom(node).querySelectorAll(CONTENT);
-for (var i = 0, n, np, na; i < c$.length && (n = c$[i]); i++) {
-np = TreeApi.Logical.getParentNode(n);
-if (np === node) {
-np = parent;
-}
-na = this._maybeAddInsertionPoint(n, np);
-added = added || na;
-}
-} else if (node.localName === CONTENT) {
-TreeApi.Logical.saveChildNodes(parent);
-TreeApi.Logical.saveChildNodes(node);
-added = true;
-}
-return added;
-},
-_updateInsertionPoints: function (host) {
-var i$ = host.shadyRoot._insertionPoints = dom(host.shadyRoot).querySelectorAll(CONTENT);
-for (var i = 0, c; i < i$.length; i++) {
-c = i$[i];
-TreeApi.Logical.saveChildNodes(c);
-TreeApi.Logical.saveChildNodes(TreeApi.Logical.getParentNode(c));
-}
-},
-_nodeNeedsDistribution: function (node) {
-return node && node.shadyRoot && DomApi.hasInsertionPoint(node.shadyRoot);
-},
-_addNodeToHost: function (host, node) {
-if (host._elementAdd) {
-host._elementAdd(node);
-}
-},
-_removeNodeFromHost: function (host, node) {
-if (host._elementRemove) {
-host._elementRemove(node);
-}
-},
-_removeDistributedChildren: function (root, container) {
-var hostNeedsDist;
-var ip$ = root._insertionPoints;
-for (var i = 0; i < ip$.length; i++) {
-var content = ip$[i];
-if (this._contains(container, content)) {
-var dc$ = dom(content).getDistributedNodes();
-for (var j = 0; j < dc$.length; j++) {
-hostNeedsDist = true;
-var node = dc$[j];
-var parent = TreeApi.Composed.getParentNode(node);
-if (parent) {
-TreeApi.Composed.removeChild(parent, node);
-}
-}
-}
-}
-return hostNeedsDist;
-},
-_contains: function (container, node) {
-while (node) {
-if (node == container) {
-return true;
-}
-node = TreeApi.Logical.getParentNode(node);
-}
-},
-_removeOwnerShadyRoot: function (node) {
-if (this._hasCachedOwnerRoot(node)) {
-var c$ = TreeApi.Logical.getChildNodes(node);
-for (var i = 0, l = c$.length, n; i < l && (n = c$[i]); i++) {
-this._removeOwnerShadyRoot(n);
-}
-}
-node._ownerShadyRoot = undefined;
-},
-_firstComposedNode: function (content) {
-var n$ = dom(content).getDistributedNodes();
-for (var i = 0, l = n$.length, n, p$; i < l && (n = n$[i]); i++) {
-p$ = dom(n).getDestinationInsertionPoints();
-if (p$[p$.length - 1] === content) {
-return n;
-}
-}
-},
-querySelector: function (selector) {
-var result = this._query(function (n) {
-return DomApi.matchesSelector.call(n, selector);
-}, this.node, function (n) {
-return Boolean(n);
-})[0];
-return result || null;
-},
-querySelectorAll: function (selector) {
-return this._query(function (n) {
-return DomApi.matchesSelector.call(n, selector);
-}, this.node);
-},
-getDestinationInsertionPoints: function () {
-return this.node._destinationInsertionPoints || [];
-},
-getDistributedNodes: function () {
-return this.node._distributedNodes || [];
-},
-_clear: function () {
-while (this.childNodes.length) {
-this.removeChild(this.childNodes[0]);
-}
-},
-setAttribute: function (name, value) {
-this.node.setAttribute(name, value);
-this._maybeDistributeParent();
-},
-removeAttribute: function (name) {
-this.node.removeAttribute(name);
-this._maybeDistributeParent();
-},
-_maybeDistributeParent: function () {
-if (this._nodeNeedsDistribution(this.parentNode)) {
-this._lazyDistribute(this.parentNode);
-return true;
-}
-},
-cloneNode: function (deep) {
-var n = nativeCloneNode.call(this.node, false);
-if (deep) {
-var c$ = this.childNodes;
-var d = dom(n);
-for (var i = 0, nc; i < c$.length; i++) {
-nc = dom(c$[i]).cloneNode(true);
-d.appendChild(nc);
-}
-}
-return n;
-},
-importNode: function (externalNode, deep) {
-var doc = this.node instanceof Document ? this.node : this.node.ownerDocument;
-var n = nativeImportNode.call(doc, externalNode, false);
-if (deep) {
-var c$ = TreeApi.Logical.getChildNodes(externalNode);
-var d = dom(n);
-for (var i = 0, nc; i < c$.length; i++) {
-nc = dom(doc).importNode(c$[i], true);
-d.appendChild(nc);
-}
-}
-return n;
-},
-_getComposedInnerHTML: function () {
-return getInnerHTML(this.node, true);
-}
-});
+if (!Settings.useShadow) {
 Object.defineProperties(DomApi.prototype, {
-activeElement: {
-get: function () {
-var active = document.activeElement;
-if (!active) {
-return null;
-}
-var isShadyRoot = !!this.node._isShadyRoot;
-if (this.node !== document) {
-if (!isShadyRoot) {
-return null;
-}
-if (this.node.host === active || !this.node.host.contains(active)) {
-return null;
-}
-}
-var activeRoot = dom(active).getOwnerRoot();
-while (activeRoot && activeRoot !== this.node) {
-active = activeRoot.host;
-activeRoot = dom(active).getOwnerRoot();
-}
-if (this.node === document) {
-return activeRoot ? null : active;
-} else {
-return activeRoot === this.node ? active : null;
-}
-},
-configurable: true
-},
 childNodes: {
 get: function () {
-var c$ = TreeApi.Logical.getChildNodes(this.node);
-return Array.isArray(c$) ? c$ : TreeApi.arrayCopyChildNodes(this.node);
+var c$ = getLightChildren(this.node);
+return Array.isArray(c$) ? c$ : arrayCopyChildNodes(this.node);
 },
 configurable: true
 },
 children: {
 get: function () {
-if (TreeApi.Logical.hasChildNodes(this.node)) {
 return Array.prototype.filter.call(this.childNodes, function (n) {
 return n.nodeType === Node.ELEMENT_NODE;
 });
-} else {
-return TreeApi.arrayCopyChildren(this.node);
-}
 },
 configurable: true
 },
 parentNode: {
 get: function () {
-return TreeApi.Logical.getParentNode(this.node);
+return this.node._lightParent || getComposedParent(this.node);
 },
 configurable: true
 },
 firstChild: {
 get: function () {
-return TreeApi.Logical.getFirstChild(this.node);
+return this.childNodes[0];
 },
 configurable: true
 },
 lastChild: {
 get: function () {
-return TreeApi.Logical.getLastChild(this.node);
+var c$ = this.childNodes;
+return c$[c$.length - 1];
 },
 configurable: true
 },
 nextSibling: {
 get: function () {
-return TreeApi.Logical.getNextSibling(this.node);
+var c$ = this.parentNode && factory(this.parentNode).childNodes;
+if (c$) {
+return c$[Array.prototype.indexOf.call(c$, this.node) + 1];
+}
 },
 configurable: true
 },
 previousSibling: {
 get: function () {
-return TreeApi.Logical.getPreviousSibling(this.node);
+var c$ = this.parentNode && factory(this.parentNode).childNodes;
+if (c$) {
+return c$[Array.prototype.indexOf.call(c$, this.node) - 1];
+}
 },
 configurable: true
 },
 firstElementChild: {
 get: function () {
-return TreeApi.Logical.getFirstElementChild(this.node);
+return this.children[0];
 },
 configurable: true
 },
 lastElementChild: {
 get: function () {
-return TreeApi.Logical.getLastElementChild(this.node);
+var c$ = this.children;
+return c$[c$.length - 1];
 },
 configurable: true
 },
 nextElementSibling: {
 get: function () {
-return TreeApi.Logical.getNextElementSibling(this.node);
+var c$ = this.parentNode && factory(this.parentNode).children;
+if (c$) {
+return c$[Array.prototype.indexOf.call(c$, this.node) + 1];
+}
 },
 configurable: true
 },
 previousElementSibling: {
 get: function () {
-return TreeApi.Logical.getPreviousElementSibling(this.node);
+var c$ = this.parentNode && factory(this.parentNode).children;
+if (c$) {
+return c$[Array.prototype.indexOf.call(c$, this.node) - 1];
+}
 },
 configurable: true
 },
@@ -1801,7 +1589,7 @@ if (nt !== Node.TEXT_NODE || nt !== Node.COMMENT_NODE) {
 this._clear();
 var d = document.createElement('div');
 d.innerHTML = text;
-var c$ = TreeApi.arrayCopyChildNodes(d);
+var c$ = arrayCopyChildNodes(d);
 for (var i = 0; i < c$.length; i++) {
 this.appendChild(c$[i]);
 }
@@ -1810,23 +1598,31 @@ this.appendChild(c$[i]);
 configurable: true
 }
 });
-DomApi.hasInsertionPoint = function (root) {
-return Boolean(root && root._insertionPoints.length);
+DomApi.prototype._getComposedInnerHTML = function () {
+return getInnerHTML(this.node, true);
 };
-}());
-(function () {
-'use strict';
-var Settings = Polymer.Settings;
-var TreeApi = Polymer.TreeApi;
-var DomApi = Polymer.DomApi;
-if (!Settings.useShadow) {
-return;
+} else {
+var forwardMethods = function (m$) {
+for (var i = 0; i < m$.length; i++) {
+forwardMethod(m$[i]);
 }
-Polymer.Base.extend(DomApi.prototype, {
-querySelectorAll: function (selector) {
-return TreeApi.arrayCopy(this.node.querySelectorAll(selector));
-},
-getOwnerRoot: function () {
+};
+var forwardMethod = function (method) {
+DomApi.prototype[method] = function () {
+return this.node[method].apply(this.node, arguments);
+};
+};
+forwardMethods([
+'cloneNode',
+'appendChild',
+'insertBefore',
+'removeChild',
+'replaceChild'
+]);
+DomApi.prototype.querySelectorAll = function (selector) {
+return arrayCopy(this.node.querySelectorAll(selector));
+};
+DomApi.prototype.getOwnerRoot = function () {
 var n = this.node;
 while (n) {
 if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE && n.host) {
@@ -1834,38 +1630,31 @@ return n;
 }
 n = n.parentNode;
 }
-},
-importNode: function (externalNode, deep) {
+};
+DomApi.prototype.importNode = function (externalNode, deep) {
 var doc = this.node instanceof Document ? this.node : this.node.ownerDocument;
 return doc.importNode(externalNode, deep);
-},
-getDestinationInsertionPoints: function () {
+};
+DomApi.prototype.getDestinationInsertionPoints = function () {
 var n$ = this.node.getDestinationInsertionPoints && this.node.getDestinationInsertionPoints();
-return n$ ? TreeApi.arrayCopy(n$) : [];
-},
-getDistributedNodes: function () {
+return n$ ? arrayCopy(n$) : [];
+};
+DomApi.prototype.getDistributedNodes = function () {
 var n$ = this.node.getDistributedNodes && this.node.getDistributedNodes();
-return n$ ? TreeApi.arrayCopy(n$) : [];
-}
-});
+return n$ ? arrayCopy(n$) : [];
+};
+DomApi.prototype._distributeParent = function () {
+};
 Object.defineProperties(DomApi.prototype, {
-activeElement: {
-get: function () {
-var node = DomApi.wrap(this.node);
-var activeElement = node.activeElement;
-return node.contains(activeElement) ? activeElement : null;
-},
-configurable: true
-},
 childNodes: {
 get: function () {
-return TreeApi.arrayCopyChildNodes(this.node);
+return arrayCopyChildNodes(this.node);
 },
 configurable: true
 },
 children: {
 get: function () {
-return TreeApi.arrayCopyChildren(this.node);
+return arrayCopyChildren(this.node);
 },
 configurable: true
 },
@@ -1888,26 +1677,6 @@ return this.node.innerHTML = value;
 configurable: true
 }
 });
-var forwardMethods = function (m$) {
-for (var i = 0; i < m$.length; i++) {
-forwardMethod(m$[i]);
-}
-};
-var forwardMethod = function (method) {
-DomApi.prototype[method] = function () {
-return this.node[method].apply(this.node, arguments);
-};
-};
-forwardMethods([
-'cloneNode',
-'appendChild',
-'insertBefore',
-'removeChild',
-'replaceChild',
-'setAttribute',
-'removeAttribute',
-'querySelector'
-]);
 var forwardProperties = function (f$) {
 for (var i = 0; i < f$.length; i++) {
 forwardProperty(f$[i]);
@@ -1932,7 +1701,120 @@ forwardProperties([
 'nextElementSibling',
 'previousElementSibling'
 ]);
-}());
+}
+var CONTENT = 'content';
+function factory(node, patch) {
+node = node || document;
+if (!node.__domApi) {
+node.__domApi = new DomApi(node, patch);
+}
+return node.__domApi;
+}
+;
+function hasDomApi(node) {
+return Boolean(node.__domApi);
+}
+;
+Polymer.dom = function (obj, patch) {
+if (obj instanceof Event) {
+return Polymer.EventApi.factory(obj);
+} else {
+return factory(obj, patch);
+}
+};
+function getLightChildren(node) {
+var children = node._lightChildren;
+return children ? children : node.childNodes;
+}
+function getComposedChildren(node) {
+if (!node._composedChildren) {
+node._composedChildren = arrayCopyChildNodes(node);
+}
+return node._composedChildren;
+}
+function addToComposedParent(parent, node, ref_node) {
+var children = getComposedChildren(parent);
+var i = ref_node ? children.indexOf(ref_node) : -1;
+if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+var fragChildren = getComposedChildren(node);
+for (var j = 0; j < fragChildren.length; j++) {
+addNodeToComposedChildren(fragChildren[j], parent, children, i + j);
+}
+node._composedChildren = null;
+} else {
+addNodeToComposedChildren(node, parent, children, i);
+}
+}
+function getComposedParent(node) {
+return node.__patched ? node._composedParent : node.parentNode;
+}
+function addNodeToComposedChildren(node, parent, children, i) {
+node._composedParent = parent;
+children.splice(i >= 0 ? i : children.length, 0, node);
+}
+function removeFromComposedParent(parent, node) {
+node._composedParent = null;
+if (parent) {
+var children = getComposedChildren(parent);
+var i = children.indexOf(node);
+if (i >= 0) {
+children.splice(i, 1);
+}
+}
+}
+function saveLightChildrenIfNeeded(node) {
+if (!node._lightChildren) {
+var c$ = arrayCopyChildNodes(node);
+for (var i = 0, l = c$.length, child; i < l && (child = c$[i]); i++) {
+child._lightParent = child._lightParent || node;
+}
+node._lightChildren = c$;
+}
+}
+function arrayCopyChildNodes(parent) {
+var copy = [], i = 0;
+for (var n = parent.firstChild; n; n = n.nextSibling) {
+copy[i++] = n;
+}
+return copy;
+}
+function arrayCopyChildren(parent) {
+var copy = [], i = 0;
+for (var n = parent.firstElementChild; n; n = n.nextElementSibling) {
+copy[i++] = n;
+}
+return copy;
+}
+function arrayCopy(a$) {
+var l = a$.length;
+var copy = new Array(l);
+for (var i = 0; i < l; i++) {
+copy[i] = a$[i];
+}
+return copy;
+}
+function hasInsertionPoint(root) {
+return Boolean(root && root._insertionPoints.length);
+}
+var p = Element.prototype;
+var matchesSelector = p.matches || p.matchesSelector || p.mozMatchesSelector || p.msMatchesSelector || p.oMatchesSelector || p.webkitMatchesSelector;
+return {
+getLightChildren: getLightChildren,
+getComposedParent: getComposedParent,
+getComposedChildren: getComposedChildren,
+removeFromComposedParent: removeFromComposedParent,
+saveLightChildrenIfNeeded: saveLightChildrenIfNeeded,
+matchesSelector: matchesSelector,
+hasInsertionPoint: hasInsertionPoint,
+ctor: DomApi,
+factory: factory,
+hasDomApi: hasDomApi,
+arrayCopy: arrayCopy,
+arrayCopyChildNodes: arrayCopyChildNodes,
+arrayCopyChildren: arrayCopyChildren,
+wrap: wrap
+};
+}();
 Polymer.Base.extend(Polymer.dom, {
 _flushGuard: 0,
 _FLUSH_MAX: 100,
@@ -1944,8 +1826,8 @@ flush: function () {
 this._flushGuard = 0;
 this._prepareFlush();
 while (this._debouncers.length && this._flushGuard < this._FLUSH_MAX) {
-while (this._debouncers.length) {
-this._debouncers.shift().complete();
+for (var i = 0; i < this._debouncers.length; i++) {
+this._debouncers[i].complete();
 }
 if (this._finishDebouncer) {
 this._finishDebouncer.complete();
@@ -2019,18 +1901,10 @@ return p$[i];
 get path() {
 if (!this.event._path) {
 var path = [];
-var current = this.rootTarget;
-while (current) {
-path.push(current);
-var insertionPoints = Polymer.dom(current).getDestinationInsertionPoints();
-if (insertionPoints.length) {
-for (var i = 0; i < insertionPoints.length - 1; i++) {
-path.push(insertionPoints[i]);
-}
-current = insertionPoints[insertionPoints.length - 1];
-} else {
-current = Polymer.dom(current).parentNode || current.host;
-}
+var o = this.rootTarget;
+while (o) {
+path.push(o);
+o = Polymer.dom(o).parentNode || o.host;
 }
 path.push(window);
 this.event._path = path;
@@ -2050,7 +1924,6 @@ return { factory: factory };
 (function () {
 'use strict';
 var DomApi = Polymer.DomApi.ctor;
-var useShadow = Polymer.Settings.useShadow;
 Object.defineProperty(DomApi.prototype, 'classList', {
 get: function () {
 if (!this._classList) {
@@ -2067,20 +1940,15 @@ this.node = host.node;
 DomApi.ClassList.prototype = {
 add: function () {
 this.node.classList.add.apply(this.node.classList, arguments);
-this._distributeParent();
+this.domApi._distributeParent();
 },
 remove: function () {
 this.node.classList.remove.apply(this.node.classList, arguments);
-this._distributeParent();
+this.domApi._distributeParent();
 },
 toggle: function () {
 this.node.classList.toggle.apply(this.node.classList, arguments);
-this._distributeParent();
-},
-_distributeParent: function () {
-if (!useShadow) {
-this.domApi._maybeDistributeParent();
-}
+this.domApi._distributeParent();
 },
 contains: function () {
 return this.node.classList.contains.apply(this.node.classList, arguments);
@@ -2343,34 +2211,21 @@ this._observer = null;
 }
 }());
 (function () {
-var DomApi = Polymer.DomApi;
-var TreeApi = Polymer.TreeApi;
+var hasDomApi = Polymer.DomApi.hasDomApi;
 Polymer.Base._addFeature({
 _prepShady: function () {
 this._useContent = this._useContent || Boolean(this._template);
 },
-_setupShady: function () {
-this.shadyRoot = null;
-if (!this.__domApi) {
-this.__domApi = null;
-}
-if (!this.__dom) {
-this.__dom = null;
-}
-if (!this._ownerShadyRoot) {
-this._ownerShadyRoot = undefined;
-}
-},
 _poolContent: function () {
 if (this._useContent) {
-TreeApi.Logical.saveChildNodes(this);
+saveLightChildrenIfNeeded(this);
 }
 },
 _setupRoot: function () {
 if (this._useContent) {
 this._createLocalRoot();
 if (!this.dataHost) {
-upgradeLogicalChildren(TreeApi.Logical.getChildNodes(this));
+upgradeLightChildren(this._lightChildren);
 }
 }
 },
@@ -2381,11 +2236,11 @@ this.shadyRoot._hasDistributed = false;
 this.shadyRoot._isShadyRoot = true;
 this.shadyRoot._dirtyRoots = [];
 var i$ = this.shadyRoot._insertionPoints = !this._notes || this._notes._hasContent ? this.shadyRoot.querySelectorAll('content') : [];
-TreeApi.Logical.saveChildNodes(this.shadyRoot);
+saveLightChildrenIfNeeded(this.shadyRoot);
 for (var i = 0, c; i < i$.length; i++) {
 c = i$[i];
-TreeApi.Logical.saveChildNodes(c);
-TreeApi.Logical.saveChildNodes(c.parentNode);
+saveLightChildrenIfNeeded(c);
+saveLightChildrenIfNeeded(c.parentNode);
 }
 this.shadyRoot.host = this;
 },
@@ -2395,24 +2250,23 @@ return root && root.host;
 },
 distributeContent: function (updateInsertionPoints) {
 if (this.shadyRoot) {
-this.shadyRoot._invalidInsertionPoints = this.shadyRoot._invalidInsertionPoints || updateInsertionPoints;
+var dom = Polymer.dom(this);
+if (updateInsertionPoints) {
+dom._updateInsertionPoints(this);
+}
 var host = getTopDistributingHost(this);
-Polymer.dom(this)._lazyDistribute(host);
+dom._lazyDistribute(host);
 }
 },
 _distributeContent: function () {
 if (this._useContent && !this.shadyRoot._distributionClean) {
-if (this.shadyRoot._invalidInsertionPoints) {
-Polymer.dom(this)._updateInsertionPoints(this);
-this.shadyRoot._invalidInsertionPoints = false;
-}
 this._beginDistribute();
 this._distributeDirtyRoots();
 this._finishDistribute();
 }
 },
 _beginDistribute: function () {
-if (this._useContent && DomApi.hasInsertionPoint(this.shadyRoot)) {
+if (this._useContent && hasInsertionPoint(this.shadyRoot)) {
 this._resetDistribution();
 this._distributePool(this.shadyRoot, this._collectPool());
 }
@@ -2427,12 +2281,13 @@ this.shadyRoot._dirtyRoots = [];
 _finishDistribute: function () {
 if (this._useContent) {
 this.shadyRoot._distributionClean = true;
-if (DomApi.hasInsertionPoint(this.shadyRoot)) {
+if (hasInsertionPoint(this.shadyRoot)) {
 this._composeTree();
 notifyContentObservers(this.shadyRoot);
 } else {
 if (!this.shadyRoot._hasDistributed) {
-TreeApi.Composed.clearChildNodes(this);
+this.textContent = '';
+this._composedChildren = null;
 this.appendChild(this.shadyRoot);
 } else {
 var children = this._composeNode(this);
@@ -2447,10 +2302,10 @@ this.shadyRoot._hasDistributed = true;
 },
 elementMatches: function (selector, node) {
 node = node || this;
-return DomApi.matchesSelector.call(node, selector);
+return matchesSelector.call(node, selector);
 },
 _resetDistribution: function () {
-var children = TreeApi.Logical.getChildNodes(this);
+var children = getLightChildren(this);
 for (var i = 0; i < children.length; i++) {
 var child = children[i];
 if (child._destinationInsertionPoints) {
@@ -2468,7 +2323,7 @@ p$[j]._distributedNodes = [];
 },
 _collectPool: function () {
 var pool = [];
-var children = TreeApi.Logical.getChildNodes(this);
+var children = getLightChildren(this);
 for (var i = 0; i < children.length; i++) {
 var child = children[i];
 if (isInsertionPoint(child)) {
@@ -2500,7 +2355,7 @@ anyDistributed = true;
 }
 }
 if (!anyDistributed) {
-var children = TreeApi.Logical.getChildNodes(content);
+var children = getLightChildren(content);
 for (var j = 0; j < children.length; j++) {
 distributeNodeInto(children[j], content);
 }
@@ -2510,7 +2365,7 @@ _composeTree: function () {
 this._updateChildNodes(this, this._composeNode(this));
 var p$ = this.shadyRoot._insertionPoints;
 for (var i = 0, l = p$.length, p, parent; i < l && (p = p$[i]); i++) {
-parent = TreeApi.Logical.getParentNode(p);
+parent = p._lightParent || p.parentNode;
 if (!parent._useContent && parent !== this && parent !== this.shadyRoot) {
 this._updateChildNodes(parent, this._composeNode(parent));
 }
@@ -2518,7 +2373,7 @@ this._updateChildNodes(parent, this._composeNode(parent));
 },
 _composeNode: function (node) {
 var children = [];
-var c$ = TreeApi.Logical.getChildNodes(node.shadyRoot || node);
+var c$ = getLightChildren(node.shadyRoot || node);
 for (var i = 0; i < c$.length; i++) {
 var child = c$[i];
 if (isInsertionPoint(child)) {
@@ -2536,12 +2391,12 @@ children.push(child);
 return children;
 },
 _updateChildNodes: function (container, children) {
-var composed = TreeApi.Composed.getChildNodes(container);
+var composed = getComposedChildren(container);
 var splices = Polymer.ArraySplice.calculateSplices(children, composed);
 for (var i = 0, d = 0, s; i < splices.length && (s = splices[i]); i++) {
 for (var j = 0, n; j < s.removed.length && (n = s.removed[j]); j++) {
-if (TreeApi.Composed.getParentNode(n) === container) {
-TreeApi.Composed.removeChild(container, n);
+if (getComposedParent(n) === container) {
+remove(n);
 }
 composed.splice(s.index + d, 1);
 }
@@ -2551,10 +2406,11 @@ for (var i = 0, s, next; i < splices.length && (s = splices[i]); i++) {
 next = composed[s.index];
 for (var j = s.index, n; j < s.index + s.addedCount; j++) {
 n = children[j];
-TreeApi.Composed.insertBefore(container, n, next);
+insertBefore(container, n, next);
 composed.splice(j, 0, n);
 }
 }
+ensureComposedParent(container, children);
 },
 _matchesContentSelect: function (node, contentElement) {
 var select = contentElement.getAttribute('select');
@@ -2579,6 +2435,13 @@ _elementAdd: function () {
 _elementRemove: function () {
 }
 });
+var saveLightChildrenIfNeeded = Polymer.DomApi.saveLightChildrenIfNeeded;
+var getLightChildren = Polymer.DomApi.getLightChildren;
+var matchesSelector = Polymer.DomApi.matchesSelector;
+var hasInsertionPoint = Polymer.DomApi.hasInsertionPoint;
+var getComposedChildren = Polymer.DomApi.getComposedChildren;
+var getComposedParent = Polymer.DomApi.getComposedParent;
+var removeFromComposedParent = Polymer.DomApi.removeFromComposedParent;
 function distributeNodeInto(child, insertionPoint) {
 insertionPoint._distributedNodes.push(child);
 var points = child._destinationInsertionPoints;
@@ -2600,8 +2463,8 @@ d.splice(d.indexOf(content) + 1, d.length);
 }
 }
 function maybeRedistributeParent(content, host) {
-var parent = TreeApi.Logical.getParentNode(content);
-if (parent && parent.shadyRoot && DomApi.hasInsertionPoint(parent.shadyRoot) && parent.shadyRoot._distributionClean) {
+var parent = content._lightParent;
+if (parent && parent.shadyRoot && hasInsertionPoint(parent.shadyRoot) && parent.shadyRoot._distributionClean) {
 parent.shadyRoot._distributionClean = false;
 host.shadyRoot._dirtyRoots.push(parent);
 }
@@ -2613,6 +2476,29 @@ return points && points[points.length - 1] === insertionPoint;
 function isInsertionPoint(node) {
 return node.localName == 'content';
 }
+var nativeInsertBefore = Element.prototype.insertBefore;
+var nativeRemoveChild = Element.prototype.removeChild;
+function insertBefore(parentNode, newChild, refChild) {
+var newChildParent = getComposedParent(newChild);
+if (newChildParent !== parentNode) {
+removeFromComposedParent(newChildParent, newChild);
+}
+remove(newChild);
+nativeInsertBefore.call(parentNode, newChild, refChild || null);
+newChild._composedParent = parentNode;
+}
+function remove(node) {
+var parentNode = getComposedParent(node);
+if (parentNode) {
+node._composedParent = null;
+nativeRemoveChild.call(parentNode, node);
+}
+}
+function ensureComposedParent(parent, children) {
+for (var i = 0, n; i < children.length; i++) {
+children[i]._composedParent = parent;
+}
+}
 function getTopDistributingHost(host) {
 while (host && hostNeedsRedistribution(host)) {
 host = host.domHost;
@@ -2620,10 +2506,10 @@ host = host.domHost;
 return host;
 }
 function hostNeedsRedistribution(host) {
-var c$ = TreeApi.Logical.getChildNodes(host);
+var c$ = Polymer.dom(host).children;
 for (var i = 0, c; i < c$.length; i++) {
 c = c$[i];
-if (c.localName && c.localName === 'content') {
+if (c.localName === 'content') {
 return host.domHost;
 }
 }
@@ -2631,18 +2517,18 @@ return host.domHost;
 function notifyContentObservers(root) {
 for (var i = 0, c; i < root._insertionPoints.length; i++) {
 c = root._insertionPoints[i];
-if (DomApi.hasApi(c)) {
+if (hasDomApi(c)) {
 Polymer.dom(c).notifyObserver();
 }
 }
 }
 function notifyInitialDistribution(host) {
-if (DomApi.hasApi(host)) {
+if (hasDomApi(host)) {
 Polymer.dom(host).notifyObserver();
 }
 }
 var needsUpgrade = window.CustomElements && !CustomElements.useNative;
-function upgradeLogicalChildren(children) {
+function upgradeLightChildren(children) {
 if (needsUpgrade && children) {
 for (var i = 0; i < children.length; i++) {
 CustomElements.upgrade(children[i]);
@@ -2669,123 +2555,6 @@ this.root = this.shadowRoot;
 }
 });
 }
-Polymer.Async = {
-_currVal: 0,
-_lastVal: 0,
-_callbacks: [],
-_twiddleContent: 0,
-_twiddle: document.createTextNode(''),
-run: function (callback, waitTime) {
-if (waitTime > 0) {
-return ~setTimeout(callback, waitTime);
-} else {
-this._twiddle.textContent = this._twiddleContent++;
-this._callbacks.push(callback);
-return this._currVal++;
-}
-},
-cancel: function (handle) {
-if (handle < 0) {
-clearTimeout(~handle);
-} else {
-var idx = handle - this._lastVal;
-if (idx >= 0) {
-if (!this._callbacks[idx]) {
-throw 'invalid async handle: ' + handle;
-}
-this._callbacks[idx] = null;
-}
-}
-},
-_atEndOfMicrotask: function () {
-var len = this._callbacks.length;
-for (var i = 0; i < len; i++) {
-var cb = this._callbacks[i];
-if (cb) {
-try {
-cb();
-} catch (e) {
-i++;
-this._callbacks.splice(0, i);
-this._lastVal += i;
-this._twiddle.textContent = this._twiddleContent++;
-throw e;
-}
-}
-}
-this._callbacks.splice(0, len);
-this._lastVal += len;
-}
-};
-new window.MutationObserver(function () {
-Polymer.Async._atEndOfMicrotask();
-}).observe(Polymer.Async._twiddle, { characterData: true });
-Polymer.Debounce = function () {
-var Async = Polymer.Async;
-var Debouncer = function (context) {
-this.context = context;
-var self = this;
-this.boundComplete = function () {
-self.complete();
-};
-};
-Debouncer.prototype = {
-go: function (callback, wait) {
-var h;
-this.finish = function () {
-Async.cancel(h);
-};
-h = Async.run(this.boundComplete, wait);
-this.callback = callback;
-},
-stop: function () {
-if (this.finish) {
-this.finish();
-this.finish = null;
-}
-},
-complete: function () {
-if (this.finish) {
-this.stop();
-this.callback.call(this.context);
-}
-}
-};
-function debounce(debouncer, callback, wait) {
-if (debouncer) {
-debouncer.stop();
-} else {
-debouncer = new Debouncer(this);
-}
-debouncer.go(callback, wait);
-return debouncer;
-}
-return debounce;
-}();
-Polymer.Base._addFeature({
-_setupDebouncers: function () {
-this._debouncers = {};
-},
-debounce: function (jobName, callback, wait) {
-return this._debouncers[jobName] = Polymer.Debounce.call(this, this._debouncers[jobName], callback, wait);
-},
-isDebouncerActive: function (jobName) {
-var debouncer = this._debouncers[jobName];
-return !!(debouncer && debouncer.finish);
-},
-flushDebouncer: function (jobName) {
-var debouncer = this._debouncers[jobName];
-if (debouncer) {
-debouncer.complete();
-}
-},
-cancelDebouncer: function (jobName) {
-var debouncer = this._debouncers[jobName];
-if (debouncer) {
-debouncer.stop();
-}
-}
-});
 Polymer.DomModule = document.createElement('dom-module');
 Polymer.Base._addFeature({
 _registerFeatures: function () {
@@ -2826,34 +2595,22 @@ return list;
 _parseNodeAnnotations: function (node, list, stripWhiteSpace) {
 return node.nodeType === Node.TEXT_NODE ? this._parseTextNodeAnnotation(node, list) : this._parseElementAnnotations(node, list, stripWhiteSpace);
 },
-_bindingRegex: function () {
-var IDENT = '(?:' + '[a-zA-Z_$][\\w.:$-*]*' + ')';
-var NUMBER = '(?:' + '[-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?' + ')';
-var SQUOTE_STRING = '(?:' + '\'(?:[^\'\\\\]|\\\\.)*\'' + ')';
-var DQUOTE_STRING = '(?:' + '"(?:[^"\\\\]|\\\\.)*"' + ')';
-var STRING = '(?:' + SQUOTE_STRING + '|' + DQUOTE_STRING + ')';
-var ARGUMENT = '(?:' + IDENT + '|' + NUMBER + '|' + STRING + '\\s*' + ')';
-var ARGUMENTS = '(?:' + ARGUMENT + '(?:,\\s*' + ARGUMENT + ')*' + ')';
-var ARGUMENT_LIST = '(?:' + '\\(\\s*' + '(?:' + ARGUMENTS + '?' + ')' + '\\)\\s*' + ')';
-var BINDING = '(' + IDENT + '\\s*' + ARGUMENT_LIST + '?' + ')';
-var OPEN_BRACKET = '(\\[\\[|{{)' + '\\s*';
-var CLOSE_BRACKET = '(?:]]|}})';
-var NEGATE = '(?:(!)\\s*)?';
-var EXPRESSION = OPEN_BRACKET + NEGATE + BINDING + CLOSE_BRACKET;
-return new RegExp(EXPRESSION, 'g');
-}(),
+_bindingRegex: /([^{[]*)(\{\{|\[\[)(?!\}\}|\]\])(.+?)(?:\]\]|\}\})/g,
 _parseBindings: function (text) {
 var re = this._bindingRegex;
 var parts = [];
-var lastIndex = 0;
-var m;
+var m, lastIndex;
 while ((m = re.exec(text)) !== null) {
-if (m.index > lastIndex) {
-parts.push({ literal: text.slice(lastIndex, m.index) });
+if (m[1]) {
+parts.push({ literal: m[1] });
 }
-var mode = m[1][0];
-var negate = Boolean(m[2]);
+var mode = m[2][0];
 var value = m[3].trim();
+var negate = false;
+if (value[0] == '!') {
+negate = true;
+value = value.substring(1).trim();
+}
 var customEvent, notifyEvent, colon;
 if (mode == '{' && (colon = value.indexOf('::')) > 0) {
 notifyEvent = value.substring(colon + 2);
@@ -3002,7 +2759,7 @@ var literal = this._literalFromParts(parts);
 if (literal && kind == 'attribute') {
 node.setAttribute(name, literal);
 }
-if (node.localName === 'input' && origName === 'value') {
+if (node.localName == 'input' && name == 'value') {
 node.setAttribute(origName, '');
 }
 node.removeAttribute(origName);
@@ -3018,17 +2775,12 @@ isCompound: parts.length !== 1
 };
 }
 },
+_localSubTree: function (node, host) {
+return node === host ? node.childNodes : node._lightChildren || node.childNodes;
+},
 findAnnotatedNode: function (root, annote) {
 var parent = annote.parent && Polymer.Annotations.findAnnotatedNode(root, annote.parent);
-if (parent) {
-for (var n = parent.firstChild, i = 0; n; n = n.nextSibling) {
-if (annote.index === i++) {
-return n;
-}
-}
-} else {
-return root;
-}
+return !parent ? root : Polymer.Annotations._localSubTree(parent, root)[annote.index];
 }
 };
 (function () {
@@ -3103,8 +2855,8 @@ if (this._template._content && this._template._content._notes) {
 this._notes = this._template._content._notes;
 } else {
 this._notes = Polymer.Annotations.parseAnnotations(this._template);
-this._processAnnotations(this._notes);
 }
+this._processAnnotations(this._notes);
 Polymer.Annotations.prepElement = null;
 }
 },
@@ -3151,15 +2903,10 @@ for (var k = 0, p$ = b.parts, p; k < p$.length && (p = p$[k]); k++) {
 if (p.signature) {
 var args = p.signature.args;
 for (var kk = 0; kk < args.length; kk++) {
-var model = args[kk].model;
-if (model) {
-pp[model] = true;
-}
+pp[args[kk].model] = true;
 }
 } else {
-if (p.model) {
 pp[p.model] = true;
-}
 }
 }
 }
@@ -3458,8 +3205,6 @@ document.addEventListener('mouseup', upfn);
 function untrackDocument(stateObj) {
 document.removeEventListener('mousemove', stateObj.movefn);
 document.removeEventListener('mouseup', stateObj.upfn);
-stateObj.movefn = null;
-stateObj.upfn = null;
 }
 var Gestures = {
 gestures: {},
@@ -3686,8 +3431,10 @@ emits: [
 'up'
 ],
 info: {
-movefn: null,
-upfn: null
+movefn: function () {
+},
+upfn: function () {
+}
 },
 reset: function () {
 untrackDocument(this.info);
@@ -3720,6 +3467,7 @@ touchend: function (e) {
 this.fire('up', Gestures.findOriginalTarget(e), e.changedTouches[0]);
 },
 fire: function (type, target, event) {
+var self = this;
 Gestures.fire(target, type, {
 x: event.clientX,
 y: event.clientY,
@@ -3762,8 +3510,10 @@ this.moves.shift();
 }
 this.moves.push(move);
 },
-movefn: null,
-upfn: null,
+movefn: function () {
+},
+upfn: function () {
+},
 prevent: false
 },
 reset: function () {
@@ -3947,9 +3697,6 @@ none: 'none',
 all: 'auto'
 };
 Polymer.Base._addFeature({
-_setupGestures: function () {
-this.__polymerGestures = null;
-},
 _listen: function (node, eventName, handler) {
 if (Gestures.gestures[eventName]) {
 Gestures.add(node, eventName, handler);
@@ -3971,6 +3718,99 @@ Gestures.setTouchAction(node, DIRECTION_MAP[direction] || 'auto');
 });
 Polymer.Gestures = Gestures;
 }());
+Polymer.Async = {
+_currVal: 0,
+_lastVal: 0,
+_callbacks: [],
+_twiddleContent: 0,
+_twiddle: document.createTextNode(''),
+run: function (callback, waitTime) {
+if (waitTime > 0) {
+return ~setTimeout(callback, waitTime);
+} else {
+this._twiddle.textContent = this._twiddleContent++;
+this._callbacks.push(callback);
+return this._currVal++;
+}
+},
+cancel: function (handle) {
+if (handle < 0) {
+clearTimeout(~handle);
+} else {
+var idx = handle - this._lastVal;
+if (idx >= 0) {
+if (!this._callbacks[idx]) {
+throw 'invalid async handle: ' + handle;
+}
+this._callbacks[idx] = null;
+}
+}
+},
+_atEndOfMicrotask: function () {
+var len = this._callbacks.length;
+for (var i = 0; i < len; i++) {
+var cb = this._callbacks[i];
+if (cb) {
+try {
+cb();
+} catch (e) {
+i++;
+this._callbacks.splice(0, i);
+this._lastVal += i;
+this._twiddle.textContent = this._twiddleContent++;
+throw e;
+}
+}
+}
+this._callbacks.splice(0, len);
+this._lastVal += len;
+}
+};
+new window.MutationObserver(function () {
+Polymer.Async._atEndOfMicrotask();
+}).observe(Polymer.Async._twiddle, { characterData: true });
+Polymer.Debounce = function () {
+var Async = Polymer.Async;
+var Debouncer = function (context) {
+this.context = context;
+var self = this;
+this.boundComplete = function () {
+self.complete();
+};
+};
+Debouncer.prototype = {
+go: function (callback, wait) {
+var h;
+this.finish = function () {
+Async.cancel(h);
+};
+h = Async.run(this.boundComplete, wait);
+this.callback = callback;
+},
+stop: function () {
+if (this.finish) {
+this.finish();
+this.finish = null;
+}
+},
+complete: function () {
+if (this.finish) {
+this.stop();
+this.callback.call(this.context);
+}
+}
+};
+function debounce(debouncer, callback, wait) {
+if (debouncer) {
+debouncer.stop();
+} else {
+debouncer = new Debouncer(this);
+}
+debouncer.go(callback, wait);
+return debouncer;
+}
+return debounce;
+}();
 Polymer.Base._addFeature({
 $$: function (slctr) {
 return Polymer.dom(this.root).querySelector(slctr);
@@ -4110,14 +3950,10 @@ translate3d: function (x, y, z, node) {
 node = node || this;
 this.transform('translate3d(' + x + ',' + y + ',' + z + ')', node);
 },
-importHref: function (href, onload, onerror, optAsync) {
+importHref: function (href, onload, onerror) {
 var l = document.createElement('link');
 l.rel = 'import';
 l.href = href;
-optAsync = Boolean(optAsync);
-if (optAsync) {
-l.setAttribute('async', '');
-}
 var self = this;
 if (onload) {
 l.onload = function (e) {
@@ -4485,9 +4321,6 @@ this._addComplexObserverEffect(o);
 },
 _addComplexObserverEffect: function (observer) {
 var sig = this._parseMethod(observer);
-if (!sig) {
-throw new Error('Malformed observer expression \'' + observer + '\'');
-}
 for (var i = 0, arg; i < sig.args.length && (arg = sig.args[i]); i++) {
 this._addPropertyEffect(arg.model, 'complexObserver', {
 method: sig.method,
@@ -4553,7 +4386,7 @@ trigger: trigger
 });
 },
 _parseMethod: function (expression) {
-var m = expression.match(/([^\s]+?)\((.*)\)/);
+var m = expression.match(/([^\s]+)\((.*)\)/);
 if (m) {
 var sig = {
 method: m[1],
@@ -4580,7 +4413,10 @@ return sig;
 },
 _parseArg: function (rawArg) {
 var arg = rawArg.trim().replace(/&comma;/g, ',').replace(/\\(.)/g, '$1');
-var a = { name: arg };
+var a = {
+name: arg,
+model: this._modelForPath(arg)
+};
 var fc = arg[0];
 if (fc === '-') {
 fc = arg[1];
@@ -4600,7 +4436,6 @@ a.literal = true;
 break;
 }
 if (!a.literal) {
-a.model = this._modelForPath(arg);
 a.structured = arg.indexOf('.') > 0;
 if (a.structured) {
 a.wildcard = arg.slice(-2) == '.*';
@@ -4636,7 +4471,7 @@ value = value == undefined ? '' : value;
 }
 var pinfo;
 if (!node._propertyInfo || !(pinfo = node._propertyInfo[property]) || !pinfo.readOnly) {
-this.__setProperty(property, value, false, node);
+this.__setProperty(property, value, true, node);
 }
 }
 },
@@ -4650,7 +4485,6 @@ Polymer.Base._addFeature({
 _setupConfigure: function (initialConfig) {
 this._config = {};
 this._handlers = [];
-this._aboveConfig = null;
 if (initialConfig) {
 for (var i in initialConfig) {
 if (initialConfig[i] !== undefined) {
@@ -4768,9 +4602,7 @@ Polymer.Base._addFeature({
 notifyPath: function (path, value, fromAbove) {
 var info = {};
 this._get(path, this, info);
-if (info.path) {
 this._notifyPath(info.path, value, fromAbove);
-}
 },
 _notifyPath: function (path, value, fromAbove) {
 var old = this._propertySetter(path, value);
@@ -5082,7 +4914,7 @@ return Polymer.ResolveUrl.resolveUrl(url, root);
 }
 });
 Polymer.CssParse = function () {
-return {
+var api = {
 parse: function (text) {
 text = this._clean(text);
 return this._parseCss(this._lex(text), text);
@@ -5096,7 +4928,7 @@ start: 0,
 end: text.length
 };
 var n = root;
-for (var i = 0, l = text.length; i < l; i++) {
+for (var i = 0, s = 0, l = text.length; i < l; i++) {
 switch (text[i]) {
 case this.OPEN_BRACE:
 if (!n.rules) {
@@ -5213,8 +5045,8 @@ CLOSE_BRACE: '}',
 _rx: {
 comments: /\/\*[^*]*\*+([^\/*][^*]*\*+)*\//gim,
 port: /@import[^;]*;/gim,
-customProp: /(?:^[^;\-\s}]+)?--[^;{}]*?:[^{};]*?(?:[;\n]|$)/gim,
-mixinProp: /(?:^[^;\-\s}]+)?--[^;{}]*?:[^{};]*?{[^}]*?}(?:[;\n]|$)?/gim,
+customProp: /(?:^|[\s;])--[^;{]*?:[^{};]*?(?:[;\n]|$)/gim,
+mixinProp: /(?:^|[\s;])?--[^;{]*?:[^{;]*?{[^}]*?}(?:[;\n]|$)?/gim,
 mixinApply: /@apply[\s]*\([^)]*?\)[\s]*(?:[;\n]|$)?/gim,
 varApply: /[^;:]*?:[^;]*?var\([^;]*\)(?:[;\n]|$)?/gim,
 keyframesRule: /^@[^\s]*keyframes/,
@@ -5224,6 +5056,7 @@ VAR_START: '--',
 MEDIA_START: '@media',
 AT_START: '@'
 };
+return api;
 }();
 Polymer.StyleUtil = function () {
 return {
@@ -5251,10 +5084,14 @@ style.__cssRules = this.parser.parse(style.textContent);
 }
 return style.__cssRules;
 },
+clearStyleRules: function (style) {
+style.__cssRules = null;
+},
 forEachStyleRule: function (node, callback) {
 if (!node) {
 return;
 }
+var s = node.parsedSelector;
 var skipRules = false;
 if (node.type === this.ruleTypes.STYLE_RULE) {
 callback(node);
@@ -5303,7 +5140,7 @@ return m && m._cssText || '';
 cssFromElement: function (element) {
 var cssText = '';
 var content = element.content || element;
-var e$ = Polymer.TreeApi.arrayCopy(content.querySelectorAll(this.MODULE_STYLES_SELECTOR));
+var e$ = Polymer.DomApi.arrayCopy(content.querySelectorAll(this.MODULE_STYLES_SELECTOR));
 for (var i = 0, e; i < e$.length; i++) {
 e = e$[i];
 if (e.localName === 'template') {
@@ -5369,7 +5206,7 @@ if (c) {
 element.setAttribute(CLASS, c.replace(SCOPE_NAME, '').replace(scope, ''));
 }
 } else {
-element.setAttribute(CLASS, (c ? c + ' ' : '') + SCOPE_NAME + ' ' + scope);
+element.setAttribute(CLASS, c + (c ? ' ' : '') + SCOPE_NAME + ' ' + scope);
 }
 }
 }
@@ -5378,7 +5215,7 @@ element.setAttribute(CLASS, (c ? c + ' ' : '') + SCOPE_NAME + ' ' + scope);
 elementStyles: function (element, callback) {
 var styles = element._styles;
 var cssText = '';
-for (var i = 0, l = styles.length, s; i < l && (s = styles[i]); i++) {
+for (var i = 0, l = styles.length, s, text; i < l && (s = styles[i]); i++) {
 var rules = styleUtil.rulesForStyle(s);
 cssText += nativeShadow ? styleUtil.toCssText(rules, callback) : this.css(rules, element.is, element.extends, callback, element._scopeCssViaAttr) + '\n\n';
 }
@@ -5499,9 +5336,9 @@ var HOST = ':host';
 var ROOT = ':root';
 var HOST_PAREN = /(\:host)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))/g;
 var HOST_CONTEXT = ':host-context';
-var HOST_CONTEXT_PAREN = /(.*)(?::host-context)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))(.*)/;
+var HOST_CONTEXT_PAREN = /(.*)(?:\:host-context)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))(.*)/;
 var CONTENT = '::content';
-var SCOPE_JUMP = /::content|::shadow|\/deep\//;
+var SCOPE_JUMP = /\:\:content|\:\:shadow|\/deep\//;
 var CSS_CLASS_PREFIX = '.';
 var CSS_ATTR_PREFIX = '[' + SCOPE_NAME + '~=';
 var CSS_ATTR_SUFFIX = ']';
@@ -5654,12 +5491,10 @@ return;
 var self = this;
 var scopify = function (node) {
 if (node.nodeType === Node.ELEMENT_NODE) {
-var className = node.getAttribute('class');
-node.setAttribute('class', self._scopeElementClass(node, className));
+node.className = self._scopeElementClass(node, node.className);
 var n$ = node.querySelectorAll('*');
 for (var i = 0, n; i < n$.length && (n = n$[i]); i++) {
-className = n.getAttribute('class');
-n.setAttribute('class', self._scopeElementClass(n, className));
+n.className = self._scopeElementClass(n, n.className);
 }
 }
 };
@@ -5797,7 +5632,9 @@ p = pp.join(':');
 parts[i] = p && p.lastIndexOf(';') === p.length - 1 ? p.slice(0, -1) : p || '';
 }
 }
-return parts.join(';');
+return parts.filter(function (v) {
+return v;
+}).join(';');
 },
 applyProperties: function (rule, props) {
 var output = '';
@@ -5877,13 +5714,13 @@ parts[i] = p.match(hostRx) ? p.replace(hostSelector, hostSelector + scope) : sco
 rule.selector = parts.join(',');
 },
 applyElementScopeSelector: function (element, selector, old, viaAttr) {
-var c = viaAttr ? element.getAttribute(styleTransformer.SCOPE_NAME) : element.getAttribute('class') || '';
+var c = viaAttr ? element.getAttribute(styleTransformer.SCOPE_NAME) : element.className;
 var v = old ? c.replace(old, selector) : (c ? c + ' ' : '') + this.XSCOPE_NAME + ' ' + selector;
 if (c !== v) {
 if (viaAttr) {
 element.setAttribute(styleTransformer.SCOPE_NAME, v);
 } else {
-element.setAttribute('class', v);
+element.className = v;
 }
 }
 },
@@ -6050,11 +5887,6 @@ return this._styleProperties && this._styleProperties[property] || getComputedSt
 },
 _setupStyleProperties: function () {
 this.customStyle = {};
-this._styleCache = null;
-this._styleProperties = null;
-this._scopeSelector = null;
-this._ownStyleProperties = null;
-this._customStyle = null;
 },
 _needsStyleProperties: function () {
 return Boolean(this._ownStylePropertyNames && this._ownStylePropertyNames.length);
@@ -6215,11 +6047,9 @@ this._addComplexObserverEffects(b.observers);
 this._addHostAttributes(b.hostAttributes);
 },
 _initFeatures: function () {
-this._setupGestures();
 this._setupConfigure();
 this._setupStyleProperties();
 this._setupDebouncers();
-this._setupShady();
 this._registerHost();
 if (this._template) {
 this._poolContent();
@@ -6287,9 +6117,9 @@ styleUtil.forEachStyleRule(styleUtil.rulesForStyle(e), function (rule) {
 styleTransformer.documentRule(rule);
 });
 var self = this;
-var fn = function fn() {
+function fn() {
 self._applyCustomProperties(e);
-};
+}
 if (this._pendingApplyProperties) {
 cancelAnimationFrame(this._pendingApplyProperties);
 this._pendingApplyProperties = null;
@@ -6341,8 +6171,6 @@ archetype._notifyPathUp = this._notifyPathUpImpl;
 archetype._scopeElementClass = this._scopeElementClassImpl;
 archetype.listen = this._listenImpl;
 archetype._showHideChildren = this._showHideChildrenImpl;
-archetype.__setPropertyOrig = this.__setProperty;
-archetype.__setProperty = this.__setPropertyImpl;
 var _constructor = this._constructorImpl;
 var ctor = function TemplateInstance(model, host) {
 _constructor.call(this, model, host);
@@ -6378,12 +6206,6 @@ n.style.display = n.__polymerDisplay__;
 }
 n.__hideTemplateChildren__ = hide;
 }
-},
-__setPropertyImpl: function (property, value, fromAbove, node) {
-if (node && node.__hideTemplateChildren__ && property == 'textContent') {
-property = '__polymerTextContent__';
-}
-this.__setPropertyOrig(property, value, fromAbove, node);
 },
 _debounceTemplate: function (fn) {
 Polymer.dom.addDebouncer(this.debounce('_debounceTemplate', fn));
@@ -6622,10 +6444,9 @@ this.pmap[item] = key;
 return '#' + key;
 },
 removeKey: function (key) {
-if (key = this._parseKey(key)) {
+key = this._parseKey(key);
 this._removeFromMap(this.store[key]);
 delete this.store[key];
-}
 },
 _removeFromMap: function (item) {
 if (item && typeof item == 'object') {
@@ -6656,12 +6477,13 @@ return '#' + key;
 });
 },
 _parseKey: function (key) {
-if (key && key[0] == '#') {
+if (key[0] == '#') {
 return key.slice(1);
 }
+throw new Error('unexpected key ' + key);
 },
 setItem: function (key, item) {
-if (key = this._parseKey(key)) {
+key = this._parseKey(key);
 var old = this.store[key];
 if (old) {
 this._removeFromMap(old);
@@ -6672,12 +6494,10 @@ this.omap.set(item, key);
 this.pmap[item] = key;
 }
 this.store[key] = item;
-}
 },
 getItem: function (key) {
-if (key = this._parseKey(key)) {
+key = this._parseKey(key);
 return this.store[key];
-}
 },
 getItems: function () {
 var items = [], store = this.store;
@@ -6753,11 +6573,6 @@ type: String,
 observer: '_observeChanged'
 },
 delay: Number,
-renderedItemCount: {
-type: Number,
-notify: true,
-readOnly: true
-},
 initialCount: {
 type: Number,
 observer: '_initializeChunking'
@@ -6766,10 +6581,7 @@ targetFramerate: {
 type: Number,
 value: 20
 },
-_targetFrameTime: {
-type: Number,
-computed: '_computeFrameTime(targetFramerate)'
-}
+_targetFrameTime: { computed: '_computeFrameTime(targetFramerate)' }
 },
 behaviors: [Polymer.Templatizer],
 observers: ['_itemsChanged(items.*)'],
@@ -6783,18 +6595,14 @@ self._renderChunk();
 };
 },
 detached: function () {
-this.__isDetached = true;
 for (var i = 0; i < this._instances.length; i++) {
 this._detachInstance(i);
 }
 },
 attached: function () {
-if (this.__isDetached) {
-this.__isDetached = false;
 var parent = Polymer.dom(Polymer.dom(this).parentNode);
 for (var i = 0; i < this._instances.length; i++) {
 this._attachInstance(i, parent);
-}
 }
 },
 ready: function () {
@@ -6933,7 +6741,6 @@ inst.__setProperty(this.indexAs, i, true);
 }
 }
 this._pool.length = 0;
-this._setRenderedItemCount(this._instances.length);
 this.fire('dom-change');
 this._tryRenderChunk();
 },
@@ -7308,9 +7115,7 @@ _queueRender: function () {
 this._debounceTemplate(this._render);
 },
 detached: function () {
-if (!this.parentNode || this.parentNode.nodeType == Node.DOCUMENT_FRAGMENT_NODE && (!Polymer.Settings.hasShadow || !(this.parentNode instanceof ShadowRoot))) {
 this._teardownInstance();
-}
 },
 attached: function () {
 if (this.if && this.ctor) {
@@ -7339,30 +7144,20 @@ this._lastIf = this.if;
 }
 },
 _ensureInstance: function () {
+if (!this._instance) {
 var parentNode = Polymer.dom(this).parentNode;
 if (parentNode) {
 var parent = Polymer.dom(parentNode);
-if (!this._instance) {
 this._instance = this.stamp();
 var root = this._instance.root;
 parent.insertBefore(root, this);
-} else {
-var c$ = this._instance._children;
-if (c$ && c$.length) {
-var lastChild = Polymer.dom(this).previousSibling;
-if (lastChild !== c$[c$.length - 1]) {
-for (var i = 0, n; i < c$.length && (n = c$[i]); i++) {
-parent.insertBefore(n, this);
-}
-}
-}
 }
 }
 },
 _teardownInstance: function () {
 if (this._instance) {
 var c$ = this._instance._children;
-if (c$ && c$.length) {
+if (c$) {
 var parent = Polymer.dom(Polymer.dom(c$[0]).parentNode);
 for (var i = 0, n; i < c$.length && (n = c$[i]); i++) {
 parent.removeChild(n);
@@ -7459,7 +7254,7 @@ this._prepConfigure();
 this._prepBindings();
 this._prepPropertyInfo();
 Polymer.Base._initFeatures.call(this);
-this._children = Polymer.TreeApi.arrayCopyChildNodes(this.root);
+this._children = Polymer.DomApi.arrayCopyChildNodes(this.root);
 }
 this._insertChildren();
 this.fire('dom-change');
@@ -8328,7 +8123,6 @@ Polymer({
 
       /**
        * Gets or sets the selected element. The default is to use the index of the item.
-       * @type {string|number}
        */
       selected: {
         type: String,
@@ -8385,7 +8179,6 @@ Polymer({
       items: {
         type: Array,
         readOnly: true,
-        notify: true,
         value: function() {
           return [];
         }
@@ -8447,7 +8240,7 @@ Polymer({
      * Selects the given value.
      *
      * @method select
-     * @param {string|number} value the value to select.
+     * @param {string} value the value to select.
      */
     select: function(value) {
       this.selected = value;
@@ -8472,22 +8265,6 @@ Polymer({
     selectNext: function() {
       var index = (Number(this._valueToIndex(this.selected)) + 1) % this.items.length;
       this.selected = this._indexToValue(index);
-    },
-
-    /**
-     * Force a synchronous update of the `items` property.
-     *
-     * NOTE: Consider listening for the `iron-items-changed` event to respond to
-     * updates to the set of selectable items after updates to the DOM list and
-     * selection state have been made.
-     *
-     * WARNING: If you are using this method, you should probably consider an
-     * alternate approach. Synchronously querying for items is potentially
-     * slow for many use cases. The `items` property will update asynchronously
-     * on its own to reflect selectable items in the DOM.
-     */
-    forceSynchronousItemUpdate: function() {
-      this._updateItems();
     },
 
     get _shouldUpdateSelection() {
@@ -8553,8 +8330,7 @@ Polymer({
     },
 
     _valueForItem: function(item) {
-      var propValue = item[this.attrForSelected];
-      return propValue != undefined ? propValue : item.getAttribute(this.attrForSelected);
+      return item[this.attrForSelected] || item.getAttribute(this.attrForSelected);
     },
 
     _applySelection: function(item, isSelected) {
@@ -8575,18 +8351,18 @@ Polymer({
     // observe items change under the given node.
     _observeItems: function(node) {
       return Polymer.dom(node).observeNodes(function(mutations) {
-        this._updateItems();
-
-        if (this._shouldUpdateSelection) {
-          this._updateSelected();
-        }
-
         // Let other interested parties know about the change so that
         // we don't have to recreate mutation observers everywher.
         this.fire('iron-items-changed', mutations, {
           bubbles: false,
           cancelable: false
         });
+
+        this._updateItems();
+
+        if (this._shouldUpdateSelection) {
+          this._updateSelected();
+        }
       });
     },
 
@@ -8614,34 +8390,34 @@ Polymer({
   };
 Polymer({
 
-      is: 'iron-pages',
+    is: 'iron-pages',
 
-      behaviors: [
-        Polymer.IronResizableBehavior,
-        Polymer.IronSelectableBehavior
-      ],
+    behaviors: [
+      Polymer.IronResizableBehavior,
+      Polymer.IronSelectableBehavior
+    ],
 
-      properties: {
+    properties: {
 
-        // as the selected page is the only one visible, activateEvent
-        // is both non-sensical and problematic; e.g. in cases where a user
-        // handler attempts to change the page and the activateEvent
-        // handler immediately changes it back
-        activateEvent: {
-          type: String,
-          value: null
-        }
-
-      },
-
-      observers: [
-        '_selectedPageChanged(selected)'
-      ],
-
-      _selectedPageChanged: function(selected, old) {
-        this.async(this.notifyResize);
+      // as the selected page is the only one visible, activateEvent
+      // is both non-sensical and problematic; e.g. in cases where a user
+      // handler attempts to change the page and the activateEvent
+      // handler immediately changes it back
+      activateEvent: {
+        type: String,
+        value: null
       }
-    });
+
+    },
+
+    observers: [
+      '_selectedPageChanged(selected)'
+    ],
+
+    _selectedPageChanged: function(selected, old) {
+      this.async(this.notifyResize);
+    }
+  });
 /** @polymerBehavior Polymer.IronMultiSelectableBehavior */
   Polymer.IronMultiSelectableBehaviorImpl = {
     properties: {
@@ -8684,7 +8460,7 @@ Polymer({
      * `value` will be toggled; otherwise the `value` will be selected.
      *
      * @method select
-     * @param {string|number} value the value to select.
+     * @param {string} value the value to select.
      */
     select: function(value) {
       if (this.multi) {
@@ -8804,6 +8580,1403 @@ Polymer({
     behaviors: [
       Polymer.IronMultiSelectableBehavior
     ]
+
+  });
+function MakePromise (asap) {
+  function Promise(fn) {
+		if (typeof this !== 'object' || typeof fn !== 'function') throw new TypeError();
+		this._state = null;
+		this._value = null;
+		this._deferreds = []
+
+		doResolve(fn, resolve.bind(this), reject.bind(this));
+	}
+
+	function handle(deferred) {
+		var me = this;
+		if (this._state === null) {
+			this._deferreds.push(deferred);
+			return
+		}
+		asap(function() {
+			var cb = me._state ? deferred.onFulfilled : deferred.onRejected
+			if (typeof cb !== 'function') {
+				(me._state ? deferred.resolve : deferred.reject)(me._value);
+				return;
+			}
+			var ret;
+			try {
+				ret = cb(me._value);
+			}
+			catch (e) {
+				deferred.reject(e);
+				return;
+			}
+			deferred.resolve(ret);
+		})
+	}
+
+	function resolve(newValue) {
+		try { //Promise Resolution Procedure: https://github.com/promises-aplus/promises-spec#the-promise-resolution-procedure
+			if (newValue === this) throw new TypeError();
+			if (newValue && (typeof newValue === 'object' || typeof newValue === 'function')) {
+				var then = newValue.then;
+				if (typeof then === 'function') {
+					doResolve(then.bind(newValue), resolve.bind(this), reject.bind(this));
+					return;
+				}
+			}
+			this._state = true;
+			this._value = newValue;
+			finale.call(this);
+		} catch (e) { reject.call(this, e); }
+	}
+
+	function reject(newValue) {
+		this._state = false;
+		this._value = newValue;
+		finale.call(this);
+	}
+
+	function finale() {
+		for (var i = 0, len = this._deferreds.length; i < len; i++) {
+			handle.call(this, this._deferreds[i]);
+		}
+		this._deferreds = null;
+	}
+
+	/**
+	 * Take a potentially misbehaving resolver function and make sure
+	 * onFulfilled and onRejected are only called once.
+	 *
+	 * Makes no guarantees about asynchrony.
+	 */
+	function doResolve(fn, onFulfilled, onRejected) {
+		var done = false;
+		try {
+			fn(function (value) {
+				if (done) return;
+				done = true;
+				onFulfilled(value);
+			}, function (reason) {
+				if (done) return;
+				done = true;
+				onRejected(reason);
+			})
+		} catch (ex) {
+			if (done) return;
+			done = true;
+			onRejected(ex);
+		}
+	}
+
+	Promise.prototype['catch'] = function (onRejected) {
+		return this.then(null, onRejected);
+	};
+
+	Promise.prototype.then = function(onFulfilled, onRejected) {
+		var me = this;
+		return new Promise(function(resolve, reject) {
+      handle.call(me, {
+        onFulfilled: onFulfilled,
+        onRejected: onRejected,
+        resolve: resolve,
+        reject: reject
+      });
+		})
+	};
+
+	Promise.resolve = function (value) {
+		if (value && typeof value === 'object' && value.constructor === Promise) {
+			return value;
+		}
+
+		return new Promise(function (resolve) {
+			resolve(value);
+		});
+	};
+
+	Promise.reject = function (value) {
+		return new Promise(function (resolve, reject) {
+			reject(value);
+		});
+	};
+
+	
+  return Promise;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = MakePromise;
+};
+if (!window.Promise) {
+  window.Promise = MakePromise(Polymer.Base.async);
+};
+'use strict'
+
+  Polymer({
+    is: 'iron-request',
+
+    hostAttributes: {
+      hidden: true
+    },
+
+    properties: {
+
+      /**
+       * A reference to the XMLHttpRequest instance used to generate the
+       * network request.
+       *
+       * @type {XMLHttpRequest}
+       */
+      xhr: {
+        type: Object,
+        notify: true,
+        readOnly: true,
+        value: function() {
+          return new XMLHttpRequest();
+        }
+      },
+
+      /**
+       * A reference to the parsed response body, if the `xhr` has completely
+       * resolved.
+       *
+       * @type {*}
+       * @default null
+       */
+      response: {
+        type: Object,
+        notify: true,
+        readOnly: true,
+        value: function() {
+          return null;
+        }
+      },
+
+      /**
+       * A reference to the status code, if the `xhr` has completely resolved.
+       */
+      status: {
+        type: Number,
+        notify: true,
+        readOnly: true,
+        value: 0
+      },
+
+      /**
+       * A reference to the status text, if the `xhr` has completely resolved.
+       */
+      statusText: {
+        type: String,
+        notify: true,
+        readOnly: true,
+        value: ''
+      },
+
+      /**
+       * A promise that resolves when the `xhr` response comes back, or rejects
+       * if there is an error before the `xhr` completes.
+       *
+       * @type {Promise}
+       */
+      completes: {
+        type: Object,
+        readOnly: true,
+        notify: true,
+        value: function() {
+          return new Promise(function (resolve, reject) {
+            this.resolveCompletes = resolve;
+            this.rejectCompletes = reject;
+          }.bind(this));
+        }
+      },
+
+      /**
+       * An object that contains progress information emitted by the XHR if
+       * available.
+       *
+       * @default {}
+       */
+      progress: {
+        type: Object,
+        notify: true,
+        readOnly: true,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+       * Aborted will be true if an abort of the request is attempted.
+       */
+      aborted: {
+        type: Boolean,
+        notify: true,
+        readOnly: true,
+        value: false,
+      },
+
+      /**
+       * Errored will be true if the browser fired an error event from the
+       * XHR object (mainly network errors).
+       */
+      errored: {
+        type: Boolean,
+        notify: true,
+        readOnly: true,
+        value: false
+      },
+
+      /**
+       * TimedOut will be true if the XHR threw a timeout event.
+       */
+      timedOut: {
+        type: Boolean,
+        notify: true,
+        readOnly: true,
+        value: false
+      }
+    },
+
+    /**
+     * Succeeded is true if the request succeeded. The request succeeded if it
+     * loaded without error, wasn't aborted, and the status code is ≥ 200, and
+     * < 300, or if the status code is 0.
+     *
+     * The status code 0 is accepted as a success because some schemes - e.g.
+     * file:// - don't provide status codes.
+     *
+     * @return {boolean}
+     */
+    get succeeded() {
+      if (this.errored || this.aborted || this.timedOut) {
+        return false;
+      }
+      var status = this.xhr.status || 0;
+
+      // Note: if we are using the file:// protocol, the status code will be 0
+      // for all outcomes (successful or otherwise).
+      return status === 0 ||
+        (status >= 200 && status < 300);
+    },
+
+    /**
+     * Sends an HTTP request to the server and returns the XHR object.
+     *
+     * @param {{
+     *   url: string,
+     *   method: (string|undefined),
+     *   async: (boolean|undefined),
+     *   body: (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object),
+     *   headers: (Object|undefined),
+     *   handleAs: (string|undefined),
+     *   jsonPrefix: (string|undefined),
+     *   withCredentials: (boolean|undefined)}} options -
+     *     url The url to which the request is sent.
+     *     method The HTTP method to use, default is GET.
+     *     async By default, all requests are sent asynchronously. To send synchronous requests,
+     *         set to true.
+     *     body The content for the request body for POST method.
+     *     headers HTTP request headers.
+     *     handleAs The response type. Default is 'text'.
+     *     withCredentials Whether or not to send credentials on the request. Default is false.
+     *   timeout: (Number|undefined)
+     * @return {Promise}
+     */
+    send: function (options) {
+      var xhr = this.xhr;
+
+      if (xhr.readyState > 0) {
+        return null;
+      }
+
+      xhr.addEventListener('progress', function (progress) {
+        this._setProgress({
+          lengthComputable: progress.lengthComputable,
+          loaded: progress.loaded,
+          total: progress.total
+        });
+      }.bind(this))
+
+      xhr.addEventListener('error', function (error) {
+        this._setErrored(true);
+        this._updateStatus();
+        this.rejectCompletes(error);
+      }.bind(this));
+
+      xhr.addEventListener('timeout', function (error) {
+        this._setTimedOut(true);
+        this._updateStatus();
+        this.rejectCompletes(error);
+      }.bind(this));
+
+      xhr.addEventListener('abort', function () {
+        this._updateStatus();
+        this.rejectCompletes(new Error('Request aborted.'));
+      }.bind(this));
+
+
+      // Called after all of the above.
+      xhr.addEventListener('loadend', function () {
+        this._updateStatus();
+
+        if (!this.succeeded) {
+          this.rejectCompletes(new Error('The request failed with status code: ' + this.xhr.status));
+          return;
+        }
+
+        this._setResponse(this.parseResponse());
+        this.resolveCompletes(this);
+      }.bind(this));
+
+      this.url = options.url;
+      xhr.open(
+        options.method || 'GET',
+        options.url,
+        options.async !== false
+      );
+
+      var acceptType = {
+        'json': 'application/json',
+        'text': 'text/plain',
+        'html': 'text/html',
+        'xml': 'application/xml',
+        'arraybuffer': 'application/octet-stream'
+      }[options.handleAs];
+      var headers = options.headers || Object.create(null);
+      var newHeaders = Object.create(null);
+      for (var key in headers) {
+        newHeaders[key.toLowerCase()] = headers[key];
+      }
+      headers = newHeaders;
+
+      if (acceptType && !headers['accept']) {
+        headers['accept'] = acceptType;
+      }
+      Object.keys(headers).forEach(function (requestHeader) {
+        if (/[A-Z]/.test(requestHeader)) {
+          console.error('Headers must be lower case, got', requestHeader);
+        }
+        xhr.setRequestHeader(
+          requestHeader,
+          headers[requestHeader]
+        );
+      }, this);
+
+      if (options.async !== false) {
+        var handleAs = options.handleAs;
+
+        // If a JSON prefix is present, the responseType must be 'text' or the
+        // browser won’t be able to parse the response.
+        if (!!options.jsonPrefix || !handleAs) {
+          handleAs = 'text';
+        }
+
+        // In IE, `xhr.responseType` is an empty string when the response
+        // returns. Hence, caching it as `xhr._responseType`.
+        xhr.responseType = xhr._responseType = handleAs;
+
+        // Cache the JSON prefix, if it exists.
+        if (!!options.jsonPrefix) {
+          xhr._jsonPrefix = options.jsonPrefix;
+        }
+      }
+
+      xhr.withCredentials = !!options.withCredentials;
+      xhr.timeout = options.timeout;
+
+      var body = this._encodeBodyObject(options.body, headers['content-type']);
+
+      xhr.send(
+        /** @type {ArrayBuffer|ArrayBufferView|Blob|Document|FormData|
+                   null|string|undefined} */
+        (body));
+
+      return this.completes;
+    },
+
+    /**
+     * Attempts to parse the response body of the XHR. If parsing succeeds,
+     * the value returned will be deserialized based on the `responseType`
+     * set on the XHR.
+     *
+     * @return {*} The parsed response,
+     * or undefined if there was an empty response or parsing failed.
+     */
+    parseResponse: function () {
+      var xhr = this.xhr;
+      var responseType = xhr.responseType || xhr._responseType;
+      var preferResponseText = !this.xhr.responseType;
+      var prefixLen = (xhr._jsonPrefix && xhr._jsonPrefix.length) || 0;
+
+      try {
+        switch (responseType) {
+          case 'json':
+            // If the xhr object doesn't have a natural `xhr.responseType`,
+            // we can assume that the browser hasn't parsed the response for us,
+            // and so parsing is our responsibility. Likewise if response is
+            // undefined, as there's no way to encode undefined in JSON.
+            if (preferResponseText || xhr.response === undefined) {
+              // Try to emulate the JSON section of the response body section of
+              // the spec: https://xhr.spec.whatwg.org/#response-body
+              // That is to say, we try to parse as JSON, but if anything goes
+              // wrong return null.
+              try {
+                return JSON.parse(xhr.responseText);
+              } catch (_) {
+                return null;
+              }
+            }
+
+            return xhr.response;
+          case 'xml':
+            return xhr.responseXML;
+          case 'blob':
+          case 'document':
+          case 'arraybuffer':
+            return xhr.response;
+          case 'text':
+          default: {
+            // If `prefixLen` is set, it implies the response should be parsed
+            // as JSON once the prefix of length `prefixLen` is stripped from
+            // it. Emulate the behavior above where null is returned on failure
+            // to parse.
+            if (prefixLen) {
+              try {
+                return JSON.parse(xhr.responseText.substring(prefixLen));
+              } catch (_) {
+                return null;
+              }
+            }
+            return xhr.responseText;
+          }
+        }
+      } catch (e) {
+        this.rejectCompletes(new Error('Could not parse response. ' + e.message));
+      }
+    },
+
+    /**
+     * Aborts the request.
+     */
+    abort: function () {
+      this._setAborted(true);
+      this.xhr.abort();
+    },
+
+    /**
+     * @param {*} body The given body of the request to try and encode.
+     * @param {?string} contentType The given content type, to infer an encoding
+     *     from.
+     * @return {*} Either the encoded body as a string, if successful,
+     *     or the unaltered body object if no encoding could be inferred.
+     */
+    _encodeBodyObject: function(body, contentType) {
+      if (typeof body == 'string') {
+        return body;  // Already encoded.
+      }
+      var bodyObj = /** @type {Object} */ (body);
+      switch(contentType) {
+        case('application/json'):
+          return JSON.stringify(bodyObj);
+        case('application/x-www-form-urlencoded'):
+          return this._wwwFormUrlEncode(bodyObj);
+      }
+      return body;
+    },
+
+    /**
+     * @param {Object} object The object to encode as x-www-form-urlencoded.
+     * @return {string} .
+     */
+    _wwwFormUrlEncode: function(object) {
+      if (!object) {
+        return '';
+      }
+      var pieces = [];
+      Object.keys(object).forEach(function(key) {
+        // TODO(rictic): handle array values here, in a consistent way with
+        //   iron-ajax params.
+        pieces.push(
+            this._wwwFormUrlEncodePiece(key) + '=' +
+            this._wwwFormUrlEncodePiece(object[key]));
+      }, this);
+      return pieces.join('&');
+    },
+
+    /**
+     * @param {*} str A key or value to encode as x-www-form-urlencoded.
+     * @return {string} .
+     */
+    _wwwFormUrlEncodePiece: function(str) {
+      // Spec says to normalize newlines to \r\n and replace %20 spaces with +.
+      // jQuery does this as well, so this is likely to be widely compatible.
+      return encodeURIComponent(str.toString().replace(/\r?\n/g, '\r\n'))
+          .replace(/%20/g, '+');
+    },
+
+    /**
+     * Updates the status code and status text.
+     */
+    _updateStatus: function() {
+      this._setStatus(this.xhr.status);
+      this._setStatusText((this.xhr.statusText === undefined) ? '' : this.xhr.statusText);
+    }
+  });
+'use strict';
+
+  Polymer({
+
+    is: 'iron-ajax',
+
+    /**
+     * Fired when a request is sent.
+     *
+     * @event request
+     */
+
+    /**
+     * Fired when a response is received.
+     *
+     * @event response
+     */
+
+    /**
+     * Fired when an error is received.
+     *
+     * @event error
+     */
+
+    hostAttributes: {
+      hidden: true
+    },
+
+    properties: {
+      /**
+       * The URL target of the request.
+       */
+      url: {
+        type: String
+      },
+
+      /**
+       * An object that contains query parameters to be appended to the
+       * specified `url` when generating a request. If you wish to set the body
+       * content when making a POST request, you should use the `body` property
+       * instead.
+       */
+      params: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+       * The HTTP method to use such as 'GET', 'POST', 'PUT', or 'DELETE'.
+       * Default is 'GET'.
+       */
+      method: {
+        type: String,
+        value: 'GET'
+      },
+
+      /**
+       * HTTP request headers to send.
+       *
+       * Example:
+       *
+       *     <iron-ajax
+       *         auto
+       *         url="http://somesite.com"
+       *         headers='{"X-Requested-With": "XMLHttpRequest"}'
+       *         handle-as="json"></iron-ajax>
+       *
+       * Note: setting a `Content-Type` header here will override the value
+       * specified by the `contentType` property of this element.
+       */
+      headers: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+       * Content type to use when sending data. If the `contentType` property
+       * is set and a `Content-Type` header is specified in the `headers`
+       * property, the `headers` property value will take precedence.
+       */
+      contentType: {
+        type: String,
+        value: null
+      },
+
+      /**
+       * Body content to send with the request, typically used with "POST"
+       * requests.
+       *
+       * If body is a string it will be sent unmodified.
+       *
+       * If Content-Type is set to a value listed below, then
+       * the body will be encoded accordingly.
+       *
+       *    * `content-type="application/json"`
+       *      * body is encoded like `{"foo":"bar baz","x":1}`
+       *    * `content-type="application/x-www-form-urlencoded"`
+       *      * body is encoded like `foo=bar+baz&x=1`
+       *
+       * Otherwise the body will be passed to the browser unmodified, and it
+       * will handle any encoding (e.g. for FormData, Blob, ArrayBuffer).
+       *
+       * @type (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object)
+       */
+      body: {
+        type: Object,
+        value: null
+      },
+
+      /**
+       * Toggle whether XHR is synchronous or asynchronous. Don't change this
+       * to true unless You Know What You Are Doing™.
+       */
+      sync: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * Specifies what data to store in the `response` property, and
+       * to deliver as `event.detail.response` in `response` events.
+       *
+       * One of:
+       *
+       *    `text`: uses `XHR.responseText`.
+       *
+       *    `xml`: uses `XHR.responseXML`.
+       *
+       *    `json`: uses `XHR.responseText` parsed as JSON.
+       *
+       *    `arraybuffer`: uses `XHR.response`.
+       *
+       *    `blob`: uses `XHR.response`.
+       *
+       *    `document`: uses `XHR.response`.
+       */
+      handleAs: {
+        type: String,
+        value: 'json'
+      },
+
+      /**
+       * Set the withCredentials flag on the request.
+       */
+      withCredentials: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * Set the timeout flag on the request.
+       */
+      timeout: {
+        type: Number,
+        value: 0
+      },
+
+      /**
+       * If true, automatically performs an Ajax request when either `url` or
+       * `params` changes.
+       */
+      auto: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * If true, error messages will automatically be logged to the console.
+       */
+      verbose: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * The most recent request made by this iron-ajax element.
+       */
+      lastRequest: {
+        type: Object,
+        notify: true,
+        readOnly: true
+      },
+
+      /**
+       * True while lastRequest is in flight.
+       */
+      loading: {
+        type: Boolean,
+        notify: true,
+        readOnly: true
+      },
+
+      /**
+       * lastRequest's response.
+       *
+       * Note that lastResponse and lastError are set when lastRequest finishes,
+       * so if loading is true, then lastResponse and lastError will correspond
+       * to the result of the previous request.
+       *
+       * The type of the response is determined by the value of `handleAs` at
+       * the time that the request was generated.
+       *
+       * @type {Object}
+       */
+      lastResponse: {
+        type: Object,
+        notify: true,
+        readOnly: true
+      },
+
+      /**
+       * lastRequest's error, if any.
+       *
+       * @type {Object}
+       */
+      lastError: {
+        type: Object,
+        notify: true,
+        readOnly: true
+      },
+
+      /**
+       * An Array of all in-flight requests originating from this iron-ajax
+       * element.
+       */
+      activeRequests: {
+        type: Array,
+        notify: true,
+        readOnly: true,
+        value: function() {
+          return [];
+        }
+      },
+
+      /**
+       * Length of time in milliseconds to debounce multiple automatically generated requests.
+       */
+      debounceDuration: {
+        type: Number,
+        value: 0,
+        notify: true
+      },
+
+      /**
+       * Prefix to be stripped from a JSON response before parsing it.
+       *
+       * In order to prevent an attack using CSRF with Array responses
+       * (http://haacked.com/archive/2008/11/20/anatomy-of-a-subtle-json-vulnerability.aspx/)
+       * many backends will mitigate this by prefixing all JSON response bodies
+       * with a string that would be nonsensical to a JavaScript parser.
+       *
+       */
+      jsonPrefix: {
+        type: String,
+        value: ''
+      },
+
+      _boundHandleResponse: {
+        type: Function,
+        value: function() {
+          return this._handleResponse.bind(this);
+        }
+      }
+    },
+
+    observers: [
+      '_requestOptionsChanged(url, method, params.*, headers, contentType, ' +
+          'body, sync, handleAs, jsonPrefix, withCredentials, timeout, auto)'
+    ],
+
+    /**
+     * The query string that should be appended to the `url`, serialized from
+     * the current value of `params`.
+     *
+     * @return {string}
+     */
+    get queryString () {
+      var queryParts = [];
+      var param;
+      var value;
+
+      for (param in this.params) {
+        value = this.params[param];
+        param = window.encodeURIComponent(param);
+
+        if (Array.isArray(value)) {
+          for (var i = 0; i < value.length; i++) {
+            queryParts.push(param + '=' + window.encodeURIComponent(value[i]));
+          }
+        } else if (value !== null) {
+          queryParts.push(param + '=' + window.encodeURIComponent(value));
+        } else {
+          queryParts.push(param);
+        }
+      }
+
+      return queryParts.join('&');
+    },
+
+    /**
+     * The `url` with query string (if `params` are specified), suitable for
+     * providing to an `iron-request` instance.
+     *
+     * @return {string}
+     */
+    get requestUrl() {
+      var queryString = this.queryString;
+
+      if (queryString) {
+        var bindingChar = this.url.indexOf('?') >= 0 ? '&' : '?';
+        return this.url + bindingChar + queryString;
+      }
+
+      return this.url;
+    },
+
+    /**
+     * An object that maps header names to header values, first applying the
+     * the value of `Content-Type` and then overlaying the headers specified
+     * in the `headers` property.
+     *
+     * @return {Object}
+     */
+    get requestHeaders() {
+      var headers = {};
+      var contentType = this.contentType;
+      if (contentType == null && (typeof this.body === 'string')) {
+        contentType = 'application/x-www-form-urlencoded';
+      }
+      if (contentType) {
+        headers['content-type'] = contentType;
+      }
+      var header;
+
+      if (this.headers instanceof Object) {
+        for (header in this.headers) {
+          headers[header] = this.headers[header].toString();
+        }
+      }
+
+      return headers;
+    },
+
+    /**
+     * Request options suitable for generating an `iron-request` instance based
+     * on the current state of the `iron-ajax` instance's properties.
+     *
+     * @return {{
+     *   url: string,
+     *   method: (string|undefined),
+     *   async: (boolean|undefined),
+     *   body: (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object),
+     *   headers: (Object|undefined),
+     *   handleAs: (string|undefined),
+     *   jsonPrefix: (string|undefined),
+     *   withCredentials: (boolean|undefined)}}
+     */
+    toRequestOptions: function() {
+      return {
+        url: this.requestUrl || '',
+        method: this.method,
+        headers: this.requestHeaders,
+        body: this.body,
+        async: !this.sync,
+        handleAs: this.handleAs,
+        jsonPrefix: this.jsonPrefix,
+        withCredentials: this.withCredentials,
+        timeout: this.timeout
+      };
+    },
+
+    /**
+     * Performs an AJAX request to the specified URL.
+     *
+     * @return {!IronRequestElement}
+     */
+    generateRequest: function() {
+      var request = /** @type {!IronRequestElement} */ (document.createElement('iron-request'));
+      var requestOptions = this.toRequestOptions();
+
+      this.activeRequests.push(request);
+
+      request.completes.then(
+        this._boundHandleResponse
+      ).catch(
+        this._handleError.bind(this, request)
+      ).then(
+        this._discardRequest.bind(this, request)
+      );
+
+      request.send(requestOptions);
+
+      this._setLastRequest(request);
+      this._setLoading(true);
+
+      this.fire('request', {
+        request: request,
+        options: requestOptions
+      }, {bubbles: false});
+
+      return request;
+    },
+
+    _handleResponse: function(request) {
+      if (request === this.lastRequest) {
+        this._setLastResponse(request.response);
+        this._setLastError(null);
+        this._setLoading(false);
+      }
+      this.fire('response', request, {bubbles: false});
+    },
+
+    _handleError: function(request, error) {
+      if (this.verbose) {
+        console.error(error);
+      }
+
+      if (request === this.lastRequest) {
+        this._setLastError({
+          request: request,
+          error: error
+        });
+        this._setLastResponse(null);
+        this._setLoading(false);
+      }
+      this.fire('error', {
+        request: request,
+        error: error
+      }, {bubbles: false});
+    },
+
+    _discardRequest: function(request) {
+      var requestIndex = this.activeRequests.indexOf(request);
+
+      if (requestIndex > -1) {
+        this.activeRequests.splice(requestIndex, 1);
+      }
+    },
+
+    _requestOptionsChanged: function() {
+      this.debounce('generate-request', function() {
+        if (this.url == null) {
+          return;
+        }
+
+        if (this.auto) {
+          this.generateRequest();
+        }
+      }, this.debounceDuration);
+    },
+
+  });
+/*
+`<iron-form>` is an HTML `<form>` element that can validate and submit any custom
+elements that implement `Polymer.IronFormElementBehavior`, as well as any
+native HTML elements.
+
+It supports both `get` and `post` methods, and uses an `iron-ajax` element to
+submit the form data to the action URL.
+
+  Example:
+
+    <form is="iron-form" id="form" method="post" action="/form/handler">
+      <paper-input name="name" label="name"></paper-input>
+      <input name="address">
+      ...
+    </form>
+
+By default, a native `<button>` element will submit this form. However, if you
+want to submit it from a custom element's click handler, you need to explicitly
+call the form's `submit` method.
+
+  Example:
+
+    <paper-button raised onclick="submitForm()">Submit</paper-button>
+
+    function submitForm() {
+      document.getElementById('form').submit();
+    }
+
+To customize the request sent to the server, you can listen to the `iron-form-presubmit`
+event, and modify the form's[`iron-ajax`](https://elements.polymer-project.org/elements/iron-ajax)
+object. However, If you want to not use `iron-ajax` at all, you can cancel the
+event and do your own custom submission:
+
+  Example of modifying the request, but still using the build-in form submission:
+
+    form.addEventListener('iron-form-presubmit', function() {
+      this.request.method = 'put';
+      this.request.params = someCustomParams;
+    });
+
+  Example of bypassing the build-in form submission:
+
+    form.addEventListener('iron-form-presubmit', function(event) {
+      event.preventDefault();
+      var firebase = new Firebase(form.getAttribute('action'));
+      firebase.set(form.serialize());
+    });
+
+@demo demo/index.html
+*/
+
+  Polymer({
+
+    is: 'iron-form',
+
+    extends: 'form',
+
+    properties: {
+      /**
+       * Content type to use when sending data.
+       */
+      contentType: {
+        type: String,
+        value: "application/x-www-form-urlencoded"
+      },
+
+      /**
+       * By default, the form will display the browser's native validation
+       * UI (i.e. popup bubbles and invalid styles on invalid fields). You can
+       * manually disable this; however, if you do, note that you will have to
+       * manually style invalid *native* HTML fields yourself, as you are
+       * explicitly preventing the native form from doing so.
+       */
+      disableNativeValidationUi: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+      * Set the withCredentials flag when sending data.
+      */
+      withCredentials: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+      * HTTP request headers to send
+      *
+      * Note: setting a `Content-Type` header here will override the value
+      * specified by the `contentType` property of this element.
+      */
+      headers: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+      * iron-ajax request object used to submit the form.
+      */
+      request: {
+        type: Object,
+      }
+    },
+
+    /**
+     * Fired if the form cannot be submitted because it's invalid.
+     *
+     * @event iron-form-invalid
+     */
+
+    /**
+     * Fired before the form is submitted.
+     *
+     * @event iron-form-presubmit
+     */
+
+    /**
+     * Fired after the form is submitted.
+     *
+     * @event iron-form-submit
+     */
+
+     /**
+      * Fired after the form is reset.
+      *
+      * @event iron-form-reset
+      */
+
+    /**
+    * Fired after the form is submitted and a response is received. An
+    * IronRequestElement is included as the event.detail object.
+    *
+    * @event iron-form-response
+    */
+
+    /**
+     * Fired after the form is submitted and an error is received. An
+     * IronRequestElement is included as the event.detail object.
+     *
+     * @event iron-form-error
+     */
+    listeners: {
+      'iron-form-element-register': '_registerElement',
+      'iron-form-element-unregister': '_unregisterElement',
+      'submit': '_onSubmit',
+      'reset': '_onReset'
+    },
+
+    ready: function() {
+      // Object that handles the ajax form submission request.
+      this.request = document.createElement('iron-ajax');
+      this.request.addEventListener('response', this._handleFormResponse.bind(this));
+      this.request.addEventListener('error', this._handleFormError.bind(this));
+
+      // Holds all the custom elements registered with this form.
+      this._customElements = [];
+      // Holds the initial values of the custom elements registered with this form.
+      this._customElementsInitialValues = [];
+    },
+
+    /**
+     * Submits the form.
+     */
+    submit: function() {
+      if (!this.noValidate && !this.validate()) {
+        // In order to trigger the native browser invalid-form UI, we need
+        // to do perform a fake form submit.
+        if (!this.disableNativeValidationUi) {
+          this._doFakeSubmitForValidation();
+        }
+        this.fire('iron-form-invalid');
+        return;
+      }
+
+      var json = this.serialize();
+
+      // Native forms can also index elements magically by their name (can't make
+      // this up if I tried) so we need to get the correct attributes, not the
+      // elements with those names.
+      this.request.url = this.getAttribute('action');
+      this.request.method = this.getAttribute('method');
+      this.request.contentType = this.contentType;
+      this.request.withCredentials = this.withCredentials;
+      this.request.headers = this.headers;
+
+      if (this.method.toUpperCase() === 'POST') {
+        this.request.body = json;
+      } else {
+        this.request.params = json;
+      }
+
+      // Allow for a presubmit hook
+      var event = this.fire('iron-form-presubmit', {}, {cancelable: true});
+      if(!event.defaultPrevented) {
+        this.request.generateRequest();
+        this.fire('iron-form-submit', json);
+      }
+    },
+
+    /**
+     * Handler that is called when the native form fires a `submit` event
+     *
+     * @param {Event} event A `submit` event.
+     */
+    _onSubmit: function(event) {
+      this.submit();
+
+      // Don't perform a page refresh.
+      if (event) {
+        event.preventDefault();
+      }
+
+      return false;
+    },
+
+    /**
+     * Handler that is called when the native form fires a `reset` event
+     *
+     * @param {Event} event A `reset` event.
+     */
+    _onReset: function(event) {
+      this._resetCustomElements();
+    },
+
+    /**
+     * Returns a json object containing name/value pairs for all the registered
+     * custom components and native elements of the form. If there are elements
+     * with duplicate names, then their values will get aggregated into an
+     * array of values.
+     *
+     * @return {!Object}
+     */
+    serialize: function() {
+      var json = {};
+
+      function addSerializedElement(el) {
+        // If the name doesn't exist, add it. Otherwise, serialize it to
+        // an array,
+        if (!json[el.name]) {
+          json[el.name] = el.value;
+        } else {
+          if (!Array.isArray(json[el.name])) {
+            json[el.name] = [json[el.name]];
+          }
+          json[el.name].push(el.value);
+        }
+      }
+
+      // Go through all of the registered custom components.
+      for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
+        if (this._useValue(el)) {
+          addSerializedElement(el);
+        }
+      }
+
+      // Also go through the form's native elements.
+      for (var el, i = 0; el = this.elements[i], i < this.elements.length; i++) {
+        // Checkboxes and radio buttons should only use their value if they're checked.
+        // Also, custom elements that extend native elements (like an
+        // `<input is="fancy-input">`) will appear in both lists. Since they
+        // were already added as a custom element, they don't need
+        // to be re-added.
+        if (!this._useValue(el) ||
+            (el.hasAttribute('is') && json[el.name])) {
+          continue;
+        }
+        addSerializedElement(el);
+      }
+
+      return json;
+    },
+
+    _handleFormResponse: function (event) {
+      this.fire('iron-form-response', event.detail);
+    },
+
+    _handleFormError: function (event) {
+      this.fire('iron-form-error', event.detail);
+    },
+
+    _registerElement: function(e) {
+      var element = e.target;
+      element._parentForm = this;
+      this._customElements.push(element);
+
+      // Save the original value of this input.
+      this._customElementsInitialValues.push(
+          this._usesCheckedInsteadOfValue(element) ? element.checked : element.value);
+    },
+
+    _unregisterElement: function(e) {
+      var target = e.detail.target;
+      if (target) {
+        var index = this._customElements.indexOf(target);
+        if (index > -1) {
+          this._customElements.splice(index, 1);
+          this._customElementsInitialValues.splice(index, 1);
+        }
+      }
+    },
+
+    /**
+     * Validates all the required elements (custom and native) in the form.
+     * @return {boolean} True if all the elements are valid.
+     */
+    validate: function() {
+      var valid = true;
+
+      // Validate all the custom elements.
+      var validatable;
+      for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
+        if (el.required && !el.disabled) {
+          validatable = /** @type {{validate: (function() : boolean)}} */ (el);
+          // Some elements may not have correctly defined a validate method.
+          if (validatable.validate)
+            valid = !!validatable.validate() && valid;
+        }
+      }
+
+      // Validate the form's native elements.
+      for (var el, i = 0; el = this.elements[i], i < this.elements.length; i++) {
+        // Custom elements that extend a native element will also appear in
+        // this list, but they've already been validated.
+        if (!el.hasAttribute('is') && el.willValidate && el.checkValidity && el.name) {
+          valid = el.checkValidity() && valid;
+        }
+      }
+
+      return valid;
+    },
+
+    /**
+     * Returns whether the given element is a radio-button or a checkbox.
+     * @return {boolean} True if the element has a `checked` property.
+     */
+    _usesCheckedInsteadOfValue: function(el) {
+      if (el.type == 'checkbox' ||
+          el.type == 'radio' ||
+          el.getAttribute('role') == 'checkbox' ||
+          el.getAttribute('role') == 'radio' ||
+          el._hasIronCheckedElementBehavior) {
+        return true;
+      }
+      return false;
+    },
+
+    _useValue: function(el) {
+      // Skip disabled elements or elements that don't have a `name` attribute.
+      if (el.disabled || !el.name) {
+        return false;
+      }
+
+      // Checkboxes and radio buttons should only use their value if they're
+      // checked. Custom paper-checkbox and paper-radio-button elements
+      // don't have a type, but they have the correct role set.
+      if (this._usesCheckedInsteadOfValue(el))
+        return el.checked;
+      return true;
+    },
+
+    _doFakeSubmitForValidation: function() {
+      var fakeSubmit = document.createElement('input');
+      fakeSubmit.setAttribute('type', 'submit');
+      fakeSubmit.style.display = 'none';
+      this.appendChild(fakeSubmit);
+
+      fakeSubmit.click();
+
+      this.removeChild(fakeSubmit);
+    },
+
+    /**
+     * Resets all non-disabled form custom elements to their initial values.
+     */
+    _resetCustomElements: function() {
+      // Reset all the registered custom components. We need to do this after
+      // the native reset, since programmatically changing the `value` of some
+      // native elements (iron-input in particular) does not notify its
+      // parent `paper-input`, which will now display the wrong value.
+      this.async(function() {
+        for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
+          if (el.disabled)
+            continue;
+
+          if (this._usesCheckedInsteadOfValue(el)) {
+            el.checked = this._customElementsInitialValues[i];
+          } else {
+            el.value = this._customElementsInitialValues[i];
+          }
+        }
+
+        this.fire('iron-form-reset');
+      }, 1);
+    }
 
   });
 Polymer({
@@ -10844,7 +12017,7 @@ Polymer({
     },
 
     _computeKeyboardClass: function(receivedFocusFromKeyboard) {
-      this.toggleClass('keyboard-focus', receivedFocusFromKeyboard);
+      this.classList.toggle('keyboard-focus', receivedFocusFromKeyboard);
     },
 
     /**
@@ -10855,8 +12028,7 @@ Polymer({
      */
     _spaceKeyDownHandler: function(event) {
       Polymer.IronButtonStateImpl._spaceKeyDownHandler.call(this, event);
-      // Ensure that there is at most one ripple when the space key is held down.
-      if (this.hasRipple() && this.getRipple().ripples.length < 1) {
+      if (this.hasRipple()) {
         this._ripple.uiDownAction();
       }
     },
@@ -11083,7 +12255,7 @@ Polymer({
      * Selects the given value. If the `multi` property is true, then the selected state of the
      * `value` will be toggled; otherwise the `value` will be selected.
      *
-     * @param {string|number} value the value to select.
+     * @param {string} value the value to select.
      */
     select: function(value) {
       if (this._defaultFocusAsync) {
@@ -12053,149 +13225,105 @@ CSS properties               | Action
     }
 
   };
-/**
-   * @struct
-   * @constructor
-   */
-  Polymer.IronOverlayManagerClass = function() {
-    this._overlays = [];
+Polymer.IronOverlayManager = {
+
+    _overlays: [],
+
+    // iframes have a default z-index of 100, so this default should be at least
+    // that.
+    _minimumZ: 101,
+
+    _backdrops: [],
+
+    _applyOverlayZ: function(overlay, aboveZ) {
+      this._setZ(overlay, aboveZ + 2);
+    },
+
+    _setZ: function(element, z) {
+      element.style.zIndex = z;
+    },
+
+    // track overlays for z-index and focus managemant
+    addOverlay: function(overlay) {
+      var minimumZ = Math.max(this.currentOverlayZ(), this._minimumZ);
+      this._overlays.push(overlay);
+      var newZ = this.currentOverlayZ();
+      if (newZ <= minimumZ) {
+        this._applyOverlayZ(overlay, minimumZ);
+      }
+    },
+
+    removeOverlay: function(overlay) {
+      var i = this._overlays.indexOf(overlay);
+      if (i >= 0) {
+        this._overlays.splice(i, 1);
+        this._setZ(overlay, '');
+      }
+    },
+
+    currentOverlay: function() {
+      var i = this._overlays.length - 1;
+      while (this._overlays[i] && !this._overlays[i].opened) {
+        --i;
+      }
+      return this._overlays[i];
+    },
+
+    currentOverlayZ: function() {
+      var z = this._minimumZ;
+      var current = this.currentOverlay();
+      if (current) {
+        var z1 = window.getComputedStyle(current).zIndex;
+        if (!isNaN(z1)) {
+          z = Number(z1);
+        }
+      }
+      return z;
+    },
+
     /**
-     * iframes have a default z-index of 100, so this default should be at least
-     * that.
-     * @private {number}
+     * Ensures that the minimum z-index of new overlays is at least `minimumZ`.
+     * This does not effect the z-index of any existing overlays.
+     *
+     * @param {number} minimumZ
      */
-    this._minimumZ = 101;
+    ensureMinimumZ: function(minimumZ) {
+      this._minimumZ = Math.max(this._minimumZ, minimumZ);
+    },
 
-    this._backdrops = [];
-  }
+    focusOverlay: function() {
+      var current = this.currentOverlay();
+      // We have to be careful to focus the next overlay _after_ any current
+      // transitions are complete (due to the state being toggled prior to the
+      // transition). Otherwise, we risk infinite recursion when a transitioning
+      // (closed) overlay becomes the current overlay.
+      //
+      // NOTE: We make the assumption that any overlay that completes a transition
+      // will call into focusOverlay to kick the process back off. Currently:
+      // transitionend -> _applyFocus -> focusOverlay.
+      if (current && !current.transitioning) {
+        current._applyFocus();
+      }
+    },
 
-  Polymer.IronOverlayManagerClass.prototype._applyOverlayZ = function(overlay, aboveZ) {
-    this._setZ(overlay, aboveZ + 2);
-  };
-
-  Polymer.IronOverlayManagerClass.prototype._setZ = function(element, z) {
-    element.style.zIndex = z;
-  };
-
-  /**
-   * track overlays for z-index and focus managemant
-   */
-  Polymer.IronOverlayManagerClass.prototype.addOverlay = function(overlay) {
-    var minimumZ = Math.max(this.currentOverlayZ(), this._minimumZ);
-    this._overlays.push(overlay);
-    var newZ = this.currentOverlayZ();
-    if (newZ <= minimumZ) {
-      this._applyOverlayZ(overlay, minimumZ);
-    }
-  };
-
-  Polymer.IronOverlayManagerClass.prototype.removeOverlay = function(overlay) {
-    var i = this._overlays.indexOf(overlay);
-    if (i >= 0) {
-      this._overlays.splice(i, 1);
-      this._setZ(overlay, '');
-    }
-  };
-
-  Polymer.IronOverlayManagerClass.prototype.currentOverlay = function() {
-    var i = this._overlays.length - 1;
-    while (this._overlays[i] && !this._overlays[i].opened) {
-      --i;
-    }
-    return this._overlays[i];
-  };
-
-  Polymer.IronOverlayManagerClass.prototype.currentOverlayZ = function() {
-    return this._getOverlayZ(this.currentOverlay());
-  };
-
-  /**
-   * Ensures that the minimum z-index of new overlays is at least `minimumZ`.
-   * This does not effect the z-index of any existing overlays.
-   *
-   * @param {number} minimumZ
-   */
-  Polymer.IronOverlayManagerClass.prototype.ensureMinimumZ = function(minimumZ) {
-    this._minimumZ = Math.max(this._minimumZ, minimumZ);
-  };
-
-  Polymer.IronOverlayManagerClass.prototype.focusOverlay = function() {
-    var current = this.currentOverlay();
-    // We have to be careful to focus the next overlay _after_ any current
-    // transitions are complete (due to the state being toggled prior to the
-    // transition). Otherwise, we risk infinite recursion when a transitioning
-    // (closed) overlay becomes the current overlay.
-    //
-    // NOTE: We make the assumption that any overlay that completes a transition
-    // will call into focusOverlay to kick the process back off. Currently:
-    // transitionend -> _applyFocus -> focusOverlay.
-    if (current && !current.transitioning) {
-      current._applyFocus();
-    }
-  };
-
-  Polymer.IronOverlayManagerClass.prototype.trackBackdrop = function(element) {
-    // backdrops contains the overlays with a backdrop that are currently
-    // visible
-    var index = this._backdrops.indexOf(element);
-    if (element.opened && element.withBackdrop) {
-      // no duplicates
-      if (index === -1) {
+    trackBackdrop: function(element) {
+      // backdrops contains the overlays with a backdrop that are currently
+      // visible
+      if (element.opened) {
         this._backdrops.push(element);
+      } else {
+        var index = this._backdrops.indexOf(element);
+        if (index >= 0) {
+          this._backdrops.splice(index, 1);
+        }
       }
-    } else if (index >= 0) {
-      this._backdrops.splice(index, 1);
+    },
+
+    getBackdrops: function() {
+      return this._backdrops;
     }
+
   };
-
-  Object.defineProperty(Polymer.IronOverlayManagerClass.prototype, "backdropElement", {
-    get: function() {
-      if (!this._backdropElement) {
-        this._backdropElement = document.createElement('iron-overlay-backdrop');
-      }
-      return this._backdropElement;
-    }
-  });
-
-  Polymer.IronOverlayManagerClass.prototype.getBackdrops = function() {
-    return this._backdrops;
-  };
-
-  /**
-   * Returns the z-index for the backdrop.
-   */
-  Polymer.IronOverlayManagerClass.prototype.backdropZ = function() {
-    return this._getOverlayZ(this._overlayWithBackdrop()) - 1;
-  };
-
-  /**
-   * Returns the first opened overlay that has a backdrop.
-   */
-  Polymer.IronOverlayManagerClass.prototype._overlayWithBackdrop = function() {
-    for (var i = 0; i < this._overlays.length; i++) {
-      if (this._overlays[i].opened && this._overlays[i].withBackdrop) {
-        return this._overlays[i];
-      }
-    }
-  };
-
-  /**
-   * Calculates the minimum z-index for the overlay.
-   */
-  Polymer.IronOverlayManagerClass.prototype._getOverlayZ = function(overlay) {
-    var z = this._minimumZ;
-    if (overlay) {
-      var z1 = Number(window.getComputedStyle(overlay).zIndex);
-      // Check if is a number
-      // Number.isNaN not supported in IE 10+
-      if (z1 === z1) {
-        z = z1;
-      }
-    }
-    return z;
-  };
-
-  Polymer.IronOverlayManager = new Polymer.IronOverlayManagerClass();
 (function() {
 
   Polymer({
@@ -12221,18 +13349,13 @@ CSS properties               | Action
 
     },
 
-    listeners: {
-      'transitionend' : '_onTransitionend'
-    },
-
     /**
      * Appends the backdrop to document body and sets its `z-index` to be below the latest overlay.
      */
     prepare: function() {
-      // Always update z-index
-      this.style.zIndex = this._manager.backdropZ();
       if (!this.parentNode) {
         Polymer.dom(document.body).appendChild(this);
+        this.style.zIndex = this._manager.currentOverlayZ() - 1;
       }
     },
 
@@ -12250,18 +13373,9 @@ CSS properties               | Action
      * Hides the backdrop if needed.
      */
     close: function() {
-      // Always update z-index
-      this.style.zIndex = this._manager.backdropZ();
-      // close only if no element with backdrop is left
-      if (this._manager.getBackdrops().length === 0) {
-        // Read style before setting opened.
-        var cs = getComputedStyle(this);
-        var noAnimation = (cs.transitionDuration === '0s' || cs.opacity == 0);
+      // only need to make the backdrop invisible if this is called by the last overlay with a backdrop
+      if (this._manager.getBackdrops().length < 2) {
         this._setOpened(false);
-        // In case of no animations, complete
-        if (noAnimation) {
-          this.complete();
-        }
       }
     },
 
@@ -12272,12 +13386,6 @@ CSS properties               | Action
       // only remove the backdrop if there are no more overlays with backdrops
       if (this._manager.getBackdrops().length === 0 && this.parentNode) {
         Polymer.dom(this.parentNode).removeChild(this);
-      }
-    },
-
-    _onTransitionend: function (event) {
-      if (event && event.target === this) {
-        this.complete();
       }
     }
 
@@ -12348,8 +13456,8 @@ context. You should place this element as a child of `<body>` whenever possible.
        * Set to true to display a backdrop behind the overlay.
        */
       withBackdrop: {
-        observer: '_withBackdropChanged',
-        type: Boolean
+        type: Boolean,
+        value: false
       },
 
       /**
@@ -12403,18 +13511,6 @@ context. You should place this element as a child of `<body>` whenever possible.
         value: function() {
           return this._onCaptureKeydown.bind(this);
         }
-      },
-
-      _boundOnCaptureFocus: {
-        type: Function,
-        value: function() {
-          return this._onCaptureFocus.bind(this);
-        }
-      },
-
-      /** @type {?Node} */
-      _focusedChild: {
-        type: Object
       }
 
     },
@@ -12428,17 +13524,18 @@ context. You should place this element as a child of `<body>` whenever possible.
      * @type Node
      */
     get backdropElement() {
-      return this._manager.backdropElement;
+      return this._backdrop;
     },
 
     get _focusNode() {
-      return this._focusedChild || Polymer.dom(this).querySelector('[autofocus]') || this;
+      return Polymer.dom(this).querySelector('[autofocus]') || this;
+    },
+
+    registered: function() {
+      this._backdrop = document.createElement('iron-overlay-backdrop');
     },
 
     ready: function() {
-      // with-backdrop need tabindex to be set in order to trap the focus.
-      // If it is not set, IronOverlayBehavior will set it, and remove it if with-backdrop = false.
-      this.__shouldRemoveTabIndex = false;
       this._ensureSetup();
     },
 
@@ -12451,7 +13548,7 @@ context. You should place this element as a child of `<body>` whenever possible.
 
     detached: function() {
       this.opened = false;
-      this._manager.trackBackdrop(this);
+      this._completeBackdrop();
       this._manager.removeOverlay(this);
     },
 
@@ -12459,7 +13556,6 @@ context. You should place this element as a child of `<body>` whenever possible.
      * Toggle the opened state of the overlay.
      */
     toggle: function() {
-      this._setCanceled(false);
       this.opened = !this.opened;
     },
 
@@ -12467,16 +13563,16 @@ context. You should place this element as a child of `<body>` whenever possible.
      * Open the overlay.
      */
     open: function() {
-      this._setCanceled(false);
       this.opened = true;
+      this.closingReason = {canceled: false};
     },
 
     /**
      * Close the overlay.
      */
     close: function() {
-      this._setCanceled(false);
       this.opened = false;
+      this._setCanceled(false);
     },
 
     /**
@@ -12488,8 +13584,8 @@ context. You should place this element as a child of `<body>` whenever possible.
         return;
       }
 
-      this._setCanceled(true);
       this.opened = false;
+      this._setCanceled(true);
     },
 
     _ensureSetup: function() {
@@ -12506,7 +13602,6 @@ context. You should place this element as a child of `<body>` whenever possible.
         this.removeAttribute('aria-hidden');
       } else {
         this.setAttribute('aria-hidden', 'true');
-        Polymer.dom(this).unobserveNodes(this._observer);
       }
 
       // wait to call after ready only if we're initially open
@@ -12514,60 +13609,35 @@ context. You should place this element as a child of `<body>` whenever possible.
         this._callOpenedWhenReady = this.opened;
         return;
       }
+      if (this._openChangedAsync) {
+        this.cancelAsync(this._openChangedAsync);
+      }
 
-      this._manager.trackBackdrop(this);
+      this._toggleListeners();
 
       if (this.opened) {
         this._prepareRenderOpened();
       }
 
-      if (this._openChangedAsync) {
-        this.cancelAsync(this._openChangedAsync);
-      }
-      // Async here to allow overlay layer to become visible, and to avoid
-      // listeners to immediately close via a click.
+      // async here to allow overlay layer to become visible.
       this._openChangedAsync = this.async(function() {
         // overlay becomes visible here
         this.style.display = '';
-        // Force layout to ensure transition will go. Set offsetWidth to itself
-        // so that compilers won't remove it.
-        this.offsetWidth = this.offsetWidth;
+        // force layout to ensure transitions will go
+        /** @suppress {suspiciousCode} */ this.offsetWidth;
         if (this.opened) {
           this._renderOpened();
         } else {
           this._renderClosed();
         }
-        this._toggleListeners();
         this._openChangedAsync = null;
-      }, 1);
+      });
+
     },
 
     _canceledChanged: function() {
       this.closingReason = this.closingReason || {};
       this.closingReason.canceled = this.canceled;
-    },
-
-    _withBackdropChanged: function() {
-      // If tabindex is already set, no need to override it.
-      if (this.withBackdrop && !this.hasAttribute('tabindex')) {
-        this.setAttribute('tabindex', '-1');
-        this.__shouldRemoveTabIndex = true;
-      } else if (this.__shouldRemoveTabIndex) {
-        this.removeAttribute('tabindex');
-        this.__shouldRemoveTabIndex = false;
-      }
-      if (this.opened) {
-        this._manager.trackBackdrop(this);
-        if (this.withBackdrop) {
-          this.backdropElement.prepare();
-          // Give time to be added to document.
-          this.async(function(){
-            this.backdropElement.open();
-          }, 1);
-        } else {
-          this.backdropElement.close();
-        }
-      }
     },
 
     _toggleListener: function(enable, node, event, boundListener, capture) {
@@ -12586,23 +13656,30 @@ context. You should place this element as a child of `<body>` whenever possible.
       }
     },
 
-    _toggleListeners: function () {
-      this._toggleListener(this.opened, document, 'tap', this._boundOnCaptureClick, true);
-      this._toggleListener(this.opened, document, 'keydown', this._boundOnCaptureKeydown, true);
-      this._toggleListener(this.opened, document, 'focus', this._boundOnCaptureFocus, true);
+    _toggleListeners: function() {
+      if (this._toggleListenersAsync) {
+        this.cancelAsync(this._toggleListenersAsync);
+      }
+      // async so we don't auto-close immediately via a click.
+      this._toggleListenersAsync = this.async(function() {
+        this._toggleListener(this.opened, document, 'tap', this._boundOnCaptureClick, true);
+        this._toggleListener(this.opened, document, 'keydown', this._boundOnCaptureKeydown, true);
+        this._toggleListenersAsync = null;
+      }, 1);
     },
 
     // tasks which must occur before opening; e.g. making the element visible
     _prepareRenderOpened: function() {
       this._manager.addOverlay(this);
 
+      if (this.withBackdrop) {
+        this.backdropElement.prepare();
+        this._manager.trackBackdrop(this);
+      }
+
       this._preparePositioning();
       this.fit();
       this._finishPositioning();
-
-      if (this.withBackdrop) {
-        this.backdropElement.prepare();
-      }
     },
 
     // tasks which cause the overlay to actually open; typically play an
@@ -12621,25 +13698,52 @@ context. You should place this element as a child of `<body>` whenever possible.
       this._finishRenderClosed();
     },
 
+    _onTransitionend: function(event) {
+      // make sure this is our transition event.
+      if (event && event.target !== this) {
+        return;
+      }
+      if (this.opened) {
+        this._finishRenderOpened();
+      } else {
+        this._finishRenderClosed();
+      }
+    },
+
     _finishRenderOpened: function() {
       // focus the child node with [autofocus]
-      this._applyFocus();
+      if (!this.noAutoFocus) {
+        this._focusNode.focus();
+      }
 
-      this._observer = Polymer.dom(this).observeNodes(this.notifyResize);
       this.fire('iron-overlay-opened');
+
+      this._squelchNextResize = true;
+      this.async(this.notifyResize);
     },
 
     _finishRenderClosed: function() {
       // hide the overlay and remove the backdrop
       this.resetFit();
       this.style.display = 'none';
+      this._completeBackdrop();
       this._manager.removeOverlay(this);
 
-      this._focusedChild = null;
-      this._applyFocus();
+      this._focusNode.blur();
+      // focus the next overlay, if there is one
+      this._manager.focusOverlay();
 
-      this.notifyResize();
       this.fire('iron-overlay-closed', this.closingReason);
+
+      this._squelchNextResize = true;
+      this.async(this.notifyResize);
+    },
+
+    _completeBackdrop: function() {
+      if (this.withBackdrop) {
+        this._manager.trackBackdrop(this);
+        this.backdropElement.complete();
+      }
     },
 
     _preparePositioning: function() {
@@ -12668,39 +13772,27 @@ context. You should place this element as a child of `<body>` whenever possible.
     },
 
     _onCaptureClick: function(event) {
-      if (this._manager.currentOverlay() === this &&
+      if (!this.noCancelOnOutsideClick &&
+          this._manager.currentOverlay() === this &&
           Polymer.dom(event).path.indexOf(this) === -1) {
-        if (this.noCancelOnOutsideClick) {
-          this._applyFocus();
-        } else {
-          this.cancel();
-        }
+        this.cancel();
       }
     },
 
     _onCaptureKeydown: function(event) {
       var ESC = 27;
-      if (this._manager.currentOverlay() === this &&
-          !this.noCancelOnEscKey &&
-          event.keyCode === ESC) {
+      if (!this.noCancelOnEscKey && (event.keyCode === ESC)) {
         this.cancel();
-      }
-    },
-
-    _onCaptureFocus: function (event) {
-      if (this._manager.currentOverlay() === this &&
-          this.withBackdrop) {
-        var path = Polymer.dom(event).path;
-        if (path.indexOf(this) === -1) {
-          event.stopPropagation();
-          this._applyFocus();
-        } else {
-          this._focusedChild = path[0];
-        }
+        event.stopPropagation();
+        event.stopImmediatePropagation();
       }
     },
 
     _onIronResize: function() {
+      if (this._squelchNextResize) {
+        this._squelchNextResize = false;
+        return;
+      }
       if (this.opened) {
         this.refit();
       }
@@ -13057,7 +14149,6 @@ Polymer({
           atTop: {
             type: Boolean,
             value: true,
-            notify: true,
             readOnly: true
           }
         },
@@ -13363,7 +14454,7 @@ Polymer({
         }
         this.$.sizedImgDiv.style.backgroundImage = src ? 'url("' + src + '")' : '';
 
-        this._setLoading(!!src);
+        this._setLoading(true);
         this._setLoaded(false);
         this._setError(false);
       },
@@ -15106,11 +16197,6 @@ Polymer({
         return;
       }
 
-      if(this.animationConfig.value && typeof this.animationConfig.value === 'function') {
-      	this._warn(this._logf('playAnimation', "Please put 'animationConfig' inside of your components 'properties' object instead of outside of it."));
-      	return;
-      }
-
       // type is optional
       var thisConfig;
       if (type) {
@@ -15368,13 +16454,25 @@ The `aria-labelledby` attribute will be set to the header element, if one exists
     },
 
     attached: function() {
-      // this._observer is used by iron-overlay-behavior
-      this._ariaObserver = Polymer.dom(this).observeNodes(this._updateAriaLabelledBy);
+      this._observer = this._observe(this);
       this._updateAriaLabelledBy();
     },
 
     detached: function() {
-      Polymer.dom(this).unobserveNodes(this._ariaObserver);
+      if (this._observer) {
+        this._observer.disconnect();
+      }
+    },
+
+    _observe: function(node) {
+      var observer = new MutationObserver(function() {
+        this._updateAriaLabelledBy();
+      }.bind(this));
+      observer.observe(node, {
+        childList: true,
+        subtree: true
+      });
+      return observer;
     },
 
     _modalChanged: function() {
@@ -15418,52 +16516,57 @@ The `aria-labelledby` attribute will be set to the header element, if one exists
     },
 
     _onDialogClick: function(event) {
-      var target = Polymer.dom(event).rootTarget;
+      var target = event.target;
       while (target && target !== this) {
         if (target.hasAttribute) {
           if (target.hasAttribute('dialog-dismiss')) {
             this._updateClosingReasonConfirmed(false);
             this.close();
-            event.stopPropagation();
             break;
           } else if (target.hasAttribute('dialog-confirm')) {
             this._updateClosingReasonConfirmed(true);
             this.close();
-            event.stopPropagation();
             break;
           }
         }
-        target = Polymer.dom(target).parentNode;
+        target = target.parentNode;
       }
     },
 
     _onIronOverlayOpened: function() {
       if (this.modal) {
         document.body.addEventListener('focus', this._boundOnFocus, true);
-        document.body.addEventListener('click', this._boundOnBackdropClick, true);
+        this.backdropElement.addEventListener('click', this._boundOnBackdropClick);
       }
     },
 
     _onIronOverlayClosed: function() {
-      this._lastFocusedElement = null;
       document.body.removeEventListener('focus', this._boundOnFocus, true);
-      document.body.removeEventListener('click', this._boundOnBackdropClick, true);
+      this.backdropElement.removeEventListener('click', this._boundOnBackdropClick);
     },
 
     _onFocus: function(event) {
-      if (this.modal && this._manager.currentOverlay() === this) {
-        if (Polymer.dom(event).path.indexOf(this) !== -1) {
-          this._lastFocusedElement = event.target;
-        } else if (this._lastFocusedElement) {
-          this._lastFocusedElement.focus();
-        } else {
-          this._focusNode.focus();
+      if (this.modal) {
+        var target = event.target;
+        while (target && target !== this && target !== document.body) {
+          target = target.parentNode;
+        }
+        if (target) {
+          if (target === document.body) {
+            if (this._lastFocusedElement) {
+              this._lastFocusedElement.focus();
+            } else {
+              this._focusNode.focus();
+            }
+          } else {
+            this._lastFocusedElement = event.target;
+          }
         }
       }
     },
 
-    _onBackdropClick: function(event) {
-      if (this.modal && this._manager.currentOverlay() === this && Polymer.dom(event).path.indexOf(this) === -1) {
+    _onBackdropClick: function() {
+      if (this.modal) {
         if (this._lastFocusedElement) {
           this._lastFocusedElement.focus();
         } else {
@@ -15492,7 +16595,6 @@ The `aria-labelledby` attribute will be set to the header element, if one exists
     },
 
     _renderOpened: function() {
-      this.cancelAnimation();
       if (this.withBackdrop) {
         this.backdropElement.open();
       }
@@ -15500,7 +16602,6 @@ The `aria-labelledby` attribute will be set to the header element, if one exists
     },
 
     _renderClosed: function() {
-      this.cancelAnimation();
       if (this.withBackdrop) {
         this.backdropElement.close();
       }
@@ -15878,11 +16979,6 @@ Polymer({
        * @param {HTMLElement} element The element that should lock scroll.
        */
       pushScrollLock: function(element) {
-        // Prevent pushing the same element twice
-        if (this._lockingElements.indexOf(element) >= 0) {
-          return;
-        }
-
         if (this._lockingElements.length === 0) {
           this._lockScrollInteractions();
         }
@@ -15976,7 +17072,7 @@ Polymer({
       _scrollInteractionHandler: function(event) {
         if (Polymer
               .IronDropdownScrollManager
-              .elementIsScrollLocked(Polymer.dom(event).rootTarget)) {
+              .elementIsScrollLocked(event.target)) {
           if (event.type === 'keydown' &&
               !Polymer.IronDropdownScrollManager._isScrollingKeypress(event)) {
             return;
@@ -16003,13 +17099,13 @@ Polymer({
         document.body.style.overflowY = 'hidden';
 
         // Modern `wheel` event for mouse wheel scrolling:
-        document.addEventListener('wheel', this._scrollInteractionHandler, true);
+        window.addEventListener('wheel', this._scrollInteractionHandler, true);
         // Older, non-standard `mousewheel` event for some FF:
-        document.addEventListener('mousewheel', this._scrollInteractionHandler, true);
+        window.addEventListener('mousewheel', this._scrollInteractionHandler, true);
         // IE:
-        document.addEventListener('DOMMouseScroll', this._scrollInteractionHandler, true);
+        window.addEventListener('DOMMouseScroll', this._scrollInteractionHandler, true);
         // Mobile devices can scroll on touch move:
-        document.addEventListener('touchmove', this._scrollInteractionHandler, true);
+        window.addEventListener('touchmove', this._scrollInteractionHandler, true);
         // Capture keydown to prevent scrolling keys (pageup, pagedown etc.)
         document.addEventListener('keydown', this._scrollInteractionHandler, true);
       },
@@ -16019,10 +17115,10 @@ Polymer({
         document.body.style.overflowX = this._originalBodyStyles.overflowX;
         document.body.style.overflowY = this._originalBodyStyles.overflowY;
 
-        document.removeEventListener('wheel', this._scrollInteractionHandler, true);
-        document.removeEventListener('mousewheel', this._scrollInteractionHandler, true);
-        document.removeEventListener('DOMMouseScroll', this._scrollInteractionHandler, true);
-        document.removeEventListener('touchmove', this._scrollInteractionHandler, true);
+        window.removeEventListener('wheel', this._scrollInteractionHandler, true);
+        window.removeEventListener('mousewheel', this._scrollInteractionHandler, true);
+        window.removeEventListener('DOMMouseScroll', this._scrollInteractionHandler, true);
+        window.removeEventListener('touchmove', this._scrollInteractionHandler, true);
         document.removeEventListener('keydown', this._scrollInteractionHandler, true);
       }
     };
@@ -16187,7 +17283,6 @@ Polymer({
 
         /**
          * The element that should be focused when the dropdown opens.
-         * @deprecated
          */
         get _focusTarget() {
           return this.focusTarget || this.containedElement;
@@ -16287,6 +17382,10 @@ Polymer({
             this._prepareDropdown();
             Polymer.IronOverlayBehaviorImpl._openedChanged.apply(this, arguments);
           }
+
+          if (this.opened) {
+            this._focusContent();
+          }
         },
 
         /**
@@ -16341,7 +17440,7 @@ Polymer({
           var scrollTop;
           var scrollLeft;
 
-          if (this.opened && containedElement) {
+          if (containedElement) {
             scrollTop = containedElement.scrollTop;
             scrollLeft = containedElement.scrollLeft;
           }
@@ -16352,7 +17451,7 @@ Polymer({
 
           Polymer.IronOverlayBehaviorImpl._onIronResize.apply(this, arguments);
 
-          if (this.opened && containedElement) {
+          if (containedElement) {
             containedElement.scrollTop = scrollTop;
             containedElement.scrollLeft = scrollLeft;
           }
@@ -16437,15 +17536,16 @@ Polymer({
         },
 
         /**
-         * Apply focus to focusTarget or containedElement
+         * Focuses the configured focus target.
          */
-        _applyFocus: function () {
-          var focusTarget = this.focusTarget || this.containedElement;
-          if (focusTarget && this.opened && !this.noAutoFocus) {
-            focusTarget.focus();
-          } else {
-            Polymer.IronOverlayBehaviorImpl._applyFocus.apply(this, arguments);
-          }
+        _focusContent: function() {
+          // NOTE(cdata): This is async so that it can attempt the focus after
+          // `display: none` is removed from the element.
+          this.async(function() {
+            if (this._focusTarget) {
+              this._focusTarget.focus();
+            }
+          });
         }
       });
     })();
@@ -17965,20 +19065,195 @@ window.addEventListener('WebComponentsReady', function() {
 
   });
 (function() {
-      'use strict';
 
-      Polymer({
-        is: 'my-greeting',
+  Polymer({
 
-        properties: {
-          greeting: {
-            type: String,
-            value: 'Welcome!',
-            notify: true
-          }
+    is: 'paper-dialog-scrollable',
+
+    properties: {
+
+      /**
+       * The dialog element that implements `Polymer.PaperDialogBehavior` containing this element.
+       * @type {?Node}
+       */
+      dialogElement: {
+        type: Object,
+        value: function() {
+          return this.parentNode;
         }
-      });
-    })();
+      }
+
+    },
+
+    listeners: {
+      'scrollable.scroll': '_onScroll',
+      'iron-resize': '_onIronResize'
+    },
+
+    /**
+     * Returns the scrolling element.
+     */
+    get scrollTarget() {
+      return this.$.scrollable;
+    },
+
+    attached: function() {
+      this.classList.add('no-padding');
+      // Set itself to the overlay sizing target
+      this.dialogElement.sizingTarget = this.scrollTarget;
+      // If the host is sized, fit the scrollable area to the container. Otherwise let it be
+      // its natural size.
+      requestAnimationFrame(function() {
+        if (this.offsetHeight > 0) {
+          this.$.scrollable.classList.add('fit');
+        }
+        this._scroll();
+      }.bind(this));
+    },
+
+    _scroll: function() {
+      this.toggleClass('is-scrolled', this.scrollTarget.scrollTop > 0);
+      this.toggleClass('can-scroll', this.scrollTarget.offsetHeight < this.scrollTarget.scrollHeight);
+      this.toggleClass('scrolled-to-bottom',
+        this.scrollTarget.scrollTop + this.scrollTarget.offsetHeight >= this.scrollTarget.scrollHeight);
+    },
+
+    _onScroll: function() {
+      this._scroll();
+    }
+
+  })
+
+})();
+(function() {
+    'use strict';
+    var productid="";
+    var intentno;
+    var promotestate;
+    var no=0;
+    var arrlength=0;
+    var poarray=[];
+    var largestpono=0;
+    var poarr=[];
+    var poitemarr=[];
+    var poitemtax=[];
+    var poitemprice=[];
+    Polymer({
+      is: 'my-greeting',
+      ready:function(){
+      // this.FnPurchaseorderService();
+      }/*,
+      companyprofilereadResponse:function(e){
+        var cmparr=e.detail.response;
+        this.cmpname=cmparr[0].name;
+        this.cmpaddr1=cmparr[0].addressline1;
+        this.cmpaddr2=cmparr[0].addressline2;
+        this.cmpaddr3=cmparr[0].addressline3;
+        this.cmpemail=cmparr[0].email;
+        this.cmpphone=cmparr[0].phoneno;
+      },
+      // Function which calls service to fetch item info
+       FnPurchaseorderService:function(){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
+         this.purchaseorderurl=sessionStorage.getItem("curr_sess_url")+"purchaseorder-service";
+         this.purchaseorderparam=obj;
+         this.$.purchaseorderajax.generateRequest();
+      },
+      FnPurchaseorderResponse:function(e){
+          poarr=e.detail.response.itemarr;
+         if(poarr.length>0){
+         var d=new Date(poarr[0].PO_Date);         
+         var y=d.getFullYear();
+         var m=d.getMonth();
+         var d=d.getDate();
+         poarr[0].PO_Date=d+"/"+m+"/"+y;
+         this.poarray=poarr;         
+         document.querySelector("purchaseorder-card").poarray=poarr;
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
+         this.purchaseorderitemurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitem-service";
+         this.purchaseorderitemparam=obj;
+         this.$.purchaseorderitemajax.generateRequest();         
+         }
+      },
+      // Function which calls item info for po creation
+      FnPurchaseorderitemResponse:function(e){
+         poitemarr=e.detail.response.itemarr;
+         if(poitemarr.length>0){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
+         this.purchaseorderitemtaxurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemtax-service";
+         this.purchaseorderitemtaxparam=obj;
+         this.$.purchaseorderitemtaxajax.generateRequest();         
+         }
+      },
+      FnPurchaseorderitemtaxResponse:function(e){
+         poitemtax=e.detail.response.itemarr;         
+         if(poitemtax.length>0){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
+         this.purchaseorderitempriceurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemprice-service";
+         this.purchaseorderitempriceparam=obj;
+         this.$.purchaseorderitempriceajax.generateRequest();         
+         }
+      },
+      FnPurchaseorderitempriceResponse:function(e){
+          poitemprice=e.detail.response.itemarr;
+          if(poitemprice.length>0){          
+          var tax1=((parseFloat(poitemtax[0].Excise_Duty))/100);
+          var tax2=((parseFloat(poitemtax[0].VAT))/100);
+          var tax3=((parseFloat(poitemtax[0].CST))/100);
+          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
+          var exduty=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity).toFixed(2);
+          poitemarr[(poitemarr.length)-1].price=(poitemprice[0].Item_Supplier_price).toFixed(2);
+          poitemarr[(poitemarr.length)-1].total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          poitemarr[(poitemarr.length)-1].exduty=((parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){ 
+          poitemarr[(poitemarr.length)-1].vat=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          poitemarr[(poitemarr.length)-1].cst=parseFloat("0").toFixed(2);
+          poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax2))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
+          }
+          else{
+          poitemarr[(poitemarr.length)-1].vat=parseFloat("0").toFixed(2);
+          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax3))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
+          }
+          }
+          this.poitemarray=poitemarr;
+          document.querySelector("purchaseorder-card").poitemarray=poitemarr;
+          var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
+           html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
+            }
+          });
+      },
+      FnToggle:function(){
+        this.$.dialog.toggle();
+      },
+      click:function(){        
+        var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
+         html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
+            }
+          });
+      }*/
+    });
+  })();
 (function() {
       'use strict';
 
@@ -18077,13 +19352,6 @@ window.addEventListener('WebComponentsReady', function() {
            */
           placeholder: {
             type: String
-          },
-
-          /**
-           * The error message to display when invalid.
-           */
-          errorMessage: {
-              type: String
           },
 
           /**
@@ -18276,1422 +19544,6 @@ window.addEventListener('WebComponentsReady', function() {
         }
       });
     })();
-function MakePromise (asap) {
-  function Promise(fn) {
-		if (typeof this !== 'object' || typeof fn !== 'function') throw new TypeError();
-		this._state = null;
-		this._value = null;
-		this._deferreds = []
-
-		doResolve(fn, resolve.bind(this), reject.bind(this));
-	}
-
-	function handle(deferred) {
-		var me = this;
-		if (this._state === null) {
-			this._deferreds.push(deferred);
-			return
-		}
-		asap(function() {
-			var cb = me._state ? deferred.onFulfilled : deferred.onRejected
-			if (typeof cb !== 'function') {
-				(me._state ? deferred.resolve : deferred.reject)(me._value);
-				return;
-			}
-			var ret;
-			try {
-				ret = cb(me._value);
-			}
-			catch (e) {
-				deferred.reject(e);
-				return;
-			}
-			deferred.resolve(ret);
-		})
-	}
-
-	function resolve(newValue) {
-		try { //Promise Resolution Procedure: https://github.com/promises-aplus/promises-spec#the-promise-resolution-procedure
-			if (newValue === this) throw new TypeError();
-			if (newValue && (typeof newValue === 'object' || typeof newValue === 'function')) {
-				var then = newValue.then;
-				if (typeof then === 'function') {
-					doResolve(then.bind(newValue), resolve.bind(this), reject.bind(this));
-					return;
-				}
-			}
-			this._state = true;
-			this._value = newValue;
-			finale.call(this);
-		} catch (e) { reject.call(this, e); }
-	}
-
-	function reject(newValue) {
-		this._state = false;
-		this._value = newValue;
-		finale.call(this);
-	}
-
-	function finale() {
-		for (var i = 0, len = this._deferreds.length; i < len; i++) {
-			handle.call(this, this._deferreds[i]);
-		}
-		this._deferreds = null;
-	}
-
-	/**
-	 * Take a potentially misbehaving resolver function and make sure
-	 * onFulfilled and onRejected are only called once.
-	 *
-	 * Makes no guarantees about asynchrony.
-	 */
-	function doResolve(fn, onFulfilled, onRejected) {
-		var done = false;
-		try {
-			fn(function (value) {
-				if (done) return;
-				done = true;
-				onFulfilled(value);
-			}, function (reason) {
-				if (done) return;
-				done = true;
-				onRejected(reason);
-			})
-		} catch (ex) {
-			if (done) return;
-			done = true;
-			onRejected(ex);
-		}
-	}
-
-	Promise.prototype['catch'] = function (onRejected) {
-		return this.then(null, onRejected);
-	};
-
-	Promise.prototype.then = function(onFulfilled, onRejected) {
-		var me = this;
-		return new Promise(function(resolve, reject) {
-      handle.call(me, {
-        onFulfilled: onFulfilled,
-        onRejected: onRejected,
-        resolve: resolve,
-        reject: reject
-      });
-		})
-	};
-
-	Promise.resolve = function (value) {
-		if (value && typeof value === 'object' && value.constructor === Promise) {
-			return value;
-		}
-
-		return new Promise(function (resolve) {
-			resolve(value);
-		});
-	};
-
-	Promise.reject = function (value) {
-		return new Promise(function (resolve, reject) {
-			reject(value);
-		});
-	};
-
-	
-  return Promise;
-}
-
-if (typeof module !== 'undefined') {
-  module.exports = MakePromise;
-};
-if (!window.Promise) {
-  window.Promise = MakePromise(Polymer.Base.async);
-};
-'use strict'
-
-  Polymer({
-    is: 'iron-request',
-
-    hostAttributes: {
-      hidden: true
-    },
-
-    properties: {
-
-      /**
-       * A reference to the XMLHttpRequest instance used to generate the
-       * network request.
-       *
-       * @type {XMLHttpRequest}
-       */
-      xhr: {
-        type: Object,
-        notify: true,
-        readOnly: true,
-        value: function() {
-          return new XMLHttpRequest();
-        }
-      },
-
-      /**
-       * A reference to the parsed response body, if the `xhr` has completely
-       * resolved.
-       *
-       * @type {*}
-       * @default null
-       */
-      response: {
-        type: Object,
-        notify: true,
-        readOnly: true,
-        value: function() {
-          return null;
-        }
-      },
-
-      /**
-       * A reference to the status code, if the `xhr` has completely resolved.
-       */
-      status: {
-        type: Number,
-        notify: true,
-        readOnly: true,
-        value: 0
-      },
-
-      /**
-       * A reference to the status text, if the `xhr` has completely resolved.
-       */
-      statusText: {
-        type: String,
-        notify: true,
-        readOnly: true,
-        value: ''
-      },
-
-      /**
-       * A promise that resolves when the `xhr` response comes back, or rejects
-       * if there is an error before the `xhr` completes.
-       *
-       * @type {Promise}
-       */
-      completes: {
-        type: Object,
-        readOnly: true,
-        notify: true,
-        value: function() {
-          return new Promise(function (resolve, reject) {
-            this.resolveCompletes = resolve;
-            this.rejectCompletes = reject;
-          }.bind(this));
-        }
-      },
-
-      /**
-       * An object that contains progress information emitted by the XHR if
-       * available.
-       *
-       * @default {}
-       */
-      progress: {
-        type: Object,
-        notify: true,
-        readOnly: true,
-        value: function() {
-          return {};
-        }
-      },
-
-      /**
-       * Aborted will be true if an abort of the request is attempted.
-       */
-      aborted: {
-        type: Boolean,
-        notify: true,
-        readOnly: true,
-        value: false,
-      },
-
-      /**
-       * Errored will be true if the browser fired an error event from the
-       * XHR object (mainly network errors).
-       */
-      errored: {
-        type: Boolean,
-        notify: true,
-        readOnly: true,
-        value: false
-      },
-
-      /**
-       * TimedOut will be true if the XHR threw a timeout event.
-       */
-      timedOut: {
-        type: Boolean,
-        notify: true,
-        readOnly: true,
-        value: false
-      }
-    },
-
-    /**
-     * Succeeded is true if the request succeeded. The request succeeded if it
-     * loaded without error, wasn't aborted, and the status code is ≥ 200, and
-     * < 300, or if the status code is 0.
-     *
-     * The status code 0 is accepted as a success because some schemes - e.g.
-     * file:// - don't provide status codes.
-     *
-     * @return {boolean}
-     */
-    get succeeded() {
-      if (this.errored || this.aborted || this.timedOut) {
-        return false;
-      }
-      var status = this.xhr.status || 0;
-
-      // Note: if we are using the file:// protocol, the status code will be 0
-      // for all outcomes (successful or otherwise).
-      return status === 0 ||
-        (status >= 200 && status < 300);
-    },
-
-    /**
-     * Sends an HTTP request to the server and returns the XHR object.
-     *
-     * @param {{
-     *   url: string,
-     *   method: (string|undefined),
-     *   async: (boolean|undefined),
-     *   body: (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object),
-     *   headers: (Object|undefined),
-     *   handleAs: (string|undefined),
-     *   jsonPrefix: (string|undefined),
-     *   withCredentials: (boolean|undefined)}} options -
-     *     url The url to which the request is sent.
-     *     method The HTTP method to use, default is GET.
-     *     async By default, all requests are sent asynchronously. To send synchronous requests,
-     *         set to true.
-     *     body The content for the request body for POST method.
-     *     headers HTTP request headers.
-     *     handleAs The response type. Default is 'text'.
-     *     withCredentials Whether or not to send credentials on the request. Default is false.
-     *   timeout: (Number|undefined)
-     * @return {Promise}
-     */
-    send: function (options) {
-      var xhr = this.xhr;
-
-      if (xhr.readyState > 0) {
-        return null;
-      }
-
-      xhr.addEventListener('progress', function (progress) {
-        this._setProgress({
-          lengthComputable: progress.lengthComputable,
-          loaded: progress.loaded,
-          total: progress.total
-        });
-      }.bind(this))
-
-      xhr.addEventListener('error', function (error) {
-        this._setErrored(true);
-        this._updateStatus();
-        this.rejectCompletes(error);
-      }.bind(this));
-
-      xhr.addEventListener('timeout', function (error) {
-        this._setTimedOut(true);
-        this._updateStatus();
-        this.rejectCompletes(error);
-      }.bind(this));
-
-      xhr.addEventListener('abort', function () {
-        this._updateStatus();
-        this.rejectCompletes(new Error('Request aborted.'));
-      }.bind(this));
-
-
-      // Called after all of the above.
-      xhr.addEventListener('loadend', function () {
-        this._updateStatus();
-
-        if (!this.succeeded) {
-          this.rejectCompletes(new Error('The request failed with status code: ' + this.xhr.status));
-          return;
-        }
-
-        this._setResponse(this.parseResponse());
-        this.resolveCompletes(this);
-      }.bind(this));
-
-      this.url = options.url;
-      xhr.open(
-        options.method || 'GET',
-        options.url,
-        options.async !== false
-      );
-
-      var acceptType = {
-        'json': 'application/json',
-        'text': 'text/plain',
-        'html': 'text/html',
-        'xml': 'application/xml',
-        'arraybuffer': 'application/octet-stream'
-      }[options.handleAs];
-      var headers = options.headers || Object.create(null);
-      var newHeaders = Object.create(null);
-      for (var key in headers) {
-        newHeaders[key.toLowerCase()] = headers[key];
-      }
-      headers = newHeaders;
-
-      if (acceptType && !headers['accept']) {
-        headers['accept'] = acceptType;
-      }
-      Object.keys(headers).forEach(function (requestHeader) {
-        if (/[A-Z]/.test(requestHeader)) {
-          console.error('Headers must be lower case, got', requestHeader);
-        }
-        xhr.setRequestHeader(
-          requestHeader,
-          headers[requestHeader]
-        );
-      }, this);
-
-      if (options.async !== false) {
-        var handleAs = options.handleAs;
-
-        // If a JSON prefix is present, the responseType must be 'text' or the
-        // browser won’t be able to parse the response.
-        if (!!options.jsonPrefix || !handleAs) {
-          handleAs = 'text';
-        }
-
-        // In IE, `xhr.responseType` is an empty string when the response
-        // returns. Hence, caching it as `xhr._responseType`.
-        xhr.responseType = xhr._responseType = handleAs;
-
-        // Cache the JSON prefix, if it exists.
-        if (!!options.jsonPrefix) {
-          xhr._jsonPrefix = options.jsonPrefix;
-        }
-      }
-
-      xhr.withCredentials = !!options.withCredentials;
-      xhr.timeout = options.timeout;
-
-      var body = this._encodeBodyObject(options.body, headers['content-type']);
-
-      xhr.send(
-        /** @type {ArrayBuffer|ArrayBufferView|Blob|Document|FormData|
-                   null|string|undefined} */
-        (body));
-
-      return this.completes;
-    },
-
-    /**
-     * Attempts to parse the response body of the XHR. If parsing succeeds,
-     * the value returned will be deserialized based on the `responseType`
-     * set on the XHR.
-     *
-     * @return {*} The parsed response,
-     * or undefined if there was an empty response or parsing failed.
-     */
-    parseResponse: function () {
-      var xhr = this.xhr;
-      var responseType = xhr.responseType || xhr._responseType;
-      var preferResponseText = !this.xhr.responseType;
-      var prefixLen = (xhr._jsonPrefix && xhr._jsonPrefix.length) || 0;
-
-      try {
-        switch (responseType) {
-          case 'json':
-            // If the xhr object doesn't have a natural `xhr.responseType`,
-            // we can assume that the browser hasn't parsed the response for us,
-            // and so parsing is our responsibility. Likewise if response is
-            // undefined, as there's no way to encode undefined in JSON.
-            if (preferResponseText || xhr.response === undefined) {
-              // Try to emulate the JSON section of the response body section of
-              // the spec: https://xhr.spec.whatwg.org/#response-body
-              // That is to say, we try to parse as JSON, but if anything goes
-              // wrong return null.
-              try {
-                return JSON.parse(xhr.responseText);
-              } catch (_) {
-                return null;
-              }
-            }
-
-            return xhr.response;
-          case 'xml':
-            return xhr.responseXML;
-          case 'blob':
-          case 'document':
-          case 'arraybuffer':
-            return xhr.response;
-          case 'text':
-          default: {
-            // If `prefixLen` is set, it implies the response should be parsed
-            // as JSON once the prefix of length `prefixLen` is stripped from
-            // it. Emulate the behavior above where null is returned on failure
-            // to parse.
-            if (prefixLen) {
-              try {
-                return JSON.parse(xhr.responseText.substring(prefixLen));
-              } catch (_) {
-                return null;
-              }
-            }
-            return xhr.responseText;
-          }
-        }
-      } catch (e) {
-        this.rejectCompletes(new Error('Could not parse response. ' + e.message));
-      }
-    },
-
-    /**
-     * Aborts the request.
-     */
-    abort: function () {
-      this._setAborted(true);
-      this.xhr.abort();
-    },
-
-    /**
-     * @param {*} body The given body of the request to try and encode.
-     * @param {?string} contentType The given content type, to infer an encoding
-     *     from.
-     * @return {*} Either the encoded body as a string, if successful,
-     *     or the unaltered body object if no encoding could be inferred.
-     */
-    _encodeBodyObject: function(body, contentType) {
-      if (typeof body == 'string') {
-        return body;  // Already encoded.
-      }
-      var bodyObj = /** @type {Object} */ (body);
-      switch(contentType) {
-        case('application/json'):
-          return JSON.stringify(bodyObj);
-        case('application/x-www-form-urlencoded'):
-          return this._wwwFormUrlEncode(bodyObj);
-      }
-      return body;
-    },
-
-    /**
-     * @param {Object} object The object to encode as x-www-form-urlencoded.
-     * @return {string} .
-     */
-    _wwwFormUrlEncode: function(object) {
-      if (!object) {
-        return '';
-      }
-      var pieces = [];
-      Object.keys(object).forEach(function(key) {
-        // TODO(rictic): handle array values here, in a consistent way with
-        //   iron-ajax params.
-        pieces.push(
-            this._wwwFormUrlEncodePiece(key) + '=' +
-            this._wwwFormUrlEncodePiece(object[key]));
-      }, this);
-      return pieces.join('&');
-    },
-
-    /**
-     * @param {*} str A key or value to encode as x-www-form-urlencoded.
-     * @return {string} .
-     */
-    _wwwFormUrlEncodePiece: function(str) {
-      // Spec says to normalize newlines to \r\n and replace %20 spaces with +.
-      // jQuery does this as well, so this is likely to be widely compatible.
-      return encodeURIComponent(str.toString().replace(/\r?\n/g, '\r\n'))
-          .replace(/%20/g, '+');
-    },
-
-    /**
-     * Updates the status code and status text.
-     */
-    _updateStatus: function() {
-      this._setStatus(this.xhr.status);
-      this._setStatusText((this.xhr.statusText === undefined) ? '' : this.xhr.statusText);
-    }
-  });
-'use strict';
-
-  Polymer({
-
-    is: 'iron-ajax',
-
-    /**
-     * Fired when a request is sent.
-     *
-     * @event request
-     */
-
-    /**
-     * Fired when a response is received.
-     *
-     * @event response
-     */
-
-    /**
-     * Fired when an error is received.
-     *
-     * @event error
-     */
-
-    hostAttributes: {
-      hidden: true
-    },
-
-    properties: {
-      /**
-       * The URL target of the request.
-       */
-      url: {
-        type: String
-      },
-
-      /**
-       * An object that contains query parameters to be appended to the
-       * specified `url` when generating a request. If you wish to set the body
-       * content when making a POST request, you should use the `body` property
-       * instead.
-       */
-      params: {
-        type: Object,
-        value: function() {
-          return {};
-        }
-      },
-
-      /**
-       * The HTTP method to use such as 'GET', 'POST', 'PUT', or 'DELETE'.
-       * Default is 'GET'.
-       */
-      method: {
-        type: String,
-        value: 'GET'
-      },
-
-      /**
-       * HTTP request headers to send.
-       *
-       * Example:
-       *
-       *     <iron-ajax
-       *         auto
-       *         url="http://somesite.com"
-       *         headers='{"X-Requested-With": "XMLHttpRequest"}'
-       *         handle-as="json"></iron-ajax>
-       *
-       * Note: setting a `Content-Type` header here will override the value
-       * specified by the `contentType` property of this element.
-       */
-      headers: {
-        type: Object,
-        value: function() {
-          return {};
-        }
-      },
-
-      /**
-       * Content type to use when sending data. If the `contentType` property
-       * is set and a `Content-Type` header is specified in the `headers`
-       * property, the `headers` property value will take precedence.
-       */
-      contentType: {
-        type: String,
-        value: null
-      },
-
-      /**
-       * Body content to send with the request, typically used with "POST"
-       * requests.
-       *
-       * If body is a string it will be sent unmodified.
-       *
-       * If Content-Type is set to a value listed below, then
-       * the body will be encoded accordingly.
-       *
-       *    * `content-type="application/json"`
-       *      * body is encoded like `{"foo":"bar baz","x":1}`
-       *    * `content-type="application/x-www-form-urlencoded"`
-       *      * body is encoded like `foo=bar+baz&x=1`
-       *
-       * Otherwise the body will be passed to the browser unmodified, and it
-       * will handle any encoding (e.g. for FormData, Blob, ArrayBuffer).
-       *
-       * @type (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object)
-       */
-      body: {
-        type: Object,
-        value: null
-      },
-
-      /**
-       * Toggle whether XHR is synchronous or asynchronous. Don't change this
-       * to true unless You Know What You Are Doing™.
-       */
-      sync: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * Specifies what data to store in the `response` property, and
-       * to deliver as `event.detail.response` in `response` events.
-       *
-       * One of:
-       *
-       *    `text`: uses `XHR.responseText`.
-       *
-       *    `xml`: uses `XHR.responseXML`.
-       *
-       *    `json`: uses `XHR.responseText` parsed as JSON.
-       *
-       *    `arraybuffer`: uses `XHR.response`.
-       *
-       *    `blob`: uses `XHR.response`.
-       *
-       *    `document`: uses `XHR.response`.
-       */
-      handleAs: {
-        type: String,
-        value: 'json'
-      },
-
-      /**
-       * Set the withCredentials flag on the request.
-       */
-      withCredentials: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * Set the timeout flag on the request.
-       */
-      timeout: {
-        type: Number,
-        value: 0
-      },
-
-      /**
-       * If true, automatically performs an Ajax request when either `url` or
-       * `params` changes.
-       */
-      auto: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * If true, error messages will automatically be logged to the console.
-       */
-      verbose: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * The most recent request made by this iron-ajax element.
-       */
-      lastRequest: {
-        type: Object,
-        notify: true,
-        readOnly: true
-      },
-
-      /**
-       * True while lastRequest is in flight.
-       */
-      loading: {
-        type: Boolean,
-        notify: true,
-        readOnly: true
-      },
-
-      /**
-       * lastRequest's response.
-       *
-       * Note that lastResponse and lastError are set when lastRequest finishes,
-       * so if loading is true, then lastResponse and lastError will correspond
-       * to the result of the previous request.
-       *
-       * The type of the response is determined by the value of `handleAs` at
-       * the time that the request was generated.
-       *
-       * @type {Object}
-       */
-      lastResponse: {
-        type: Object,
-        notify: true,
-        readOnly: true
-      },
-
-      /**
-       * lastRequest's error, if any.
-       *
-       * @type {Object}
-       */
-      lastError: {
-        type: Object,
-        notify: true,
-        readOnly: true
-      },
-
-      /**
-       * An Array of all in-flight requests originating from this iron-ajax
-       * element.
-       */
-      activeRequests: {
-        type: Array,
-        notify: true,
-        readOnly: true,
-        value: function() {
-          return [];
-        }
-      },
-
-      /**
-       * Length of time in milliseconds to debounce multiple automatically generated requests.
-       */
-      debounceDuration: {
-        type: Number,
-        value: 0,
-        notify: true
-      },
-
-      /**
-       * Prefix to be stripped from a JSON response before parsing it.
-       *
-       * In order to prevent an attack using CSRF with Array responses
-       * (http://haacked.com/archive/2008/11/20/anatomy-of-a-subtle-json-vulnerability.aspx/)
-       * many backends will mitigate this by prefixing all JSON response bodies
-       * with a string that would be nonsensical to a JavaScript parser.
-       *
-       */
-      jsonPrefix: {
-        type: String,
-        value: ''
-      },
-
-      _boundHandleResponse: {
-        type: Function,
-        value: function() {
-          return this._handleResponse.bind(this);
-        }
-      }
-    },
-
-    observers: [
-      '_requestOptionsChanged(url, method, params.*, headers, contentType, ' +
-          'body, sync, handleAs, jsonPrefix, withCredentials, timeout, auto)'
-    ],
-
-    /**
-     * The query string that should be appended to the `url`, serialized from
-     * the current value of `params`.
-     *
-     * @return {string}
-     */
-    get queryString () {
-      var queryParts = [];
-      var param;
-      var value;
-
-      for (param in this.params) {
-        value = this.params[param];
-        param = window.encodeURIComponent(param);
-
-        if (Array.isArray(value)) {
-          for (var i = 0; i < value.length; i++) {
-            queryParts.push(param + '=' + window.encodeURIComponent(value[i]));
-          }
-        } else if (value !== null) {
-          queryParts.push(param + '=' + window.encodeURIComponent(value));
-        } else {
-          queryParts.push(param);
-        }
-      }
-
-      return queryParts.join('&');
-    },
-
-    /**
-     * The `url` with query string (if `params` are specified), suitable for
-     * providing to an `iron-request` instance.
-     *
-     * @return {string}
-     */
-    get requestUrl() {
-      var queryString = this.queryString;
-
-      if (queryString) {
-        var bindingChar = this.url.indexOf('?') >= 0 ? '&' : '?';
-        return this.url + bindingChar + queryString;
-      }
-
-      return this.url;
-    },
-
-    /**
-     * An object that maps header names to header values, first applying the
-     * the value of `Content-Type` and then overlaying the headers specified
-     * in the `headers` property.
-     *
-     * @return {Object}
-     */
-    get requestHeaders() {
-      var headers = {};
-      var contentType = this.contentType;
-      if (contentType == null && (typeof this.body === 'string')) {
-        contentType = 'application/x-www-form-urlencoded';
-      }
-      if (contentType) {
-        headers['content-type'] = contentType;
-      }
-      var header;
-
-      if (this.headers instanceof Object) {
-        for (header in this.headers) {
-          headers[header] = this.headers[header].toString();
-        }
-      }
-
-      return headers;
-    },
-
-    /**
-     * Request options suitable for generating an `iron-request` instance based
-     * on the current state of the `iron-ajax` instance's properties.
-     *
-     * @return {{
-     *   url: string,
-     *   method: (string|undefined),
-     *   async: (boolean|undefined),
-     *   body: (ArrayBuffer|ArrayBufferView|Blob|Document|FormData|null|string|undefined|Object),
-     *   headers: (Object|undefined),
-     *   handleAs: (string|undefined),
-     *   jsonPrefix: (string|undefined),
-     *   withCredentials: (boolean|undefined)}}
-     */
-    toRequestOptions: function() {
-      return {
-        url: this.requestUrl || '',
-        method: this.method,
-        headers: this.requestHeaders,
-        body: this.body,
-        async: !this.sync,
-        handleAs: this.handleAs,
-        jsonPrefix: this.jsonPrefix,
-        withCredentials: this.withCredentials,
-        timeout: this.timeout
-      };
-    },
-
-    /**
-     * Performs an AJAX request to the specified URL.
-     *
-     * @return {!IronRequestElement}
-     */
-    generateRequest: function() {
-      var request = /** @type {!IronRequestElement} */ (document.createElement('iron-request'));
-      var requestOptions = this.toRequestOptions();
-
-      this.activeRequests.push(request);
-
-      request.completes.then(
-        this._boundHandleResponse
-      ).catch(
-        this._handleError.bind(this, request)
-      ).then(
-        this._discardRequest.bind(this, request)
-      );
-
-      request.send(requestOptions);
-
-      this._setLastRequest(request);
-      this._setLoading(true);
-
-      this.fire('request', {
-        request: request,
-        options: requestOptions
-      }, {bubbles: false});
-
-      return request;
-    },
-
-    _handleResponse: function(request) {
-      if (request === this.lastRequest) {
-        this._setLastResponse(request.response);
-        this._setLastError(null);
-        this._setLoading(false);
-      }
-      this.fire('response', request, {bubbles: false});
-    },
-
-    _handleError: function(request, error) {
-      if (this.verbose) {
-        console.error(error);
-      }
-
-      if (request === this.lastRequest) {
-        this._setLastError({
-          request: request,
-          error: error
-        });
-        this._setLastResponse(null);
-        this._setLoading(false);
-      }
-      this.fire('error', {
-        request: request,
-        error: error
-      }, {bubbles: false});
-    },
-
-    _discardRequest: function(request) {
-      var requestIndex = this.activeRequests.indexOf(request);
-
-      if (requestIndex > -1) {
-        this.activeRequests.splice(requestIndex, 1);
-      }
-    },
-
-    _requestOptionsChanged: function() {
-      this.debounce('generate-request', function() {
-        if (this.url == null) {
-          return;
-        }
-
-        if (this.auto) {
-          this.generateRequest();
-        }
-      }, this.debounceDuration);
-    },
-
-  });
-/*
-`<iron-form>` is an HTML `<form>` element that can validate and submit any custom
-elements that implement `Polymer.IronFormElementBehavior`, as well as any
-native HTML elements. For more information on which attributes are
-available on the native form element, see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form
-
-It supports both `get` and `post` methods, and uses an `iron-ajax` element to
-submit the form data to the action URL.
-
-  Example:
-
-    <form is="iron-form" id="form" method="post" action="/form/handler">
-      <paper-input name="name" label="name"></paper-input>
-      <input name="address">
-      ...
-    </form>
-
-By default, a native `<button>` element will submit this form. However, if you
-want to submit it from a custom element's click handler, you need to explicitly
-call the form's `submit` method.
-
-  Example:
-
-    <paper-button raised onclick="submitForm()">Submit</paper-button>
-
-    function submitForm() {
-      document.getElementById('form').submit();
-    }
-
-To customize the request sent to the server, you can listen to the `iron-form-presubmit`
-event, and modify the form's[`iron-ajax`](https://elements.polymer-project.org/elements/iron-ajax)
-object. However, If you want to not use `iron-ajax` at all, you can cancel the
-event and do your own custom submission:
-
-  Example of modifying the request, but still using the build-in form submission:
-
-    form.addEventListener('iron-form-presubmit', function() {
-      this.request.method = 'put';
-      this.request.params = someCustomParams;
-    });
-
-  Example of bypassing the build-in form submission:
-
-    form.addEventListener('iron-form-presubmit', function(event) {
-      event.preventDefault();
-      var firebase = new Firebase(form.getAttribute('action'));
-      firebase.set(form.serialize());
-    });
-
-@demo demo/index.html
-*/
-
-  Polymer({
-
-    is: 'iron-form',
-
-    extends: 'form',
-
-    properties: {
-      /**
-       * By default, the form will display the browser's native validation
-       * UI (i.e. popup bubbles and invalid styles on invalid fields). You can
-       * manually disable this; however, if you do, note that you will have to
-       * manually style invalid *native* HTML fields yourself, as you are
-       * explicitly preventing the native form from doing so.
-       */
-      disableNativeValidationUi: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-      * Set the withCredentials flag when sending data.
-      */
-      withCredentials: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * Content type to use when sending data. If the `contentType` property
-       * is set and a `Content-Type` header is specified in the `headers`
-       * property, the `headers` property value will take precedence.
-       * If Content-Type is set to a value listed below, then
-       * the `body` (typically used with POST requests) will be encoded accordingly.
-       *
-       *    * `content-type="application/json"`
-       *      * body is encoded like `{"foo":"bar baz","x":1}`
-       *    * `content-type="application/x-www-form-urlencoded"`
-       *      * body is encoded like `foo=bar+baz&x=1`
-       */
-      contentType: {
-        type: String,
-        value: "application/x-www-form-urlencoded"
-      },
-
-      /**
-      * HTTP request headers to send.
-      *
-      * Note: setting a `Content-Type` header here will override the value
-      * specified by the `contentType` property of this element.
-      */
-      headers: {
-        type: Object,
-        value: function() {
-          return {};
-        }
-      },
-
-      /**
-      * iron-ajax request object used to submit the form.
-      */
-      request: {
-        type: Object,
-      }
-    },
-
-    /**
-     * Fired if the form cannot be submitted because it's invalid.
-     *
-     * @event iron-form-invalid
-     */
-
-    /**
-     * Fired before the form is submitted.
-     *
-     * @event iron-form-presubmit
-     */
-
-    /**
-     * Fired after the form is submitted.
-     *
-     * @event iron-form-submit
-     */
-
-     /**
-      * Fired after the form is reset.
-      *
-      * @event iron-form-reset
-      */
-
-    /**
-    * Fired after the form is submitted and a response is received. An
-    * IronRequestElement is included as the event.detail object.
-    *
-    * @event iron-form-response
-    */
-
-    /**
-     * Fired after the form is submitted and an error is received. An
-     * IronRequestElement is included as the event.detail object.
-     *
-     * @event iron-form-error
-     */
-    listeners: {
-      'iron-form-element-register': '_registerElement',
-      'iron-form-element-unregister': '_unregisterElement',
-      'submit': '_onSubmit',
-      'reset': '_onReset'
-    },
-
-    ready: function() {
-      // Object that handles the ajax form submission request.
-      this.request = document.createElement('iron-ajax');
-      this.request.addEventListener('response', this._handleFormResponse.bind(this));
-      this.request.addEventListener('error', this._handleFormError.bind(this));
-
-      // Holds all the custom elements registered with this form.
-      this._customElements = [];
-      // Holds the initial values of the custom elements registered with this form.
-      this._customElementsInitialValues = [];
-    },
-
-    /**
-     * Submits the form.
-     */
-    submit: function() {
-      if (!this.noValidate && !this.validate()) {
-        // In order to trigger the native browser invalid-form UI, we need
-        // to do perform a fake form submit.
-        if (!this.disableNativeValidationUi) {
-          this._doFakeSubmitForValidation();
-        }
-        this.fire('iron-form-invalid');
-        return;
-      }
-
-      var json = this.serialize();
-
-      // Native forms can also index elements magically by their name (can't make
-      // this up if I tried) so we need to get the correct attributes, not the
-      // elements with those names.
-      this.request.url = this.getAttribute('action');
-      this.request.method = this.getAttribute('method');
-      this.request.contentType = this.contentType;
-      this.request.withCredentials = this.withCredentials;
-      this.request.headers = this.headers;
-
-      if (this.method.toUpperCase() === 'POST') {
-        this.request.body = json;
-      } else {
-        this.request.params = json;
-      }
-
-      // Allow for a presubmit hook
-      var event = this.fire('iron-form-presubmit', {}, {cancelable: true});
-      if(!event.defaultPrevented) {
-        this.request.generateRequest();
-        this.fire('iron-form-submit', json);
-      }
-    },
-
-    /**
-     * Handler that is called when the native form fires a `submit` event
-     *
-     * @param {Event} event A `submit` event.
-     */
-    _onSubmit: function(event) {
-      this.submit();
-
-      // Don't perform a page refresh.
-      if (event) {
-        event.preventDefault();
-      }
-
-      return false;
-    },
-
-    /**
-     * Handler that is called when the native form fires a `reset` event
-     *
-     * @param {Event} event A `reset` event.
-     */
-    _onReset: function(event) {
-      this._resetCustomElements();
-    },
-
-    /**
-     * Returns a json object containing name/value pairs for all the registered
-     * custom components and native elements of the form. If there are elements
-     * with duplicate names, then their values will get aggregated into an
-     * array of values.
-     *
-     * @return {!Object}
-     */
-    serialize: function() {
-      var json = {};
-
-      function addSerializedElement(name, value) {
-        // If the name doesn't exist, add it. Otherwise, serialize it to
-        // an array,
-        if (!json[name]) {
-          json[name] = value;
-        } else {
-          if (!Array.isArray(json[name])) {
-            json[name] = [json[name]];
-          }
-          json[name].push(value);
-        }
-      }
-
-      // Go through all of the registered custom components.
-      for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
-        if (this._useValue(el)) {
-          addSerializedElement(el.name, el.value);
-        }
-      }
-
-      // Also go through the form's native elements.
-      for (var el, i = 0; el = this.elements[i], i < this.elements.length; i++) {
-        // Checkboxes and radio buttons should only use their value if they're checked.
-        // Also, custom elements that extend native elements (like an
-        // `<input is="fancy-input">`) will appear in both lists. Since they
-        // were already added as a custom element, they don't need
-        // to be re-added.
-        if (!this._useValue(el) ||
-            (el.hasAttribute('is') && json[el.name])) {
-          continue;
-        } else if (el.tagName.toLowerCase() === 'select' && el.multiple) {
-          // A <select multiple> has an array of values.
-          for (var o = 0; o < el.options.length; o++) {
-            if (el.options[o].selected) {
-              addSerializedElement(el.name, el.options[o].value);
-            }
-          }
-        } else {
-          addSerializedElement(el.name, el.value);
-        }
-      }
-
-      return json;
-    },
-
-    _handleFormResponse: function (event) {
-      this.fire('iron-form-response', event.detail);
-    },
-
-    _handleFormError: function (event) {
-      this.fire('iron-form-error', event.detail);
-    },
-
-    _registerElement: function(e) {
-      var element = e.target;
-      element._parentForm = this;
-      this._customElements.push(element);
-
-      // Save the original value of this input.
-      this._customElementsInitialValues.push(
-          this._usesCheckedInsteadOfValue(element) ? element.checked : element.value);
-    },
-
-    _unregisterElement: function(e) {
-      var target = e.detail.target;
-      if (target) {
-        var index = this._customElements.indexOf(target);
-        if (index > -1) {
-          this._customElements.splice(index, 1);
-          this._customElementsInitialValues.splice(index, 1);
-        }
-      }
-    },
-
-    /**
-     * Validates all the required elements (custom and native) in the form.
-     * @return {boolean} True if all the elements are valid.
-     */
-    validate: function() {
-      var valid = true;
-
-      // Validate all the custom elements.
-      var validatable;
-      for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
-        if (el.required && !el.disabled) {
-          validatable = /** @type {{validate: (function() : boolean)}} */ (el);
-          // Some elements may not have correctly defined a validate method.
-          if (validatable.validate)
-            valid = !!validatable.validate() && valid;
-        }
-      }
-
-      // Validate the form's native elements.
-      for (var el, i = 0; el = this.elements[i], i < this.elements.length; i++) {
-        // Custom elements that extend a native element will also appear in
-        // this list, but they've already been validated.
-        if (!el.hasAttribute('is') && el.willValidate && el.checkValidity) {
-          valid = el.checkValidity() && valid;
-        }
-      }
-
-      return valid;
-    },
-
-    /**
-     * Returns whether the given element is a radio-button or a checkbox.
-     * @return {boolean} True if the element has a `checked` property.
-     */
-    _usesCheckedInsteadOfValue: function(el) {
-      if (el.type == 'checkbox' ||
-          el.type == 'radio' ||
-          el.getAttribute('role') == 'checkbox' ||
-          el.getAttribute('role') == 'radio' ||
-          el['_hasIronCheckedElementBehavior']) {
-        return true;
-      }
-      return false;
-    },
-
-    _useValue: function(el) {
-      // Skip disabled elements or elements that don't have a `name` attribute.
-      if (el.disabled || !el.name) {
-        return false;
-      }
-
-      // Checkboxes and radio buttons should only use their value if they're
-      // checked. Custom paper-checkbox and paper-radio-button elements
-      // don't have a type, but they have the correct role set.
-      if (this._usesCheckedInsteadOfValue(el))
-        return el.checked;
-      return true;
-    },
-
-    _doFakeSubmitForValidation: function() {
-      var fakeSubmit = document.createElement('input');
-      fakeSubmit.setAttribute('type', 'submit');
-      fakeSubmit.style.display = 'none';
-      this.appendChild(fakeSubmit);
-
-      fakeSubmit.click();
-
-      this.removeChild(fakeSubmit);
-    },
-
-    /**
-     * Resets all non-disabled form custom elements to their initial values.
-     */
-    _resetCustomElements: function() {
-      // Reset all the registered custom components. We need to do this after
-      // the native reset, since programmatically changing the `value` of some
-      // native elements (iron-input in particular) does not notify its
-      // parent `paper-input`, which will now display the wrong value.
-      this.async(function() {
-        for (var el, i = 0; el = this._customElements[i], i < this._customElements.length; i++) {
-          if (el.disabled)
-            continue;
-
-          if (this._usesCheckedInsteadOfValue(el)) {
-            el.checked = this._customElementsInitialValues[i];
-          } else {
-            el.value = this._customElementsInitialValues[i];
-          }
-          el.invalid = false;
-        }
-
-        this.fire('iron-form-reset');
-      }, 1);
-    }
-
-  });
 /*
 `iron-a11y-keys` provides a cross-browser interface for processing 
 keyboard commands. The interface adheres to [WAI-ARIA best 
@@ -19863,14 +19715,14 @@ value. `setMax` should move the slider to the maximum value.
     },
     FnWebcomponentreadResponse:function(e) {
       this.current_page=localStorage.getItem("curr_sess_showpage");
-      //alert(this.current_page);
+      // alert(this.current_page);
       var arr = e.detail.response;
       //alert(JSON.stringify(arr));
       var labelvalue=[];
       var errorlabelvalue=[];
       //Binding labels to login-card
       for(var i=1;i<arr.length;i++) {
-
+        //alert((arr[i].Page[0].page[0]));
         if ((arr[i].Page[0].page[0]) == this.current_page) {
 
           labelvalue = arr[i].Page[1].Label;
@@ -19899,9 +19751,14 @@ value. `setMax` should move the slider to the maximum value.
           localStorage.setItem("curr_sess_currflowstatus",roleconfig[0].role[i].status);
           localStorage.setItem("curr_sess_currflownewstatus",roleconfig[0].role[i].newstatus);
           localStorage.setItem("curr_sess_currflowupdatestatus",roleconfig[0].role[i].updatestatus);
+          localStorage.setItem("curr_sess_currflowcontainerstatus",roleconfig[0].role[i].containerstatus);
           //alert(roleconfig[0].role[i].RoleFlag+" "+roleconfig[0].role[i].status+" "+roleconfig[0].role[i].newtatus+" "+roleconfig[0].role[i].updatetatus);
           if(sessionStorage.getItem("curr_sess_roleflag")=="6")
           localStorage.setItem("curr_sess_wardflag","");
+          if(sessionStorage.getItem("curr_sess_roleflag")=="9")
+          localStorage.setItem("curr_sess_wardflag","3");
+          if(sessionStorage.getItem("curr_sess_roleflag")=="10")
+          localStorage.setItem("curr_sess_wardflag","5");
           if(sessionStorage.getItem("curr_sess_roleflag")!=null)
           window.location.href="../elements/indexhome.html";
         }
@@ -19919,11 +19776,25 @@ value. `setMax` should move the slider to the maximum value.
       var sessrole=sessionStorage.getItem("curr_sess_roleflag");
       for(var i=0;i<arr[0].role.length;i++) {
         if (arr[0].role[i].RoleFlag == sessrole) {
-          //alert(JSON.stringify(arr[0].role[i].menu));
-          //Binding response to the drawer menulist card
           document.querySelector('drawermenu-list').itemArray = arr[0].role[i].menu;
         }
       }
+    },
+    FnusernamereadService:function(){
+      // alert('hi');
+      this.usernamereadurl=sessionStorage.getItem("curr_sess_url")+"usernameread-service";
+      var obj={"loggeduserid":""};      
+      obj.loggeduserid=sessionStorage.getItem("loggeduser");
+      // alert(sessionStorage.getItem("loggeduser"));
+      this.usernamereadparam=obj;
+      this.$.usernamereadajax.generateRequest();
+    },
+    usernamereadResponse:function(e){      
+      // alert(JSON.stringify(e.detail.response));
+      var arr=e.detail.response;
+      sessionStorage.setItem("curr_sess_loggeduser",arr[0].Employee_Name);
+      this.roleconfigreadService();
+      // document.querySelector('app-homepage').FnSetUsername(e.detail.response);
     }
   });
 })();
@@ -19962,42 +19833,35 @@ Polymer({
   //Response received after authenticating user,if it is valid user navigating to indexhome.html page otherwise it will give alert message to the user
   Response:function(e){
     var logflag=e.detail.response.returnval;
+   
     if(logflag!="invalid")
     {
-      //alert(logflag);
-
+      // document.querySelector('app-homepage').setUsername(this.username);
       localStorage.setItem("curr_sess_wardflag","0");
-      sessionStorage.setItem("loggeduser",this.username);
-      sessionStorage.setItem("loggedrole",logflag);
+      sessionStorage.setItem("loggeduser",this.username);      
+      sessionStorage.setItem("loggedrole",logflag); 
+      // Calling service to read the logged username
+      document.querySelector("webcomponent-service").FnusernamereadService();      
       /*Calling webcomponent service for reading role from roleconfig json file*/
-      document.querySelector("webcomponent-service").roleconfigreadService();
-      //window.location.href="elements/indexhome.html";
+      // document.querySelector("webcomponent-service").roleconfigreadService();      
     }
     else
       alert("Invalid user!!");
   },
   //It is a method which receives Global Url from url.json file
   setUrl:function(url){
-    this.url=url+"login-card";
-    //alert(this.url);
+    this.url=url+"login-card";    
   },
   //Function which invokes for keyboard enter of the login card
   FnLoginSubmit:function()
   {
-   /* if(this.username=='manager'&&this.password=='manager'){
-      sessionStorage.setItem("loggeduser",this.username);
-      sessionStorage.setItem("curr_sess_roleflag",'manager');
-      window.location.href="elements/indexhome.html";
-    }
-    else if(this.username=='admin'&&this.password=='admin'){
-      sessionStorage.setItem("loggeduser",this.username);
-      sessionStorage.setItem("curr_sess_roleflag",'admin');
-      window.location.href="elements/indexhome.html";
-    }
-    else*/
       this.$.Form_Login.submit();
-
-   // this.$.Form_Login.submit();
+  },
+  FnPasswordChange:function(){
+    document.querySelector('app-card').setPage('passwordchange-card');
+  },
+  FnForgotPassword:function(){
+    document.querySelector('app-card').setPage('resetpassword-card');
   }
 });
 /**
@@ -20026,24 +19890,12 @@ Polymer({
       event.detail.keyboardEvent.preventDefault();
     },
 
-    get _isRTL() {
-      return window.getComputedStyle(this)['direction'] === 'rtl';
-    },
-
     _onLeftKey: function() {
-      if (this._isRTL) {
-        this._focusNext();
-      } else {
-        this._focusPrevious();
-      }
+      this._focusPrevious();
     },
 
     _onRightKey: function() {
-      if (this._isRTL) {
-        this._focusPrevious();
-      } else {
-        this._focusNext();
-      }
+      this._focusNext();
     },
 
     _onKeydown: function(event) {
@@ -20203,8 +20055,7 @@ Polymer({
       },
 
       listeners: {
-        'iron-resize': '_onTabSizingChanged',
-        'iron-items-changed': '_onTabSizingChanged',
+        'iron-resize': '_onResize',
         'iron-select': '_onIronSelect',
         'iron-deselect': '_onIronDeselect'
       },
@@ -20258,8 +20109,8 @@ Polymer({
 
       // TODO(cdata): Add `track` response back in when gesture lands.
 
-      _onTabSizingChanged: function() {
-        this.debounce('_onTabSizingChanged', function() {
+      _onResize: function() {
+        this.debounce('_onResize', function() {
           this._scroll();
           this._tabChanged(this.selectedItem);
         }, 10);
@@ -20624,10 +20475,6 @@ Polymer({
 
     is: 'iron-collapse',
 
-    behaviors: [
-      Polymer.IronResizableBehavior
-    ],
-
     properties: {
 
       /**
@@ -20662,10 +20509,6 @@ Polymer({
         type: Boolean
       },
 
-    },
-
-    get dimension() {
-      return this.horizontal ? 'width' : 'height';
     },
 
     hostAttributes: {
@@ -20746,10 +20589,8 @@ Polymer({
     },
 
     _horizontalChanged: function() {
+      this.dimension = this.horizontal ? 'width' : 'height';
       this.style.transitionProperty = this.dimension;
-      var otherDimension = this.dimension === 'width' ? 'height' : 'width';
-      this.style[otherDimension] = '';
-      this.updateSize(this.opened ? 'auto' : '0px', false);
     },
 
     _openedChanged: function() {
@@ -20776,7 +20617,6 @@ Polymer({
       this.toggleClass('iron-collapse-closed', !this.opened);
       this.toggleClass('iron-collapse-opened', this.opened);
       this._updateTransition(false);
-      this.notifyResize();
     },
 
     _calcSize: function() {
@@ -20948,7 +20788,7 @@ Polymer({is:"physicqualifyitemread-card",
     },
 
     _notifyPageResize: function() {
-      var selectedPage = this.selectedItem || this._valueToItem(this.selected);
+      var selectedPage = this.selectedItem;
       this.resizerShouldNotify = function(element) {
         return element == selectedPage;
       }
@@ -32711,61 +32551,6 @@ Polymer({
     });
 Polymer({
 
-    is: 'paper-dialog-scrollable',
-
-    properties: {
-
-      /**
-       * The dialog element that implements `Polymer.PaperDialogBehavior` containing this element.
-       * @type {?Node}
-       */
-      dialogElement: {
-        type: Object
-      }
-
-    },
-
-    listeners: {
-      'scrollable.scroll': '_scroll'
-    },
-
-    /**
-     * Returns the scrolling element.
-     */
-    get scrollTarget() {
-      return this.$.scrollable;
-    },
-
-    ready: function () {
-      this._ensureTarget();
-    },
-
-    attached: function() {
-      this.classList.add('no-padding');
-      this._ensureTarget();
-      requestAnimationFrame(this._scroll.bind(this));
-    },
-
-    _scroll: function() {
-      this.toggleClass('is-scrolled', this.scrollTarget.scrollTop > 0);
-      this.toggleClass('can-scroll', this.scrollTarget.offsetHeight < this.scrollTarget.scrollHeight);
-      this.toggleClass('scrolled-to-bottom',
-        this.scrollTarget.scrollTop + this.scrollTarget.offsetHeight >= this.scrollTarget.scrollHeight);
-    },
-
-    _ensureTarget: function () {
-      // read parentNode on attached because if dynamically created,
-      // parentNode will be null on creation.
-      this.dialogElement = this.dialogElement || Polymer.dom(this).parentNode;
-      // Set itself to the overlay sizing target
-      if (this.dialogElement) {
-        this.dialogElement.sizingTarget = this.scrollTarget;
-      }
-    }
-
-  });
-Polymer({
-
     is: 'cascaded-animation',
 
     behaviors: [
@@ -33145,58 +32930,6 @@ Polymer({
   });
 Polymer({
 
-    is: 'slide-from-top-animation',
-
-    behaviors: [
-      Polymer.NeonAnimationBehavior
-    ],
-
-    configure: function(config) {
-      var node = config.node;
-
-      if (config.transformOrigin) {
-        this.setPrefixedProperty(node, 'transformOrigin', config.transformOrigin);
-      } else {
-        this.setPrefixedProperty(node, 'transformOrigin', '50% 0');
-      }
-
-      this._effect = new KeyframeEffect(node, [
-        {'transform': 'translateY(-100%)'},
-        {'transform': 'translateY(0%)'}
-      ], this.timingFromConfig(config));
-
-      return this._effect;
-    }
-
-  });
-Polymer({
-
-    is: 'slide-from-bottom-animation',
-
-    behaviors: [
-      Polymer.NeonAnimationBehavior
-    ],
-
-    configure: function(config) {
-      var node = config.node;
-
-      if (config.transformOrigin) {
-        this.setPrefixedProperty(node, 'transformOrigin', config.transformOrigin);
-      } else {
-        this.setPrefixedProperty(node, 'transformOrigin', '50% 0');
-      }
-
-      this._effect = new KeyframeEffect(node, [
-        {'transform': 'translateY(100%)'},
-        {'transform': 'translateY(0)'}
-      ], this.timingFromConfig(config));
-
-      return this._effect;
-    }
-
-  });
-Polymer({
-
     is: 'slide-left-animation',
 
     behaviors: [
@@ -33291,8 +33024,8 @@ Polymer({
       }
 
       this._effect = new KeyframeEffect(node, [
-        {'transform': 'translateY(0%)'},
-        {'transform': 'translateY(100%)'}
+        {'transform': 'translateY(-100%)'},
+        {'transform': 'none'}
       ], this.timingFromConfig(config));
 
       return this._effect;
@@ -33334,9 +33067,6 @@ Polymer({
     }
 
   });
-/**
- * Created by praba on 2/17/2016.
- */
 //JS file for dialog-page
 (function() {
   Polymer({
@@ -33352,24 +33082,20 @@ Polymer({
       }
       else
       this.retflag="duplicate entry";
-      this.dialogmsg=dialogmsg;
-      //this.displayvalue=dialogmsg+"!  "+regno;
+      this.dialogmsg=dialogmsg;      
       this.$.Fn_Open_dialog.open();
     },
    FnClickOk:function(){
       if(this.retflag!="duplicate entry") {
         if (sessionStorage.getItem("curr_sess_roleflag") == "6") {
 	      document.querySelector('admin-page').setPage('supplier-detail');
-        document.querySelector('supplier-detail').ready();
-        //window.location.href = "indexhome.html";
+        document.querySelector('supplier-detail').ready();        
         }
         if (localStorage.getItem("curr_sess_wardflag") == "2") {
-          
-        //document.querySelector('admin-page').setPage('supplier-detail');
-        //window.location.href = "indexhome.html";
         }
       }
    },
+   // Function which toggle dialog 
    FnShownewDialog:function(dialogmsg,regno){
 	  this.regno = regno;
 	  this.dialogmsg=dialogmsg;
@@ -33377,9 +33103,6 @@ Polymer({
    }
    });
 })();
-/**
- * Created by praba on 2/13/2016.
- */
 //JS file for datepicker card
 Polymer({
   is: "datepicker-card",
@@ -33394,8 +33117,8 @@ Polymer({
       else
     this.$.dialog.toggle();
   },
+  // Function calls while closing the datepicker dialog
   FnDismissDialog:function(e){
-
     if (e.detail.confirmed) {
       var pickdate=moment(this.$.picker.date).format('L');
       var dd1=new Date();
@@ -33405,8 +33128,7 @@ Polymer({
       if(days>0)
       {
         if(days>60)
-          this.$.ID_Show_Dialog.FnShowDialog("You can add only recent entries within 60 days!","");
-          //alert("You can add only recent entries within 60 days!");
+          this.$.ID_Show_Dialog.FnShowDialog("You can add only recent entries within 60 days!","");          
         else{
           this.showdate = moment(this.$.picker.date).format('L');
           localStorage.setItem("localsess_curr_inwarddate",this.showdate);
@@ -33414,8 +33136,7 @@ Polymer({
         }
       }
       else
-        this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!","");
-        //alert("Date shouldn't exceed the run date!");
+        this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!","");        
       }
       else{
         if(days>0)
@@ -33446,53 +33167,50 @@ Polymer({is:"physicqualifyread-card",
 
     arg.status=localStorage.getItem('curr_sess_expandstate');
     //alert(arg.inwardregno+"  "+arg.status);
-    this.param=arg;
-    this.url=sessionStorage.getItem("curr_sess_url")+"physicqualify-card";
-    this.$.physicqualifyitemreadajax.generateRequest();
+    this.physicqualifyexpanditemreadparam=arg;
+    //alert(JSON.stringify(arg));
+    this.physicqualifyexpanditemreadurl=sessionStorage.getItem("curr_sess_url")+"physicqualifyexpanditemread-service";
+    //alert(this.expanditemreadurl);
+    this.$.physicqualifyexpanditemreadajax.generateRequest();
   },
-  FnPhysicqualifyitemreadResponse:function(e)
-  {
-    //Binding inforamtion to the card
-    var arr=e.detail.response;
-    //alert(JSON.stringify(arr));
-    var commarr=[];
-    var prodarr=[];
-    for(var i=0;i<arr.length;i++)
+  FnphysicqualifyexpanditemreadResponse:function(e){
+    //alert(JSON.stringify(e.detail.response));
+    if(e.detail.response=="no items")
     {
-      var obj={"inwardno":"","inwarddate":"","ponumber":"","podate":"","supname":""};
-      this.purchasetypeflag=arr[i].purchasetypeflag;
-      if(this.purchasetypeflag!="1") {
-        document.querySelector('#readsuplr').style.paddingTop='0%';
-        this.isHidden = false;
+      this.speccardlength=contreceived;
+      this.specarr=[];
+      if(localStorage.getItem("curr_sess_containermeasure").toUpperCase()==('Coil').toUpperCase()){
+        localStorage.setItem("curr_sess_repeatitementry","1");
+        for(var i=0;i<parseInt(this.speccardlength);i++){
+          var obj={"id":"","number":"","hideflag":""};
+          obj.hideflag=false;
+          this.specarr.push(obj);
+        }
       }
-      else {
-        document.querySelector('#readsuplr').style.paddingTop='6%';
-        //document.querySelector('#readsuplr').style.marginLeft='65%';
-        this.isHidden = true;
+      else{
+        localStorage.setItem("curr_sess_repeatitementry","0");
+        var obj={"id":"","number":"","hideflag":""};
+        obj.hideflag=true;
+        this.specarr.push(obj);
       }
-      obj.inwardno=arr[i].inwardno;
-      obj.inwarddate=arr[i].inwarddate;
-      obj.ponumber=arr[i].ponumber;
-      if(arr[i].ponumber!=null||arr[i].ponumber!="")
-        this.potempreadflag=arr[i].ponumber;
-      obj.podate=arr[i].podate;
-      obj.supname=arr[i].supname;
+      this.specificationArray=this.specarr;
     }
-    commarr.push(obj);
-    for(var i=0;i<arr.length;i++)
-    {
-      var obj={"itemdes":"","qtyordered":"","qtyreceived":"","qtyaccepted":"","remarks":""};
-      obj.itemdes=arr[i].itemdes;
-      obj.qtyordered=arr[i].qtyordered;
-      obj.qtyreceived=(arr[i].containerreceived)+" / "+(arr[i].qtyreceived);
-      obj.qtyaccepted=(arr[i].containeraccepted+arr[i].contmeasure)+" / "+(arr[i].qtyaccepted+arr[i].qtymeasure);
-      obj.remarks=arr[i].remarks;
-      prodarr.push(obj);
+    else{
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++) {
+        if(arr[i].Inspection_Status=="Approved")
+          arr[i].readflag=false;
+        else
+          arr[i].readflag=true;
+        if(localStorage.getItem("curr_sess_containermeasure").toUpperCase()==('Coil').toUpperCase())
+          arr[i].hideflag=false;
+        else
+          arr[i].hideflag=true;
+      }
+      this.specificationArray = arr;
+      this.ponumber=this.specificationArray[0].PO_Number;
     }
-    this.mainArray=commarr;
-    this.itemArray=prodarr;
-    this.pono=this.potempreadflag;
-    this.suppliername=commarr[0].supname;
   },
   //Method to invoke webcomponent service to read the dynamic label from config file
   callWebcomponentService:function(){
@@ -33517,9 +33235,6 @@ Polymer({is:"physicqualifyread-card",
     }
   }
 });
-/**
- * Created by praba on 2/12/2016.
- */
 //JS file for grn service
 (function() {
   var intentstate;
@@ -33529,11 +33244,13 @@ Polymer({is:"physicqualifyread-card",
     is: "grn-service",
     ready:function()
     {
-    },
+    },    
     updatequalityparameterService:function(qualityarray){
+      arrlength=0;
+      no=0;
       arrlength=qualityarray.length;
       for(var i=0;i<qualityarray.length;i++){
-        var obj={"inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":""};
+        var obj={"measure":"","inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":"","testdate":""};
         obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
         obj.containerid=localStorage.getItem("curr_sess_expandedcontainer");
         obj.name=qualityarray[i].name;
@@ -33541,31 +33258,33 @@ Polymer({is:"physicqualifyread-card",
         obj.maxvalue=qualityarray[i].maxvalue;
         obj.actualvalue=qualityarray[i].actualvalue;
         obj.remarks=qualityarray[i].remarks;
+        obj.testdate=qualityarray[i].testdate;
+        obj.measure=qualityarray[i].measure;
         this.updatequalityparameterurl=sessionStorage.getItem("curr_sess_url")+"updatequalityparameter-service";
         this.updatequalityparameterparam=obj;
         this.$.updatequalityparameterajax.generateRequest();
       }
     },
     updatequalityparameterResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
       if(e.detail.response=="succ"){
         no=no+1;
       }
       if(arrlength==no){
         this.qualityparametersequenceurl=sessionStorage.getItem("curr_sess_url")+"qualityparametersequenceupdate-service";
-        //this.qualityparametersequenceparam=obj;
         this.$.qualityparametersequenceajax.generateRequest();
       }
     },
     qualityparametersequenceResponse:function(e){
       if(e.detail.response=="succ") {
         alert("Updated!!");
-        //document.querySelector('quality-parameter-displaycard').FnparameterdisplayService();
+        document.querySelector('physicqualifyitem-card').FnReferesh();
       }
     },
     //Invoking service to fetch item under state according to the role logged in
     physicreadService:function(){
-      var arg={"status":""};
+      var arg={"status":"","roleid":"","empid":""};
+      arg.empid=sessionStorage.getItem("loggeduser");
+      arg.roleid=sessionStorage.getItem("curr_sess_roleflag");
       switch(parseInt(sessionStorage.getItem("curr_sess_roleflag"))){
         case 1:
               arg.status=localStorage.getItem("curr_sess_currflowstatus");
@@ -33582,16 +33301,13 @@ Polymer({is:"physicqualifyread-card",
 
       }
       this.param=arg;
-      //alert(JSON.stringify(arg));
       this.url=sessionStorage.getItem("curr_sess_url")+"forwardflowitem-service";
-      //this.url='http://127.0.0.1:3000/grn-service';
       this.$.physicitemreadajax.generateRequest();
     },
     //Received response for the requested state of items and bind it to the physicins page
     physicitemreadResponse:function(e)
     {
       var arr=e.detail.response;
-      // alert(JSON.stringify(arr));
       document.querySelector('physicins-page').itemArray=arr;
 
     },
@@ -33601,24 +33317,18 @@ Polymer({is:"physicqualifyread-card",
       arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
       arg.status=state;
       this.param1=arg;
-      //alert(arg);
-      //alert(localStorage.getItem("curr_sess_forwardstate"));
       this.url1=sessionStorage.getItem("curr_sess_url")+"backwardflowitem-service";
       this.$.flowphysicitemreadajax.generateRequest();
     },
     //Binding response info to the physicinsread card
     flowphysicitemreadResponse:function(e)
     {
-      var arr=e.detail.response;
-      //alert('coming....');
-      //alert(JSON.stringify(arr));
-      if(localStorage.getItem("curr_sess_forwardstate")=='0'){
-        //document.querySelector('home-page').setPage('Inward Flow');
-        document.querySelector('physicinsread-page').itemArray=arr;
+      var arr=e.detail.response;      
+      var temparr=[];
+      temparr.push(arr[0]);      
+      if(localStorage.getItem("curr_sess_forwardstate")=='0'){        
+        document.querySelector('physicinsread-page').itemArray=temparr;
         document.querySelector('physicqualifyread-card').physicqualifyreadService(sessionStorage.getItem("sess_curr_inwardregno"));
-        //this.$.pqrc.physicqualifyreadService(sessionStorage.getItem("sess_curr_inwardregno"));
-        //alert('done');
-        //document.querySelector('home-page').setPage('Inward Flow');
       }
       if(localStorage.getItem("curr_sess_forwardstate")=='1'){
         document.querySelector('home-page').setPage('Inward Items');
@@ -33627,8 +33337,7 @@ Polymer({is:"physicqualifyread-card",
     },
     //Requesting for item info which is requested by the user
     searchService:function(irn,invoice,item,state)
-    {
-      ///alert(irn+"  "+invoice+"   "+item+"  "+state);
+    {      
       var arg={"irnno":"","invoiceno":"","item":"","state":""};
       arg.irnno=(irn.toUpperCase()).replace(/\s/g, "") ;
       arg.invoiceno=(invoice.toUpperCase()).replace(/\s/g, "") ;
@@ -33644,12 +33353,9 @@ Polymer({is:"physicqualifyread-card",
       var rnflag = e.detail.response.rnflag;
       var inflag = e.detail.response.inflag;
       var itemflag = e.detail.response.itemflag;
-      //alert(rnflag+"  "+inflag+"  "+itemflag);
-      //alert(rnflag);
       if(rnflag=="no match"){
         document.querySelector('no-items').setErrorMessage('Please enter valid IRN/ORN number!');
-        document.querySelector('app-homepage').setPage('no-items');
-       // alert("Please enter valid search item!");
+        document.querySelector('app-homepage').setPage('no-items');       
       }
       else {
         if (arr.length > 0) {
@@ -33666,49 +33372,35 @@ Polymer({is:"physicqualifyread-card",
             document.querySelector('outwardsearchread-page').itemArray = arr;
           }
         }
-        else {
-          //this.$.ID_Show_Dialog.FnShowDialog("No IRN/ORN Number available","");
+        else {          
           if(inflag=="no items"){
             document.querySelector('no-items').setErrorMessage('Sorry, No active Invoice in this number');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No Invoice Number available!");
+          }            
           else if(itemflag=="no items"){
             document.querySelector('no-items').setErrorMessage('Please choose valid item!');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No Matching Item available!");
+          }            
           else
           {
             document.querySelector('no-items').setErrorMessage('Sorry, No active IRN/ORN in this number');
             document.querySelector('app-homepage').setPage('no-items');
-          }
-            //alert("No IRN/ORN Number available!");
+          }            
         }
       }
     },
     FnIntentitemReadService:function(){
-
       this.intenturl=sessionStorage.getItem("curr_sess_url")+"intentitemread-service";
       var arg={"loggeduser":"","state":"","loggedrole":""};
       arg.loggeduser=sessionStorage.getItem("loggeduser");
-      arg.loggedrole=sessionStorage.getItem("loggedrole");
-     // arg.state=state;
+      arg.loggedrole=sessionStorage.getItem("loggedrole");     
       this.intentparam=arg;
-
-      /*if((sessionStorage.getItem("loggedrole")=="Stores manager")||(sessionStorage.getItem("loggedrole")=="Purchase manager")){
-      //alert("yes");
-      this.FnIntentsupplyitemReadService();
-      }
-      else
-      {*/
-        //alert("No");
-        this.$.intentitemreadajax.generateRequest();
-     // }
+      this.$.intentitemreadajax.generateRequest();     
     },
-    intentitemreadResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
+    intentitemreadResponse:function(e){      
       var itemarr=e.detail.response.itemarr;
+      // alert(JSON.stringify(itemarr));
+      // alert(localStorage.getItem('curr_sess_postate'));
       var items=[];
       if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
         for(var i=0;i<itemarr.length;i++){
@@ -33721,11 +33413,8 @@ Polymer({is:"physicqualifyread-card",
       else{
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       }
-
     },
     FnIntentsupplyitemReadService:function(){
-      //alert("coming...");
-      //intentstate=state;
       this.intentsupplyurl=sessionStorage.getItem("curr_sess_url")+"intentsupplyitemread-service";
       var arg={"loggeduser":"","intentstate":"","state":""};
       arg.loggeduser=sessionStorage.getItem("loggeduser");
@@ -33736,25 +33425,19 @@ Polymer({is:"physicqualifyread-card",
       arg.state="internal";
       }
       if(sessionStorage.getItem("loggedrole")=="Purchase manager"){
-      intentstate="Approved";
-      //arg.intentstate="Approved";
+      intentstate="Approved";      
       arg.state="external";
       }
-      this.intentsupplyparam=arg;
-      //(JSON.stringify(arg));
+      this.intentsupplyparam=arg;      
       this.$.intentsupplyitemreadajax.generateRequest();
     },
     intentsupplyitemreadResponse:function(e){
-      //alert(JSON.stringify(e.detail.response));
-      //alert(sessionStorage.getItem("loggedrole"));
-      //alert(intentstate);
       if(sessionStorage.getItem("loggedrole")=="Stores manager")
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       if(sessionStorage.getItem("loggedrole")=="Purchase manager")
       {
       document.querySelector('viewintent-page').itemArray=e.detail.response.itemarr;
       }
-
     },
     FnIntentViewitemReadService:function(){
       this.intentviewurl=sessionStorage.getItem("curr_sess_url")+"intentviewitemread-service";
@@ -33766,6 +33449,72 @@ Polymer({is:"physicqualifyread-card",
     },
     intentviewitemreadResponse:function(e){
       document.querySelector('intentview-card').itemArray=e.detail.response.itemarr;
+    },
+    retestitemreadService:function(){
+      this.retesturl=sessionStorage.getItem("curr_sess_url")+"retestitemread-service";
+      this.$.retestitemreadajax.generateRequest();
+    },
+    retestitemreadResponse:function(e){      
+        document.querySelector('retest-card').itemArray = e.detail.response.itemarr;      
+    },
+    resenditemtoqualityService:function(inwardregno){
+      this.resenditemtoqualityurl=sessionStorage.getItem("curr_sess_url")+"resenditemtoquality-service";      
+        var obj={"inwardregno":"","updatestate":"","checkstate":""};
+        obj.inwardregno=inwardregno;
+        obj.updatestate='Quality';
+        obj.checkstate='Confirm';
+        this.resenditemtoqualityparam=obj;
+        this.$.resenditemtoqualityajax.generateRequest();      
+    },
+    resenditemtoqualityResponse:function(e){      
+      if(e.detail.response=="succ") {
+        alert("Item sent for retesting!");
+      }
+      else
+      alert("Failed to send item!");
+    },
+    FnFetchInternalIntentService:function(){
+      // alert('calling.......');
+      this.internalintentitemreadurl=sessionStorage.getItem("curr_sess_url")+"internalintentitemread-service";
+      var arg={"loggeduser":"","intentstate":"","state":""};
+      arg.loggeduser=sessionStorage.getItem("loggeduser");
+      if(sessionStorage.getItem("loggedrole")=="Stores manager")
+      {
+      arg.intentstate="Approved";
+      arg.state="internal";
+      }
+      this.internalintentitemreadparam=arg;      
+      this.$.internalintentitemreadajax.generateRequest();
+    },
+    internalintentitemreadResponse:function(e){
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++){
+        arr[i].Quantity=arr[i].Quantity+" "+arr[i].Quantity_Measure;
+        arr[i].unit=arr[i].unit+" "+arr[i].Unit_Measure;
+      }
+      if(sessionStorage.getItem("loggedrole")=="Stores manager")
+      document.querySelector('internalintent-page').itemArray=arr;
+    },
+     FnFetchInternalIntentViewService:function(){
+      // alert('calling.......');
+      this.internalintentviewitemreadurl=sessionStorage.getItem("curr_sess_url")+"internalintentviewitemread-service";
+      var arg={"loggeduser":"","intentstate":"","state":""};
+      arg.loggeduser=sessionStorage.getItem("loggeduser");
+     
+      this.internalintentviewitemreadparam=arg;      
+      this.$.internalintentviewitemreadajax.generateRequest();
+    },
+    internalintentviewitemreadResponse:function(e){
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++){
+        arr[i].Quantity=arr[i].Quantity+" "+arr[i].Quantity_Measure;
+        arr[i].unit=arr[i].Container+" "+arr[i].Container_Measure;
+      }
+      // alert(JSON.stringify(arr));
+      if(sessionStorage.getItem("loggedrole")=="Production manager")
+      document.querySelector('internalintentview-page').itemArray=arr;
     }
   });
 })();
@@ -33773,6 +33522,10 @@ Polymer({is:"physicqualifyread-card",
  * Created by praba on 2/12/2016.
  */
 (function() {
+ var oldcontainerarr=[];
+ var arrlength=0;
+ var countno=0;
+ var retstate;
   Polymer({
     is: "physicqualified-service",
     ready:function()
@@ -33782,24 +33535,35 @@ Polymer({is:"physicqualifyread-card",
       this.emptyflag=0;
       this.inwardno="";
     },
+    FnSetOldContainerArray: function (array) {
+      //alert(JSON.stringify(array));
+      oldcontainerarr=array;
+      //localStorage.setItem("curr_sess_PO_Number",oldcontainerarr[0].PO_Number);
+      //alert(JSON.stringify(oldcontainerarr));
+    },
     physicqualifyacceptcheckService:function(inwardnumber){
-      var arg={"inwardregno":"","checkstatus":"","repeatflag":""}
+      var arg={"inwardregno":"","checkstatus":"","status":"","repeatflag":""}
       arg.inwardregno=inwardnumber;
       arg.repeatflag=localStorage.getItem("curr_sess_repeatitementry");
       if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
-        arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+        arg.checkstatus=localStorage.getItem("curr_sess_currflowupdatestatus");
       }
       else if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
-        arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+        arg.checkstatus=localStorage.getItem("curr_sess_currflowupdatestatus");
       }
       else if(sessionStorage.getItem("curr_sess_roleflag")=="3"){
-        arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+        arg.checkstatus=localStorage.getItem("curr_sess_currflowupdatestatus");
       }
       else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
-        arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+        arg.checkstatus=localStorage.getItem("curr_sess_currflowupdatestatus");
       }
       else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
-        arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+        arg.checkstatus=localStorage.getItem("curr_sess_currflowupdatestatus");
       }
       this.inwardacceptparam=arg;
       this.inwardaccepturl=sessionStorage.getItem("curr_sess_url")+"physicqualifyinwardacceptcheck-service";
@@ -33809,7 +33573,7 @@ Polymer({is:"physicqualifyread-card",
       //alert(JSON.stringify(e.detail.response));
       if(e.detail.response.flag=="succ")
       {
-        //alert("All rows wr filled");
+        alert("All rows wr filled");
         this.oldphysicinsertService();
       }
       else{
@@ -33817,89 +33581,222 @@ Polymer({is:"physicqualifyread-card",
       }
     },
     oldphysicinsertService:function(){
-      var arg={"inwardregno":"","status":"","checkstatus":""};
+      var arg={"inwardregno":"","status":"","checkstatus":"","createdby":""};
       arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
 
       if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="3"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
       this.oldphysicinsertparam=arg;
       this.oldphysicinserturl=sessionStorage.getItem("curr_sess_url")+"oldphysicinsert-service";
       this.$.oldphysicinsertajax.generateRequest();
     },
     oldphysicinsertResponse:function(e){
+      //alert("Inward material update: "+e.detail.response.flag);
       if(e.detail.response.flag=="succ")
       {
-        this.physicupdateService();
+        //this.physicupdateService();
+        this.oldcontainerupdateService();
       }
       else{
 
       }
     },
+
+    oldcontainerupdateService:function(){
+      arrlength=oldcontainerarr.length;
+      //alert(arrlength);
+      if(arrlength>0&&sessionStorage.getItem("curr_sess_roleflag")!="1") {
+        for (var i = 0; i < oldcontainerarr.length; i++) {
+          var obj = {
+            "updatestatus": "",
+            "checkstatus": "",
+            "Inward_Register_Number": "",
+            "Product_ID": "",
+            "PO_Number": "",
+            "PO_Date": "",
+            "Supplier_ID": "",
+            "Container_ID": "",
+            "Heat_Number": "",
+            "Quantity": "",
+            "Quantity_Measure": "",
+            "Remarks": "",
+            "status": "",
+            "Inspection_Status": "",
+            "createdby":"",
+            "Item_ID":""
+          };
+          obj.Item_ID = oldcontainerarr[i].Item_ID;
+          obj.Inward_Register_Number = oldcontainerarr[i].Inward_Register_Number;
+          obj.Product_ID = oldcontainerarr[i].Product_ID;
+          obj.PO_Number = oldcontainerarr[i].PO_Number;
+          obj.PO_Date = oldcontainerarr[i].PO_Date;
+          obj.Supplier_ID = oldcontainerarr[i].Supplier_ID;
+          obj.Container_ID = oldcontainerarr[i].Container_ID;
+          obj.Heat_Number = oldcontainerarr[i].Heat_Number;
+          obj.Batch_No = oldcontainerarr[i].Batch_No;
+          obj.Quantity = oldcontainerarr[i].Quantity;
+          obj.Quantity_Measure = oldcontainerarr[i].Quantity_Measure;
+          obj.Remarks = oldcontainerarr[i].Remarks;
+          obj.status = localStorage.getItem("curr_sess_currflownewstatus");
+          obj.Inspection_Status = oldcontainerarr[i].Inspection_Status;
+          obj.createdby = sessionStorage.getItem("loggeduser");          
+          this.oldcontainerupdateparam = obj;
+          this.oldcontainerupdateurl = sessionStorage.getItem("curr_sess_url") + "oldcontainerupdate-service";
+          this.$.oldcontainerupdateajax.generateRequest();
+        }
+      }
+      else{
+        this.physicupdateService();
+      }
+    },
+    oldcontainerupdateResponse:function(e){
+      //alert(e.detail.response);
+      if(e.detail.response=="succ"){
+          countno=countno+1;
+      }
+      if(countno==arrlength){
+        alert('containers updated');
+        this.physicupdateService();
+      }
+    },
     physicupdateService:function(){
-      var arg={"inwardregno":"","status":"","checkstatus":""};
+      var arg={"inwardregno":"","status":"","checkstatus":"","createdby":""};
       arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
 
       if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="3"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
         arg.status=localStorage.getItem("curr_sess_currflowupdatestatus");
         arg.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        arg.createdby=sessionStorage.getItem("loggeduser");
       }
       this.physicupdateparam=arg;
+      //alert(JSON.stringify(arg));
       this.physicupdateurl=sessionStorage.getItem("curr_sess_url")+"physicqualified-service";
       this.$.physicupdateajax.generateRequest();
     },
     physicupdateResponse:function(e){
-      //alert(e.detail.response.flag);
+      retstate=e.detail.response.state;
+      // alert(e.detail.response.flag+"  "+e.detail.response.state);
       if(e.detail.response.flag=="updated"){
+        // alert(sessionStorage.getItem("curr_sess_roleflag"));
+        if(sessionStorage.getItem("curr_sess_roleflag")=="4")
+        this.callFetchBatchService(); 
+      else
+        {
         localStorage.setItem('curr_sess_flowstate',"1");
         document.querySelector('grnflow-card').disableBackstate();
         document.querySelector('grnflow-card').setFlag();
-        document.querySelector('physicinsread-page').setState(e.detail.response.state);
+        document.querySelector('physicinsread-page').setState(retstate);
         localStorage.setItem("curr_sess_forwardstate",'0');
-        localStorage.setItem('curr_sess_expandstate',e.detail.response.state);
+        localStorage.setItem('curr_sess_expandstate',retstate);
+        document.querySelector('home-page').setPage("Inward Flow");
+        document.querySelector('app-homepage').setVisible("false");
+        localStorage.setItem("curr_sess_PONumber",null);
+        }
+      }
+      else {
+
+      }
+    },
+    callFetchBatchService:function(){
+      var arg={"inwardregno":""};
+      arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno"); 
+      this.fetchbatchnourl=sessionStorage.getItem("curr_sess_url")+"fetchbatchno-service";
+      this.fetchbatchnoparam=arg;
+      this.$.fetchbatchnoajax.generateRequest();
+    },
+    fetchbatchnoResponse:function(e){
+      var arr=e.detail.response;
+      // alert(JSON.stringify(arr));
+      for(var i=0;i<arr.length;i++){
+        this.callInventoryService(arr[i].Batch_No,arr[i].Container_ID); 
+      }
+    },
+    callInventoryService:function(batchno,containerid){
+      var arg={"inwardregno":"","state":"","batchno":"","containerid":""};
+      arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
+      arg.state="Stores";
+      arg.batchno=batchno;
+      arg.containerid=containerid;
+      this.inventoryupdateparam=arg;      
+      this.inventoryupdateurl=sessionStorage.getItem("curr_sess_url")+"inventoryupdate-service";
+      this.$.inventoryupdateajax.generateRequest();
+    },
+    inventoryupdateResponse:function(e){
+      // alert(e.detail.response);
+      if(e.detail.response=='succ'||e.detail.response=='inserted'||e.detail.response=='updated'){
+        localStorage.setItem('curr_sess_flowstate',"1");
+        document.querySelector('grnflow-card').disableBackstate();
+        document.querySelector('grnflow-card').setFlag();
+        document.querySelector('physicinsread-page').setState(retstate);
+        localStorage.setItem("curr_sess_forwardstate",'0');
+        localStorage.setItem('curr_sess_expandstate',retstate);
         document.querySelector('home-page').setPage("Inward Flow");
         document.querySelector('app-homepage').setVisible("false");
         localStorage.setItem("curr_sess_PONumber",null);
       }
-      else {
+      else
+      {
 
       }
     }
   });
 })();
+(function() {
+      Polymer({
+        is: 'paper-listbox',
+
+        behaviors: [
+          Polymer.IronMenuBehavior
+        ],
+
+        hostAttributes: {
+          role: 'listbox'
+        }
+      });
+    })();
 (function() {
     'use strict';
     var testarr=[];
@@ -33908,8 +33805,14 @@ Polymer({is:"physicqualifyread-card",
       ready:function(){
       this.flag=0;
       },
-      FnChange:function(){
-      var obj={"inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":""};
+      // Function which invoke when selecting item in dropdown
+      FnSelected:function(e){
+        this.minvalue = e.target.selectedItem.textContent.trim();
+        this.actualvalue = e.target.selectedItem.textContent.trim();
+      },
+      // Function which invoke when changing input fields
+      FnChange:function(){     
+      var obj={"inwardregno":"","containerid":"","name":"","minvalue":"","maxvalue":"","actualvalue":"","remarks":"","testdate":"","measure":""};
       obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
       obj.containerid=localStorage.getItem("curr_sess_expandedcontainer");
       obj.name=this.name;
@@ -33917,9 +33820,11 @@ Polymer({is:"physicqualifyread-card",
       obj.maxvalue=this.maxvalue;
       obj.actualvalue=this.actualvalue;
       obj.remarks=this.remarks;
+      obj.measure=this.measure;
+      var dat=new Date();
+      obj.testdate=dat.getDate()+"/"+(dat.getMonth()+1)+"/"+dat.getFullYear();
       for(var i=0;i<testarr.length;i++){
-        if(testarr[i].name==obj.name){
-          //alert('exists');
+        if(testarr[i].name==obj.name){          
           this.flag=1;
           testarr[i].actualvalue=this.actualvalue;
           testarr[i].remarks=this.remarks;
@@ -33931,46 +33836,119 @@ Polymer({is:"physicqualifyread-card",
       }
       },
       FnRemarkChange:function(){
-
       }
     });
   })();
 (function() {
     'use strict';
-
+    var qualityarr=[];
+    var repeatflag=0;
     Polymer({
       is: 'specification-card',
       ready:function(){
+        this.speccardhide=true;
         this.temparr=[];
         var obj={"parametername":"","minval":"","maxval":"","actualval":"","remark":""};
         this.temparr.push(obj);
         this.itemArray=this.temparr;
+        this.hidesubmit=true;
+        if(localStorage.getItem("curr_sess_retestflag")=="1"){
+          this.hidesubmit=true;
+          this.hidetest=true;
+        }
       },
+      // Function which make request to fetch the specification parameters
       FnspecificationitemreadService:function(){
+        var obj={"inwardregno":"","checkstatus":"","productid":""};
+        obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
+        obj.checkstatus=localStorage.getItem("curr_sess_currflowstatus");
+        obj.productid=localStorage.getItem("curr_sess_productid");
+        this.specificationitemreadparam=obj;
         this.specificationitemreadurl=sessionStorage.getItem("curr_sess_url")+"specificationitemread-service";
         this.$.specificationitemreadajax.generateRequest();
       },
-      FnspecificationitemreadResponse:function(e){
-        if(JSON.stringify(e.detail.response)!='no items')
-        this.itemArray=e.detail.response;
-        this.specarr=e.detail.response;
+      FnspecificationitemreadResponse:function(e){        
+        this.finalarr=[];
+        this.arr=[];
+        this.temp="true";
+        this.noparameter=0;
+        if(e.detail.response=="no items"){          
+          this.noparameter=1;
+          this.hidediv=true;
+        }
+        else{
+          this.hidediv=false;          
+          this.specarr=e.detail.response;
+          for(var i=0;i<this.specarr.length;i++){
+            if(this.specarr[i].Quality_Flag=='1'){
+              if(this.temp=="true") {
+                this.temp=this.specarr[i].Quality_Parameter_Name;
+                this.arr.push(this.specarr[i].Min_Value);
+              }
+              else if(this.temp==this.specarr[i].Quality_Parameter_Name){
+                this.arr.push(this.specarr[i].Min_Value);
+              }
+            }
+          }
+          for(var i=0;i<this.specarr.length;i++) {
+            this.flag = 0;
+            if (this.specarr[i].Quality_Flag == '1') {              
+              this.specarr[i].dropflag = false;
+              this.specarr[i].inputflag = true;
+              this.specarr[i].droparr = this.arr;
+              if (repeatflag == 0) {
+                this.finalarr.push(this.specarr[i]);
+                repeatflag = 1;
+              }
+            }
+            else {              
+              this.specarr[i].dropflag = true;
+              this.specarr[i].inputflag = false;
+              this.flag = 1;
+            }
+            if (this.flag == 1) {
+              this.finalarr.push(this.specarr[i]);
+            }
+          }
+              this.itemArray = this.finalarr;
+          }
       },
-
+      // Function which set quality parameters
       FnSetValue:function(qualityarray){
-        alert(JSON.stringify(qualityarray));
-        this.qualityarray=qualityarray;
+        qualityarr=qualityarray;
       },
-      FnAddtest:function(){
-        alert('yes');
-        alert((this.qualityarray).length);
-        if((this.qualityarray).length==(this.itemArray).length)
+      // Function invokes while submitting the test
+      FnSubmittest:function(){
+        if((qualityarr).length==(this.itemArray).length)
         {
           alert('Test submit!');
-          this.$.grnservice.updatequalityparameterService(this.qualityarray);
+          this.$.grnservice.updatequalityparameterService(qualityarr);
+          this.speccardhide=true;
+          this.hidesubmit=true;
+          this.hidetest=false;
         }
         else{
           alert('Please enter all the quality parameters!');
         }
+      },
+      // Function invokes while adding test
+      FnAddtest:function(){
+        this.speccardhide=false;
+        this.hidesubmit=false;
+        this.hidetest=true;
+        if(this.noparameter==1){
+          this.hidesubmit=true;
+          this.hidetest=false;
+          alert("No Quality Parameter Exists!");
+        }
+      },
+      // Function to hide the specification card
+      FnHideSpeccard:function(){
+        this.speccardhide=true;
+      },
+      FnSpecBtnHide:function(){
+        this.hidesubmit=true;
+        this.hidetest=false;
       }
     });
   })();
@@ -33980,7 +33958,9 @@ Polymer({is:"physicqualifyread-card",
     Polymer({
       is: 'quality-parameter-displaycard',
       ready:function(){
+      this.itemArray=[];
       },
+      // Function to display the Quality parameteres
       FnparameterdisplayService:function(){
         var obj={"inwardregno":"","containerid":""};
         obj.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
@@ -33990,119 +33970,226 @@ Polymer({is:"physicqualifyread-card",
         this.$.qualityparameterdisplayajax.generateRequest();
       },
       FnqualityparameterdisplayResponse:function(e){
-        //alert(JSON.stringify(e.detail.response));
-        if(JSON.stringify(e.detail.response)!='no items')
-          this.itemArray=e.detail.response;
+        var arr = e.detail.response;
+        if(arr!="no items") {
+          var temparr = [];
+          var finalarr = [];
+          var flag = "true";
+          var testdate="";
+          for (var i = 0; i < arr.length; i++) {
+            if (flag == "true") {
+              temparr.push(arr[i]);
+              flag = arr[i].Test_ID;
+              testdate = arr[i].Test_Date;
+            }
+            else {
+              if (flag == arr[i].Test_ID) {
+                temparr.push(arr[i]);
+                flag = arr[i].Test_ID;
+                testdate = arr[i].Test_Date;
+              }
+              else {
+                finalarr.push({"testno": flag,"testdate" :testdate, "temparr": temparr});
+                temparr = [];
+                temparr.push(arr[i]);
+                flag = arr[i].Test_ID;
+                testdate = arr[i].Test_Date;
+              }
+            }
+          }
+          finalarr.push({"testno": flag,"testdate" :testdate, "temparr": temparr});
+          if (finalarr.length > 0) {
+            this.itemArray = finalarr;
+            document.querySelector('physicqualifyitem-card').Fnhidequality("false");
+          }
+          else{
+            document.querySelector('physicqualifyitem-card').Fnhidequality("true");
+          }
+        }
       }
     });
   })();
 /**
  * Created by praba on 2/12/2016.
  */
-Polymer({is:"physicqualifyitem-card",
-  ready:function(){
-    this.updateflag="false";
-    this.url=sessionStorage.getItem("curr_sess_url")+"physicqualifyitem-card";
-  },
-  FnSaveItem:function(){
-    //Validating container and quantity fields,if container or quantity accepted fileds are greater than received fields it will throw error
-    //Validating quantity field
-   /*if(parseInt(this.qtyaccepted)>parseInt(this.qtyyreceived)){
-      this.querySelector('#qty'+this.inwardno).validate();
-      this.$.ID_Show_Dialog.FnShowDialog("Accepted quantity shouldn't greater than received quantity!","");
-    }
-    //validating Container field
-    else if(parseInt(this.containeraccepted)>parseInt(this.ctrreceived)){
-      this.querySelector('#ctr'+this.inwardno).validate();
-      this.$.ID_Show_Dialog.FnShowDialog("Accepted container quantity shouldn't greater than received container quantity!","");
-    }*/
-    //if all validations are done it will call ajax component to update the changes
-    //else{
-    document.querySelector("#cont"+this.inwardno).validate();
-    document.querySelector("#heat"+this.inwardno).validate();
-    document.querySelector("#qty"+this.inwardno).validate();
-      if((this.ponumber==null||this.ponumber=="")&&(localStorage.getItem("curr_sess_POchangeflag")!=1))
-      {
+(function() {
+var flag="true";
+  Polymer({
+    is: "physicqualifyitem-card",
+    ready: function () {
+      this.updateflag = "false";
+      this.hideradio=true;
+      this.url = sessionStorage.getItem("curr_sess_url") + "physicqualifyitem-card";
+      if(sessionStorage.getItem("curr_sess_roleflag") == "3")
+      this.hideradio=false;
+    },
+    FnGenerateBatchno:function(e){
+      // alert(this.heatno);
+      this.callGenerateBatchnoService();
+    },
+    callGenerateBatchnoService:function(){
+      var obj={"heatno":""};
+      obj.heatno=this.heatno;
+      this.generatebatchnourl=sessionStorage.getItem("curr_sess_url")+"generatebatchno-service";
+      this.generatebatchnoparam=obj;
+      this.$.generatebatchnoajax.generateRequest();
+    },
+    generatebatchnoResponse:function(e){      
+      // alert(JSON.stringify(e.detail.response.returnval));
+      this.batchno=e.detail.response.returnval;
+      // document.querySelector('physicqualifyitem-card').batchno=e.detail.response.returnval;
+    },
+    FnSaveItem: function () {
+      document.querySelector("#cont" + this.inwardno).validate();      
+      document.querySelector("#qty" + this.inwardno).validate();
+      if ((this.ponumber == null || this.ponumber == "") && (localStorage.getItem("curr_sess_POchangeflag") != 1)) {
         alert("PO number should be filled out!");
       }
-      else
-      {
-        this.inspectionstatus="1";
-        this.podate=localStorage.getItem("localsess_curr_inwarddate");
-        this.ponumber=localStorage.getItem("curr_sess_PONumber");
-
-        switch(parseInt(sessionStorage.getItem("curr_sess_roleflag"))){
+      else {
+        this.inspectionstatus = "1";
+        this.createdby= sessionStorage.getItem("loggeduser");
+        this.podate = localStorage.getItem("localsess_curr_inwarddate");
+        this.ponumber = localStorage.getItem("curr_sess_PONumber");        
+        
+        switch (parseInt(sessionStorage.getItem("curr_sess_roleflag"))) {
           case 1:
-            this.status=localStorage.getItem("curr_sess_currflowstatus");
-            this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
             break;
           case 2:
-            this.status=localStorage.getItem("curr_sess_currflowstatus");
-            this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
             break;
           case 3:
-            this.status=localStorage.getItem("curr_sess_currflowstatus");
-            this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
             break;
           case 4:
-            this.status=localStorage.getItem("curr_sess_currflowstatus");
-            this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+        }        
+        this.$.form.submit();
+      }      
+    },
+    FnRejectItem: function () {
+      if ((this.ponumber == null || this.ponumber == "") && (localStorage.getItem("curr_sess_POchangeflag") != 1)) {
+        alert("PO number should be filled out!");
+      }
+      else {
+        // alert(this.containerid);
+        var containerid=this.containerid;
+        this.containerid=containerid;
+        this.inspectionstatus = "0";
+        this.createdby= sessionStorage.getItem("loggeduser");
+        this.podate = localStorage.getItem("localsess_curr_inwarddate");
+        this.ponumber = localStorage.getItem("curr_sess_PONumber");
+        switch (parseInt(sessionStorage.getItem("curr_sess_roleflag"))) {
+          case 1:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 2:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 3:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 4:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
             break;
         }
         this.$.form.submit();
-    }
-    //}
-  },
-  FnRejectItem:function(){
-    if((this.ponumber==null||this.ponumber=="")&&(localStorage.getItem("curr_sess_POchangeflag")!=1))
-    {
-      alert("PO number should be filled out!");
-    }
-    else
-    {
-      this.inspectionstatus="0";
-      this.podate=localStorage.getItem("localsess_curr_inwarddate");
-      this.ponumber=localStorage.getItem("curr_sess_PONumber");
-      switch(parseInt(sessionStorage.getItem("curr_sess_roleflag"))){
-        case 1:
-          this.status=localStorage.getItem("curr_sess_currflowstatus");
-          this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
-          break;
-        case 2:
-          this.status=localStorage.getItem("curr_sess_currflowstatus");
-          this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
-          break;
-        case 3:
-          this.status=localStorage.getItem("curr_sess_currflowstatus");
-          this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
-          break;
-        case 4:
-          this.status=localStorage.getItem("curr_sess_currflowstatus");
-          this.newstatus=localStorage.getItem("curr_sess_currflownewstatus");
-          break;
       }
-      this.$.form.submit();
+    },
+    FnResponse: function (e) {
+      //alert(JSON.stringify(e.detail.response.flag));
+      var retflag="";
+      if(e.detail.response.flag=="exist")
+        retflag="Coil id already exist";
+      else
+        retflag=e.detail.response.flag;
+        this.$.ID_Show_Dialog.FnShowDialog(retflag, "");
+    },
+    FnExpandInnerCard: function () {
+      //alert(this.containerid);
+      this.containerid=(this.containerid).replace(/\s/g, '');
+    if(flag=="true") {
+      if (document.querySelector('#radio' + this.containerid).checked == true && sessionStorage.getItem("curr_sess_roleflag") == "3") {
+        localStorage.setItem("curr_sess_expandedcontainer", this.containerid);
+        this.$.specificationcard.FnspecificationitemreadService();
+        this.$.qualityparameterdisplay.FnparameterdisplayService();
+        document.querySelector("#inner" + this.containerid).toggle();
+      }
+      flag=this.containerid;
     }
-  },
-  FnResponse:function(e)
-  {
-    this.$.ID_Show_Dialog.FnShowDialog(e.detail.response.flag,"");
-  },
-  FnExpandInnerCard:function(){
-    //alert(this.containerid);
-    if(document.querySelector('#radio'+this.containerid).checked==true)
-    {
-      localStorage.setItem("curr_sess_expandedcontainer",this.containerid);
+      else {
+      if(flag==this.containerid) {
+        if (document.querySelector('#radio' + this.containerid).checked == false && sessionStorage.getItem("curr_sess_roleflag") == "3") {
+          localStorage.setItem("curr_sess_expandedcontainer", this.containerid);
+          document.querySelector("#inner" + this.containerid).toggle();
+          flag="true";
+          //this.$.specificationcard.FnHideSpeccard();
+        }
+      }
+      else{
+        document.querySelector('#radio' + flag).checked = false;
+        document.querySelector("#inner" + flag).toggle();
+        localStorage.setItem("curr_sess_expandedcontainer", this.containerid);
+        this.$.specificationcard.FnspecificationitemreadService();
+        this.$.qualityparameterdisplay.FnparameterdisplayService();
+        document.querySelector("#inner" + this.containerid).toggle();
+        flag=this.containerid;
+      }
+    }
+    },
+    FnToggle:function(){
       this.$.specificationcard.FnspecificationitemreadService();
       this.$.qualityparameterdisplay.FnparameterdisplayService();
-      document.querySelector("#inner"+this.containerid).toggle();
-    }
-    if(document.querySelector('#radio'+this.containerid).checked==false)
-    {
-      document.querySelector("#inner"+this.containerid).toggle();
-    }
-  }
-});
+      document.querySelector("#inner" + id).toggle();
+    },
+    FnReferesh:function(){
+        var id=localStorage.getItem("curr_sess_expandedcontainer");
+        this.$.specificationcard.FnspecificationitemreadService();
+        this.$.qualityparameterdisplay.FnparameterdisplayService();
+        document.querySelector("#inner" + id).toggle();
+        document.querySelector('#radio' + id).checked = false;
+        flag="true";
+    },
+    Fnhidequality:function(flag){
+      if(flag=="true")
+        this.hidequality=true;
+      if(flag=="false")
+        this.hidequality=false;
+    },
+    FnComponentSize:function(){
+      // alert('no coil');
+      // alert('calling'+this.querySelector('paper-input'));
+      this.querySelector('.repeatcard').style.width='120%';
+      // this.querySelector('#cont'+this.inwardno).style.marginLeft='10%';
+      // this.querySelector('.repeatcard').style.marginLeft='10%';
+      this.querySelector('#cont'+this.inwardno).style.width='20%';
+      this.querySelector('#cont'+this.inwardno).style.marginLeft='13%';
+      this.querySelector('#qty'+this.inwardno).style.width='20%';
+      this.querySelector('textarea').style.width='25%'; 
+      // this.querySelector('paper-icon-button').style.width='5%';      
+    },
+    FnComponentReSize:function(){
+      // alert('coil');
+      // alert('calling'+this.querySelector('paper-input'));
+      this.querySelector('.repeatcard').style.width='100%';
+      // this.querySelector('#cont'+this.inwardno).style.marginLeft='0%';
+      // this.querySelector('.repeatcard').style.marginLeft='0%';
+      this.querySelector('#cont'+this.inwardno).style.width='15%';
+      this.querySelector('#qty'+this.inwardno).style.width='8%';
+      // this.querySelector('#unit'+this.inwardno).style.marginLeft='-5%';
+      // this.querySelector('textarea').style.width='15%'; 
+      }
+  });
+})();
 /**
  * Created by praba on 2/12/2016.
  */
@@ -34137,8 +34224,28 @@ Polymer({is:"physicqualifyitem-card",
   },
     FnexpandcardreadService:function(){
       //alert("calling");
-      var arg={"inwardregno":""};
+      var arg={"inwardregno":"","status":""};
       arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
+      if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="3"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
       this.physicqualifyexpanditemreadparam=arg;
       //alert(JSON.stringify(arg));
       this.physicqualifyexpanditemreadurl=sessionStorage.getItem("curr_sess_url")+"physicqualifyexpanditemread-service";
@@ -34146,44 +34253,89 @@ Polymer({is:"physicqualifyitem-card",
       this.$.physicqualifyexpanditemreadajax.generateRequest();
     },
     FnphysicqualifyexpanditemreadResponse:function(e){
-      //alert(e.detail.response);
+    // alert(JSON.stringify(e.detail.response));
+    if(containermeasure.toUpperCase()==('Coil').toUpperCase())      
+    document.querySelector('physicqualifyitem-card').FnComponentReSize();
+    else
+    document.querySelector('physicqualifyitem-card').FnComponentSize();
+    // alert(JSON.stringify(e.detail.response));
       if(e.detail.response=="no items")
       {
         //alert('yeas');
-        this.speccardlength=contreceived;
+        this.speccardlength=containerreceived;
         this.specarr=[];
-        if(contmeasure=='Coil'){
+        if(containermeasure.toUpperCase()==('Coil').toUpperCase()){
+          //alert('coil');
+          // document.querySelector('physicqualifyitem-card').FnComponentReSize();
           localStorage.setItem("curr_sess_repeatitementry","1");
           for(var i=0;i<parseInt(this.speccardlength);i++){
-            var obj={"id":"","number":""};
+            var obj={"hideflag":"","serialno":"","heatno":"","id":"","number":""};
+            obj.serialno=i;
+            obj.heatno="0";
+            obj.hideflag=false;
             this.specarr.push(obj);
           }
         }
         else{
+          //alert('no coil');
+          // document.querySelector('physicqualifyitem-card').FnComponentSize();
           localStorage.setItem("curr_sess_repeatitementry","0");
-          var obj={"id":"","number":""};
+          var obj={"hideflag":"","serialno":"","heatno":"","id":"","number":""};
+          obj.serialno=i;
+          obj.heatno="0";
+          obj.hideflag=true;
           this.specarr.push(obj);
         }
         this.specificationArray=this.specarr;
+        // alert(JSON.stringify(this.specificationArray));
+        document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray);
       }
-      else
-      this.specificationArray=e.detail.response;
+      else{
+        var arr=e.detail.response;
+        // alert(JSON.stringify(arr));
+        for(var i=0;i<arr.length;i++) {
+          if(arr[i].Inspection_Status=="Approved")
+          arr[i].readflag=false;
+          else
+          arr[i].readflag=true;
+         if(containermeasure.toUpperCase()==('Coil').toUpperCase())
+         {
+         // document.querySelector('physicqualifyitem-card').FnComponentReSize();
+         arr[i].hideflag=false;
+         }
+         else{
+         // document.querySelector('physicqualifyitem-card').FnComponentSize();
+         arr[i].hideflag=true;
+         }
+        }
+        // alert(JSON.stringify(arr));
+        this.specificationArray = arr;
+        localStorage.setItem("curr_sess_productid",this.specificationArray[0].Product_ID);
+        localStorage.setItem("curr_sess_PONumber",this.specificationArray[0].PO_Number);
+        document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray);
+      }
     },
   physicqualifyitemService:function(contreceived,contmeasure){
     containerreceived=contreceived;
     containermeasure=contmeasure;
+    localStorage.setItem("curr_sess_containermeasure",containermeasure);
     this.speccardlength=contreceived;
     this.specarr=[];
-    if(contmeasure=='Coil'){
+
+    if(contmeasure.toUpperCase()==('Coil').toUpperCase()){
       localStorage.setItem("curr_sess_repeatitementry","1");
       for(var i=0;i<parseInt(this.speccardlength);i++){
-        var obj={"id":"","number":""};
+        var obj={"serialno":"","hideflag":"","id":"","number":""};
+        obj.hideflag=false;
+        obj.serialno=i;
         this.specarr.push(obj);
       }
     }
     else{
       localStorage.setItem("curr_sess_repeatitementry","0");
-      var obj={"id":"","number":""};
+      var obj={"serialno":"","hideflag":"","id":"","number":""};
+      obj.hideflag=true;
+      obj.serialno=i;
       this.specarr.push(obj);
     }
     this.specificationArray=this.specarr;
@@ -34261,11 +34413,12 @@ Polymer({is:"physicqualifyitem-card",
           document.querySelector('app-homepage').setVisible("true");
           if(all[i].id==document.querySelector("#card"+this.inwardregno).id){
             if(i!=0){
-              all[i].style.marginTop=((i*(x))-i)+"%";
-            }
-            if(i>10){
-              all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
-            }
+              // alert(((i*(x))-i)-(i*5));
+              //if(i<4)
+              all[i].style.marginTop=((i*(x))-i-(i*2))+"%";
+              //if(i>4&&i<8)
+              //all[i].style.marginTop=((i*(x))-i)+"%";
+            }          
             //alert("yes");
             all[i].style.visibility='visible';
             localStorage.setItem('curr_sess_forwarddisablestate',"0");
@@ -34366,49 +34519,27 @@ Polymer({
   }
 });
 (function() {
-      Polymer({
-        is: 'paper-listbox',
-
-        behaviors: [
-          Polymer.IronMenuBehavior
-        ],
-
-        hostAttributes: {
-          role: 'listbox'
-        }
-      });
-    })();
-(function() {
       var item=[
         {"name":"---SELECT---","measure":"","unit":""}];
       Polymer({is:"itemlist-card",
         ready:function(){
-          //alert('hi');
           this.selectedItem=null;
-          //this.url="../../config/items.json";
         },
         itemlistreadResponse:function(e)
         {
-          //alert('hi');
-          var arr=e.detail.response.items;
-          //alert(JSON.stringify(e.detail.response));
+          var arr=e.detail.response.items;          
           this.itemArray1=arr;
-          //alert(JSON.stringify(this.itemArray1));
-
         },
         outitemlistreadResponse:function(e)
-        {
-          //alert('hi');
-          var arr=e.detail.response.items;
-          //alert(JSON.stringify(e.detail.response));
+        {          
+          var arr=e.detail.response.items;          
           this.itemArray2=arr;
-          this.itemArray=item.concat((this.itemArray1).concat(this.itemArray2));
-          //alert(JSON.stringify(this.itemArray));
+          this.itemArray=item.concat((this.itemArray1).concat(this.itemArray2));          
         },
+        // Function which read the selected item information while searching
         select:function(e){
           this.selectedItem=(e.target.selectedItem.textContent).trim();
-          this.$.gs.searchService("","",this.selectedItem,"");
-          //localStorage.setItem("localsess_curr_itemdes",this.selectedItem);
+          this.$.gs.searchService("","",this.selectedItem,"");          
         }
       });
     })();
@@ -34434,19 +34565,13 @@ Polymer({
       this.purchasetype="";
       this.purchasetypeflag="";
       //Initially hiding dropdown list
-      var obj={"wardflag":"","itemid":""};
-      //alert(localStorage.getItem("curr_sess_wardflag")+"  "+sessionStorage.getItem("curr_sess_roleflag"));
-     
-      /*if(localStorage.getItem("curr_sess_wardflag") == "2"&&localStorage.getItem("curr_sess_spotorderflag")!='true') {
-       //alert("one");
-        obj.wardflag="3";
-        obj.itemid = sessionStorage.getItem("loggeduser");
-      }*/
-      if(sessionStorage.getItem("curr_sess_roleflag")=="5") {
-       //alert("two");
+      var obj={"wardflag":"","itemid":""};  
+      //Function which fetch all the items in add item page
+      if(sessionStorage.getItem("curr_sess_roleflag")=="5") {       
         obj.wardflag="2";
         obj.itemid = "all";
       }
+      //Function which fetch specific item for the choosen supplier in IRN page
       if(suplrid==""||suplrid==null){}
       else {
         if (localStorage.getItem("curr_sess_wardflag") == "0" && sessionStorage.getItem("curr_sess_roleflag") != "5") {
@@ -34454,17 +34579,14 @@ Polymer({
           obj.itemid = suplrid;
         }
       }
-      //if(localStorage.getItem("curr_sess_wardflag")=="1"&&sessionStorage.getItem("curr_sess_roleflag")!="5")
-        //obj.wardflag="1";
-        this.param=obj;
-      //alert(JSON.stringify(obj));
+      this.param=obj;      
       this.url = sessionStorage.getItem("curr_sess_url")+"itemlist-service";
       this.querySelector('paper-listbox').style.visibility='hidden';
     },
     FnFetchSpecificTypeItem:function(itemtype){
       var obj={"wardflag":"","itemid":""};
-      if(localStorage.getItem("curr_sess_wardflag") == "2"&&localStorage.getItem("curr_sess_spotorderflag")!='true') {
-       //alert("one");
+      //Function which fetch item in intent page under the choosen category      
+      if(localStorage.getItem("curr_sess_wardflag") == "2"&&localStorage.getItem("curr_sess_spotorderflag")!='true') {       
         obj.wardflag="3";
         obj.itemid = itemtype;
         this.param=obj;
@@ -34473,21 +34595,19 @@ Polymer({
       }
     },
     //Method to fetch item under the specific suppllier name
-    FnFetchSpecificItem:function(supplierid,suppliername){
-      //alert(supplierid);
+    FnFetchSpecificItem:function(supplierid,suppliername){      
       //supplierid set to a global variable to load the items under supplier name when adding items
       suplrid=supplierid;
       var obj={"wardflag":"","itemid":""};
-      if(localStorage.getItem("curr_sess_wardflag")!="1"&&sessionStorage.getItem("curr_sess_roleflag")!="5") {
-        // alert("inward specific");
+      if(localStorage.getItem("curr_sess_wardflag")!="1"&&sessionStorage.getItem("curr_sess_roleflag")!="5") {        
         obj.wardflag = "0";
         obj.itemid = supplierid;
         this.param=obj;
         this.url = sessionStorage.getItem("curr_sess_url")+"itemlist-service";
         this.$.itemlistreadajax.generateRequest();
       }
-      if(localStorage.getItem("curr_sess_wardflag")=="1") {
-        // alert("outward specific");
+      // Fetching outward items
+      if(localStorage.getItem("curr_sess_wardflag")=="1") {        
         obj.wardflag = "1";
         obj.itemid = supplierid;
         this.param=obj;
@@ -34495,27 +34615,18 @@ Polymer({
         this.$.itemlistreadajax.generateRequest();
       }
     },
+    // Function which fetch the spot items
     FnFetchSpotItems:function(flag){
-      if(flag==true){
-        
+      if(flag==true){        
        var obj={"wardflag":""};     
         obj.wardflag = "4";
         this.param=obj;
         this.url = sessionStorage.getItem("curr_sess_url")+"itemlist-service";
-        this.$.itemlistreadajax.generateRequest();
-      
+        this.$.itemlistreadajax.generateRequest();      
       }
-      /*else{
-        obj.wardflag="3";
-        obj.itemid = sessionStorage.getItem("loggeduser"); 
-        this.url = sessionStorage.getItem("curr_sess_url")+"itemlist-service";
-        this.$.itemlistreadajax.generateRequest();
-      }*/
-
     },
     //Funtion invokes when selecting item 0in dropdown
-    FnItemSelected:function(e){
-      
+    FnItemSelected:function(e){   
       //Condition to bind when no item found
       if(e.target.selectedItem.textContent.trim()!="No items found") {
         this.value = e.target.selectedItem.textContent.trim();
@@ -34524,27 +34635,25 @@ Polymer({
             this.unit = item[i].uom;
             this.measure = item[i].container;
             this.itemid = item[i].itemid;
-            this.ponumber=item[i].itemgroup;
-            //this.purchasetype = item[i].itempurchasetype;
-            this.purchasetypeflag = item[i].purchasetypeflag;
-            //alert(this.purchasetypeflag);
+            this.ponumber=item[i].itemgroup;            
+            this.purchasetypeflag = item[i].purchasetypeflag;            
           }
         }
         //To extract the unit of the item dynamically according to the item selection in list
         if (localStorage.getItem("curr_sess_wardflag") != "1") {
         //Binding values to the item page value and unit
         document.querySelector('item-page').FnSetMenuinfo(this.value, this.unit,this.measure,this.itemid,this.ponumber,this.purchasetypeflag);
-        //document.querySelector('item-card').FnSetInputunitmeasure(this.unit,this.measure);
-      }
+        }
         if(localStorage.getItem("curr_sess_wardflag")=="1") {
-          document.querySelector('outwarditem-page').FnSetMenuinfo(this.value, this.unit, this.measure);
-          //document.querySelector('outwarditem-card').FnSetInputunitmeasure(this.unit,this.measure);
+          //Binding values to the outwarditem page value and unit
+          document.querySelector('outwarditem-page').FnSetMenuinfo(this.value, this.unit, this.measure);          
         }
         if(localStorage.getItem("curr_sess_wardflag")=="2") {
-          document.querySelector('intent-page').FnSetMenuinfo(this.value, this.unit, this.measure);
-          //document.querySelector('outwarditem-card').FnSetInputunitmeasure(this.unit,this.measure);
+          //Binding values to the intent page value and unit
+          document.querySelector('intent-page').FnSetMenuinfo(this.value,this.itemid, this.unit, this.measure);          
         }
         if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
+          //Binding values to the grn page value and unit
          document.querySelector('grn-service').searchService("","",this.value,"");
         }
       }
@@ -34557,8 +34666,7 @@ Polymer({
       this.itemArray="";
     },
     //Function invokes when item value changes in input box to show the relevent items
-    FnInputChanged:function(e){
-     //alert(e.keyCode);
+    FnInputChanged:function(e){     
       if(e.keyCode==13|| e.keyCode==40)
         this.querySelector('paper-listbox').focus();
       var arr=[];
@@ -34566,8 +34674,7 @@ Polymer({
       this.querySelector('paper-listbox').style.visibility='visible';
       if(e.keyCode==8){
         this.itemflag="true";
-        this.itemval="";
-        //alert('yes');
+        this.itemval="";        
         var len=(this.value).length;
         if(len<=1){
           this.querySelector('paper-listbox').style.visibility='hidden';
@@ -34623,8 +34730,7 @@ Polymer({
     //Fetches and binding to the auto complete dropdown list dynamically
     itemlistreadResponse:function(e)
     {
-        item= e.detail.response.itemarr;
-        //alert(JSON.stringify(item));
+      item= e.detail.response.itemarr;        
     },
     setDefaultval:function(){
       this.value="";
@@ -34821,19 +34927,19 @@ var intentregno;
         localStorage.setItem("curr_sess_saveflag","true");
         document.querySelector('item-page').FnBtnDisable();        
         this.$.ID_Show_Dialog.FnShowDialog("Inward Register Note is created!",e.detail.response.inwardregno);
-
         //alert("Invoice Stored: "+e.detail.response.inwardregno);
       }
     },
     //Response received for inward seq creation req on successful creation it will call itemsave request to the server
     FnSeqItemwriteResponse:function(e)
     {
-      //alert(e.detail.response);
+      // alert(JSON.stringify(e.detail.response));
       //Sending row by row of item info to the server
       if(e.detail.response.returnval=="succ"){
         for(var i=0;i<this.items.length;i++){
-          var obj={"purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","createdby":"","purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           //obj.purchasetype=this.items[i].purchasetype;
+          obj.itemid=this.items[i].itemid;
           obj.purchasetypeflag=this.items[i].purchasetypeflag;
           obj.podate=this.items[i].podate;
           obj.ponumber=this.items[i].ponumber;
@@ -34846,6 +34952,7 @@ var intentregno;
           obj.qtymeasure=this.items[i].qtymeasure;
           obj.unitmeasure=this.items[i].unitmeasure;
           obj.remark=this.items[i].remark;
+          obj.createdby=sessionStorage.getItem("loggeduser");
           this.params=obj;
           this.$.itemwriteAjax.generateRequest();
         }
@@ -34868,9 +34975,17 @@ var intentregno;
       //alert(sessionStorage.getItem("loggeduser"));
       if(e.detail.response.returnval=="succ"){
         for(var i=0;i<this.items.length;i++){
-          var obj={"state":"","loggedrole":"","loggeduser":"","duedate":"","intentdate":"","specification":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","createdby":"","createddate":"","state":"","loggedrole":"","loggeduser":"","duedate":"","intentdate":"","specification":"","itemdes":"","qtyreceived":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           obj.loggedrole=sessionStorage.getItem("loggedrole");
           obj.loggeduser=sessionStorage.getItem("loggeduser");
+          obj.createdby=sessionStorage.getItem("loggeduser");
+          var dt=new Date();
+          var d = dt.getDate();
+          var m = dt.getMonth();
+          var y = dt.getFullYear();
+          var dmy = d + "/" + (m+1) + "/" + y;
+          obj.createddate=dmy;
+          obj.itemid=this.items[i].itemid;
           obj.duedate=this.items[i].duedate;
           obj.state=this.items[i].state;
           obj.intentdate=this.items[i].invoicedate;
@@ -34881,6 +34996,7 @@ var intentregno;
           obj.qtymeasure=this.items[i].qtymeasure;
           obj.unitmeasure=this.items[i].unitmeasure;
           obj.remark=this.items[i].remark;
+          // obj.createdby=sessionStorage.getItem("loggeduser");
           this.intentwrite=obj;
           this.intentwriteurl=sessionStorage.getItem("curr_sess_url")+"intentitemwrite-service";
           this.$.intentitemwriteAjax.generateRequest();
@@ -34955,11 +35071,14 @@ var intentregno;
     var poitemarr=[];
     var poitemtax=[];
     var poitemprice=[];
+    var cmparr=[];
+    var cntno=0;
     Polymer({
       is: 'intent-service',
       ready:function(){
         this.flag=0;
       },
+      // Function which make request to call the item for PO creation 
       FnPurchaseorderService:function(){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
@@ -34967,17 +35086,15 @@ var intentregno;
          this.purchaseorderurl=sessionStorage.getItem("curr_sess_url")+"purchaseorder-service";
          this.purchaseorderparam=obj;
          this.$.purchaseorderajax.generateRequest(); 
-
       },
       FnPurchaseorderResponse:function(e){
           poarr=e.detail.response.itemarr;
          if(poarr.length>0){
-         var d=new Date(poarr[0].PO_Date);
-         //alert(d);
+         var d=new Date(poarr[0].PO_Date);         
          var y=d.getFullYear();
          var m=d.getMonth();
          var d=d.getDate();
-         poarr[0].PO_Date=d+"/"+m+"/"+y;
+         poarr[0].PO_Date=d+"/"+(m+1)+"/"+y;
          document.querySelector("purchaseorder-home").poarray=poarr;
          document.querySelector("purchaseorder-card").poarray=poarr;
          var obj={"intentregno":"","itemdes":""};
@@ -34985,8 +35102,7 @@ var intentregno;
          obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
          this.purchaseorderitemurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitem-service";
          this.purchaseorderitemparam=obj;
-         this.$.purchaseorderitemajax.generateRequest(); 
-         //alert(JSON.stringify(poarr));
+         this.$.purchaseorderitemajax.generateRequest();          
          }
       },
       FnPurchaseorderitemResponse:function(e){
@@ -34997,63 +35113,47 @@ var intentregno;
          obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
          this.purchaseorderitemtaxurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemtax-service";
          this.purchaseorderitemtaxparam=obj;
-         this.$.purchaseorderitemtaxajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitemtaxajax.generateRequest();          
          }
       },
       FnPurchaseorderitemtaxResponse:function(e){
-         poitemtax=e.detail.response.itemarr;  
-         //alert(JSON.stringify(poitemtax));       
+         poitemtax=e.detail.response.itemarr;                 
          if(poitemtax.length>0){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
          obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
          this.purchaseorderitempriceurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemprice-service";
          this.purchaseorderitempriceparam=obj;
-         this.$.purchaseorderitempriceajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitempriceajax.generateRequest();          
          }
       },
       FnPurchaseorderitempriceResponse:function(e){
           poitemprice=e.detail.response.itemarr;
-          if(poitemprice.length>0){
-          //alert(JSON.stringify(poitemprice));
+          if(poitemprice.length>0){          
           var tax1=((parseFloat(poitemtax[0].Excise_Duty))/100);
           var tax2=((parseFloat(poitemtax[0].VAT))/100);
           var tax3=((parseFloat(poitemtax[0].CST))/100);
-          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
-          //alert(total);
+          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
           var exduty=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity).toFixed(2);
           poitemarr[(poitemarr.length)-1].price=(poitemprice[0].Item_Supplier_price).toFixed(2);
           poitemarr[(poitemarr.length)-1].total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].exduty=((parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity)).toFixed(2);
 
           if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax2));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseInt(poitemarr[0].Quantity));
           poitemarr[(poitemarr.length)-1].vat=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].cst=parseFloat("0").toFixed(2);
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax2))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
-          else{
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax3));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseInt(poitemarr[0].Quantity));
+          else{           
           poitemarr[(poitemarr.length)-1].vat=parseFloat("0").toFixed(2);
           poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax3))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
-         
-
-          //poitemarr.push(poitemprice[0].Item_Supplier_price);
-          //alert(JSON.stringify(poitemarr));
-          }
+        }
           document.querySelector("purchaseorder-home").poitemarray=poitemarr;
           document.querySelector("purchaseorder-card").poitemarray=poitemarr;
       },
+      // Selecting supplier to raise po for the intent item
       FnSelectSupplier:function(e){
         var selecteditem=e.target.selectedItem.textContent.trim();
         for(var i=0;i<this.suppliernamearr.length;i++){
@@ -35067,6 +35167,7 @@ var intentregno;
         else
           alert('Go with another supplier');      
       },
+      // showing items for intent creation based on the logged user role
       FnIntentTypeListService:function(){
          var obj={"loggeduser":""};
          obj.loggeduser=sessionStorage.getItem("loggeduser");        
@@ -35074,10 +35175,10 @@ var intentregno;
          this.intenttypelistparam=obj;
          this.$.intenttypelistajax.generateRequest(); 
       },
-      FnintenttypelistResponse:function(e){
-        //alert(JSON.stringify(e.detail.response.itemarr));
+      FnintenttypelistResponse:function(e){        
         document.querySelector('intent-page').FnSetIntentType(e.detail.response.itemarr);
       },
+      // Function which read the item information for the po creation
       FnIntentPoItemRead:function(){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
@@ -35086,31 +35187,31 @@ var intentregno;
          this.intentpoparam=obj;
          this.$.intentpoitemajax.generateRequest();      
       },
-      FnintentpoitemResponse:function(e){
-        // alert(JSON.stringify(e.detail.response.itemarr));
+      FnintentpoitemResponse:function(e){        
         document.querySelector('viewintentitemexpand-page').suppliernamearr=e.detail.response.itemarr;
-        //alert(document.querySelector('viewintentitemexpand-page').suppliernamearr);
         document.querySelector('viewintentitemexpand-page').FnShowSupplierDiv();
       },
-   
-      FnIntentStateUpdate:function(updatestate){
-        //alert(updatestate);
-        intentno=sessionStorage.getItem("sess_curr_intentregno");
-        //alert(intentno);
+      // Function which invoke while promoting intent state
+      FnIntentStateUpdate:function(updatestate){        
+        intentno=sessionStorage.getItem("sess_curr_intentregno");        
         promotestate=updatestate;
         this.intentupdateurl=sessionStorage.getItem("curr_sess_url")+"intentstateupdate-service";     
-        var obj={"itemdes":"","intentregno":"","loggedrole":"","updatestate":""};
+        var obj={"itemdes":"","intentregno":"","loggedrole":"","updatestate":"","createdby":"","createddate":""};
         obj.loggedrole=sessionStorage.getItem("loggedrole");
         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
-        obj.updatestate=updatestate;
-        //obj.pono=pono;
-        this.intentupdateparam=obj;
-        //alert(JSON.stringify(obj));
+        obj.createdby=sessionStorage.getItem("loggeduser");
+        var dt=new Date();
+        var d = dt.getDate();
+        var m = dt.getMonth();
+        var y = dt.getFullYear();
+        var dmy = d + "/" + (m+1) + "/" + y;          
+        obj.createddate=dmy;
+        obj.updatestate=updatestate;        
+        this.intentupdateparam=obj;        
         this.$.intentstateupdateajax.generateRequest();
       } ,
-      intentstateupdateResponse:function(e){
-        //alert(JSON.stringify(e.detail.response));
+      intentstateupdateResponse:function(e){        
         if(e.detail.response.returnval=="succ"){
           alert("done");
           this.promoterolereadurl=sessionStorage.getItem("curr_sess_url")+"promoteroleread-service";
@@ -35126,8 +35227,7 @@ var intentregno;
       },
       FnPromoteRolereadResponse:function(e){  
           var pstate;             
-          var arr=e.detail.response.itemarr;
-          //alert("Inward Register Note is created! Sent for the Approval with  "+arr[0].Intent_PO);
+          var arr=e.detail.response.itemarr;          
           if(arr[0].state=="external"){
           if(promotestate=="Approved") 
            pstate="Item Promoted! Sent for the Approval with  "+arr[0].Intent_PO;       
@@ -35146,40 +35246,41 @@ var intentregno;
           else if(promotestate=="Accepted")          
             pstate="Item Accepted!";
           }
-
           if(arr[0].state=="spot"){
             pstate="Item Approved!";
           }
           this.$.ID_Show_Dialog.FnShowDialog(pstate,"");
           this.$.gs.FnIntentitemReadService();
-          document.querySelector('viewintentitem-page').setToggle();
-          //document.querySelector('drawermenu-card').FnSetRefereshPage();
+           
+          if(promotestate!="POSent") { 
+          document.querySelector('viewintentitem-page').setToggle();       
           window.location.href="../elements/indexhome.html";
+          }
       },
+      // Function which invokes to create po for the item based intent view
       FnCreatePO:function(supplier){
-        var obj={"supplier":"","itemdes":"","intentregno":""};
+        var obj={"supplier":"","itemdes":"","intentregno":"","createdby":"","createddate":""};
         obj.supplier=supplier;
+        obj.createdby=sessionStorage.getItem("loggeduser");
+
         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
         this.itempocreateparam=obj;
         this.itempocreateurl=sessionStorage.getItem("curr_sess_url")+"itempocreate-service"
         this.$.itempocreateajax.generateRequest();
       },
-      FnitempocreateResponse:function(e){
-        //alert(e.detail.response.itemarr);
+      FnitempocreateResponse:function(e){        
         if(e.detail.response.itemarr=='succ')
           document.querySelector('viewintentitemexpand-page').FnSetPoRaiseFlag();
         else
           alert('Unable to craete PO!');
       },
-      FnIntentViewPoCreateService:function(poarr){
-              //alert(JSON.stringify(poarray));
+      // Function which invokes to create po for the intent based intent view
+      FnIntentViewPoCreateService:function(poarr){              
         poarray=poarr;
-        arrlength=poarray.length;
- 
+        arrlength=poarray.length; 
         this.viewintentpocreateurl=sessionStorage.getItem("curr_sess_url")+"viewintentpocreate-service";
         this.$.viewintentpocreateajax.generateRequest();
-
       },
       FnviewintentpocreateResponse:function(e){
         var temparr=[];
@@ -35198,23 +35299,27 @@ var intentregno;
           this.FnViewIntentPromoteService(temparr);
          }
       },
-      FnViewIntentPromoteService:function(temparr){
-         //alert(JSON.stringify(temparr));
+      // Funtion to promote intent items to the next state
+      FnViewIntentPromoteService:function(temparr){         
          for(var i=0;i<temparr.length;i++){
-          var obj={"itemdes":"","supplier":"","intentregno":"","":"ponumber"};
+          var obj={"itemdes":"","supplier":"","intentregno":"","":"ponumber","createdby":"","createddate":""};
+          var dt=new Date();
+          var d = dt.getDate();
+          var m = dt.getMonth();
+          var y = dt.getFullYear();
+          var dmy = d + "/" + (m+1) + "/" + y;
+          obj.createddate=dmy;
+          obj.createdby=sessionStorage.getItem("loggeduser");          
           obj.itemdes=temparr[i].itemdes;
           obj.supplier=temparr[i].supplier;
           obj.intentregno=temparr[i].intentregno;
-          obj.ponumber=temparr[i].ponumber;
-          //alert(JSON.stringify(obj));
-         this.viewintentpromoteurl=sessionStorage.getItem("curr_sess_url")+"viewintentpromote-service";
-         this.viewintentpromoteparam=obj;
-         //alert(this.$.viewintentpromteajax);
-         this.$.viewintentpromoteajax.generateRequest();
+          obj.ponumber=temparr[i].ponumber;          
+          this.viewintentpromoteurl=sessionStorage.getItem("curr_sess_url")+"viewintentpromote-service";
+          this.viewintentpromoteparam=obj;         
+          this.$.viewintentpromoteajax.generateRequest();
          }
       },
-      FnviewintentpromoteResponse:function(e){
-        //alert(e.detail.response.itemarr);
+      FnviewintentpromoteResponse:function(e){        
         if(JSON.stringify(e.detail.response.itemarr=='succ'))
         {
         no=no+1;
@@ -35228,21 +35333,237 @@ var intentregno;
         else
           alert('PO is not created succ!');
       },
-      FnposequpdateResponse:function(e){
-        //alert(JSON.stringify(e.detail.response.itemarr));
+      FnposequpdateResponse:function(e){        
         if(e.detail.response.itemarr=='succ'){
           alert("Po created!");
           window.location.href="../elements/indexhome.html";
         }
         else
           alert('PO not created!');
+      },
+      // Function which make request to call the item for PO creation 
+      FnPurchaseorderServicemail:function(){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         this.purchaseorderurlmail=sessionStorage.getItem("curr_sess_url")+"purchaseorder-service";
+         this.purchaseorderparammail=obj;
+         this.$.purchaseorderajaxmail.generateRequest(); 
+      },
+      FnPurchaseorderResponsemail:function(e){
+          poarr=e.detail.response.itemarr;
+          // alert(JSON.stringify(poarr));
+         if(poarr.length>0){
+         var d=new Date(poarr[0].PO_Date);         
+         var y=d.getFullYear();
+         var m=d.getMonth();
+         var d=d.getDate();
+         poarr[0].PO_Date=d+"/"+(m+1)+"/"+y;
+         // document.querySelector("purchaseorder-home").poarray=poarr;
+         // document.querySelector("purchaseorder-card").poarray=poarr;
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         this.purchaseorderitemurlmail=sessionStorage.getItem("curr_sess_url")+"purchaseorderitem-service";
+         this.purchaseorderitemparammail=obj;
+         this.$.purchaseorderitemajaxmail.generateRequest();          
+         }
+      },
+      FnPurchaseorderitemResponsemail:function(e){
+         poitemarr=e.detail.response.itemarr;
+         // alert(JSON.stringify(poitemarr));         
+         if(poitemarr.length>0){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         this.purchaseorderitemtaxurlmail=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemtax-service";
+         this.purchaseorderitemtaxparammail=obj;
+         this.$.purchaseorderitemtaxajaxmail.generateRequest();          
+         }
+      },
+      FnPurchaseorderitemtaxResponsemail:function(e){
+         poitemtax=e.detail.response.itemarr;
+         // alert(JSON.stringify(poitemtax));                 
+         if(poitemtax.length>0){
+         var obj={"intentregno":"","itemdes":""};
+         obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         this.purchaseorderitempriceurlmail=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemprice-service";
+         this.purchaseorderitempriceparammail=obj;
+         this.$.purchaseorderitempriceajaxmail.generateRequest();          
+         }
+      },
+      FnPurchaseorderitempriceResponsemail:function(e){
+          poitemprice=e.detail.response.itemarr;
+          // alert(JSON.stringify(poitemprice));
+          if(poitemprice.length>0){          
+          var tax1=((parseFloat(poitemtax[0].Excise_Duty))/100);
+          var tax2=((parseFloat(poitemtax[0].VAT))/100);
+          var tax3=((parseFloat(poitemtax[0].CST))/100);
+          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
+          var exduty=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity).toFixed(2);
+          poitemarr[(poitemarr.length)-1].price=(poitemprice[0].Item_Supplier_price).toFixed(2);
+          poitemarr[(poitemarr.length)-1].total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          poitemarr[(poitemarr.length)-1].exduty=((parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+
+          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){
+          poitemarr[(poitemarr.length)-1].vat=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
+          poitemarr[(poitemarr.length)-1].cst=parseFloat("0").toFixed(2);
+          poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax2))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
+          }
+          else{           
+          poitemarr[(poitemarr.length)-1].vat=parseFloat("0").toFixed(2);
+          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
+          poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax3))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
+          }
+        }
+        this.$.companyprofilereadAjax.generateRequest();
+      },
+      companyprofilereadResponse:function(e){
+        cmparr=e.detail.response;
+        this.purchaseordercreatepdf();
+      },
+      purchaseordercreatepdf:function(){
+        // alert('calling service......');
+
+
+         var obj={"total":"","exduty":"","vat":"","cst":"","grandtot":"","email":"","cmpname":"","cmpaddr1":"","cmpaddr2":"","cmpaddr3":"","cmpemail":"","cmpphone":"","ponumber":"","podate":"","suppliername":"","location":"","city":"","district":"","state":"","mobileno":"",
+         "productid":"","quantity":"","qtymeasure":"","unit":"","unitmeasure":"","itemid":"","exciseduty":"","vat":"","cst":"",
+         "itemsupplierprice":""
+        };
+        obj.cmpname=cmparr[0].name;
+        obj.cmpaddr1=cmparr[0].addressline1;
+        obj.cmpaddr2=cmparr[0].addressline2;
+        obj.cmpaddr3=cmparr[0].addressline3;
+        obj.cmpemail=cmparr[0].email;
+        obj.cmpphone=cmparr[0].phoneno;
+        obj.email=poarr[0].Email;
+        obj.ponumber=poarr[0].PO_Number;
+        obj.podate=poarr[0].PO_Date;
+        obj.suppliername=poarr[0].Supplier_Name;
+        obj.location=poarr[0].Location;
+        obj.city=poarr[0].City;
+        obj.district=poarr[0].District;
+        obj.state=poarr[0].State;
+        obj.mobileno=poarr[0].Mobileno;
+        obj.productid=poitemarr[0].Product_ID;
+        obj.quantity=poitemarr[0].Quantity;
+        obj.qtymeasure=poitemarr[0].Quantity_Measure;
+        obj.unit=poitemarr[0].unit;
+        obj.unitmeasure=poitemarr[0].Unit_Measure;
+        obj.total=poitemarr[0].total;
+        obj.exduty=poitemarr[0].exduty;
+        obj.vat=poitemarr[0].vat;
+        obj.cst=poitemarr[0].cst;
+        obj.grandtot=poitemarr[0].grandtot;
+        obj.itemid=poitemtax[0].Item_ID;       
+        obj.itemsupplierprice=poitemprice[0].Item_Supplier_price;
+
+        this.purchaseordercreatepdfurl=sessionStorage.getItem("curr_sess_url")+"purchaseordercreatepdf-service";
+        this.purchaseordercreatepdfparam=obj;
+        this.$.purchaseordercreatepdfajax.generateRequest(); 
+      },
+      purchaseordercreatepdfResponse:function(e){
+        // alert('calling mail service....');
+        if(e.detail.response=="converted")
+        this.purchaseordersendmailService();
+      },
+      purchaseordersendmailService:function(){
+        var obj={"total":"","exduty":"","vat":"","cst":"","grandtot":"","email":"","cmpname":"","cmpaddr1":"","cmpaddr2":"","cmpaddr3":"","cmpemail":"","cmpphone":"","ponumber":"","podate":"","suppliername":"","location":"","city":"","district":"","state":"","mobileno":"",
+         "productid":"","quantity":"","qtymeasure":"","unit":"","unitmeasure":"","itemid":"","exciseduty":"","vat":"","cst":"",
+         "itemsupplierprice":""
+        };
+        obj.cmpname=cmparr[0].name;
+        obj.cmpaddr1=cmparr[0].addressline1;
+        obj.cmpaddr2=cmparr[0].addressline2;
+        obj.cmpaddr3=cmparr[0].addressline3;
+        obj.cmpemail=cmparr[0].email;
+        obj.cmpphone=cmparr[0].phoneno;
+        obj.email=poarr[0].Email;
+        obj.ponumber=poarr[0].PO_Number;
+        obj.podate=poarr[0].PO_Date;
+        obj.suppliername=poarr[0].Supplier_Name;
+        obj.location=poarr[0].Location;
+        obj.city=poarr[0].City;
+        obj.district=poarr[0].District;
+        obj.state=poarr[0].State;
+        obj.mobileno=poarr[0].Mobileno;
+        obj.productid=poitemarr[0].Product_ID;
+        obj.quantity=poitemarr[0].Quantity;
+        obj.qtymeasure=poitemarr[0].Quantity_Measure;
+        obj.unit=poitemarr[0].unit;
+        obj.unitmeasure=poitemarr[0].Unit_Measure;
+        obj.total=poitemarr[0].total;
+        obj.exduty=poitemarr[0].exduty;
+        obj.vat=poitemarr[0].vat;
+        obj.cst=poitemarr[0].cst;
+        obj.grandtot=poitemarr[0].grandtot;
+        obj.itemid=poitemtax[0].Item_ID;       
+        obj.itemsupplierprice=poitemprice[0].Item_Supplier_price;
+
+        this.purchaseordersendmailurl=sessionStorage.getItem("curr_sess_url")+"purchaseordersendmail-service";
+        this.purchaseordersendmailparam=obj;
+        this.$.purchaseordersendmailajax.generateRequest(); 
+      },
+      FnpurchaseordersendmailResponse:function(e){
+        alert('PO Sent');
+        // document.querySelector('viewintentitem-page').setToggle();
+        if(e.detail.response=='mail sent')       
+        window.location.href="../elements/indexhome.html";
+      },
+      FnIntentSupplyService:function(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity){
+        var obj={"itemid":"","batchno":"","containerid":"","contquantity":"","reqquantity":"","requnit":"","selquantity":"","selunit":"","intentregno":""};
+        for(var i=0;i<supplyarr.length;i++){
+        obj.itemid=sessionStorage.getItem("sess_curr_itemno");
+        obj.selunit=selunit;
+        obj.selquantity=selquantity;
+        obj.reqquantity=reqquantity;
+        obj.requnit=requnit;
+        this.requnit=requnit;
+
+        obj.batchno=supplyarr[i].batchno;
+        obj.containerid=supplyarr[i].containerid;
+        obj.contquantity=supplyarr[i].quantity; 
+        // alert(obj.itemid);     
+        obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+        this.intentsupplyurl=sessionStorage.getItem("curr_sess_url")+"intentsupply-service";
+        this.intentsupplyparam=obj;
+        // alert(JSON.stringify(obj));
+        this.$.intentsupplyajax.generateRequest(); 
+        }
+      },
+      intentsupplyResponse:function(e){
+        // alert(e.detail.response);
+        cntno++;
+        if(cntno==this.requnit)
+        // if(e.detail.response=="Supplied!")
+          window.location.href="../elements/indexhome.html";
+      },
+      intentsupplystatusService:function(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity){
+      var obj={"itemid":"","batchno":"","containerid":"","contquantity":"","reqquantity":"","requnit":"","selquantity":"","selunit":"","intentregno":""};
+        // for(var i=0;i<supplyarr.length;i++){
+        obj.itemid=sessionStorage.getItem("sess_curr_itemno");
+        obj.selunit=selunit;
+        obj.selquantity=selquantity;
+        obj.reqquantity=reqquantity;
+        obj.requnit=requnit;
+
+        // obj.batchno=supplyarr[i].batchno;
+        // obj.containerid=supplyarr[i].containerid;
+        // obj.reqquantity=supplyarr[i].contquantity; 
+        // alert(obj.itemid);     
+        obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
+        this.intentsupplystatusurl=sessionStorage.getItem("curr_sess_url")+"intentsupplystatus-service";
+        this.intentsupplystatusparam=obj;
+        // alert(JSON.stringify(obj));
+        this.$.intentsupplystatusajax.generateRequest(); 
+        // }
+      },
+      intentsupplystatusResponse:function(e){
+        alert(e.detail.response);
       }
     });
   })();
-/**
- * Created by praba on 2/18/2016.
- */
-
 /*JS file for intent-page*/
 (function(){
   var itemarr=[];
@@ -35251,9 +35572,6 @@ var intentregno;
     is: "intent-page",
     ready:function()
     {
-      //this.Supplier_Name="Supplier Name";
-      //this.Supplier_Name_error="Enter supplier name";
-      //this.nullflag=0;
       this.flag=0;
       this.itemflag=0;
       this.idd=0;
@@ -35318,8 +35636,9 @@ var intentregno;
       this.qtyreceived=qtyreceived;
       this.remark=remark;
     },
-    FnSetMenuinfo:function(itemdes,unit,measure){
+    FnSetMenuinfo:function(itemdes,itemid,unit,measure){
       //alert(itemdes+"  "+unit);
+      this.itemid=itemid;
       this.unit=unit;
       this.measure=measure;
       localStorage.setItem("curr_sess_showunitvalue",unit);
@@ -35389,11 +35708,12 @@ var intentregno;
         }
         if(existflag==0){
           //alert('okay');
-          var obj={"state":"","invoicedate":"","duedate":"","specification":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","state":"","invoicedate":"","duedate":"","specification":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           if(localStorage.getItem("curr_sess_spotorderflag")=='true')
           obj.state='spot';
           else
-          obj.state=''; 
+          obj.state='';
+          obj.itemid=this.itemid; 
           obj.duedate=localStorage.getItem("localsess_curr_inwarddate");
           obj.invoicedate=this.invoicedate;
           obj.itemdes=this.itemdes;
@@ -35467,11 +35787,12 @@ var intentregno;
             }
           }
           if(existflag==0){
-            var obj={"state":"","invoicedate":"","duedate":"","specification":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+            var obj={"itemid":"","createdby":"","state":"","invoicedate":"","duedate":"","specification":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
             if(localStorage.getItem("curr_sess_spotorderflag")=='true')
             obj.state='spot';
             else
             obj.state='';
+            obj.itemid=this.itemid;
             obj.duedate=localStorage.getItem("localsess_curr_inwarddate");
             obj.specification=this.specification;
             obj.invoicedate=this.invoicedate;
@@ -35482,6 +35803,7 @@ var intentregno;
             obj.unit=this.container;
             obj.unitmeasure=this.measure;
             obj.remark=this.remark;
+            // obj.createdby=sessionStorage.getItem("loggeduser");
             if(deleteflag!=1)
               itemarr.push(obj);
             //alert(JSON.stringify(itemarr));
@@ -35527,22 +35849,7 @@ Polymer({is:"viewintentexpanditem-page",
     //Setting url to make request
   }
 });
-/*$(window).load(function(){
-    $(document).ready(function() {
-     $('#pdf').click(function() {          
-        html2canvas($("#canvas"), {          
-            onrendered: function(canvas) {                 
-                var imgData = canvas.toDataURL('image/png'); 
-                $("#imgRes").attr("src", imgData);             
-                var doc = new jsPDF('p', 'mm');
-                doc.addImage(imgData, 'PNG', 10, 8);
-                doc.save('sample.pdf');
-            }
-        });
-    });
-    });
-    });*/
-  (function() {
+(function() {
     'use strict';
     var productid="";
     var intentno;
@@ -35558,12 +35865,10 @@ Polymer({is:"viewintentexpanditem-page",
     Polymer({
       is: 'purchaseorder-card',
       ready:function(){
-      // alert('yes');
       this.FnPurchaseorderService();
       },
       companyprofilereadResponse:function(e){
         var cmparr=e.detail.response;
-        //alert(JSON.stringify(cmparr));
         this.cmpname=cmparr[0].name;
         this.cmpaddr1=cmparr[0].addressline1;
         this.cmpaddr2=cmparr[0].addressline2;
@@ -35571,122 +35876,107 @@ Polymer({is:"viewintentexpanditem-page",
         this.cmpemail=cmparr[0].email;
         this.cmpphone=cmparr[0].phoneno;
       },
+      // Function which calls service to fetch item info
        FnPurchaseorderService:function(){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderurl=sessionStorage.getItem("curr_sess_url")+"purchaseorder-service";
          this.purchaseorderparam=obj;
-         // alert(JSON.stringify(obj));
-         this.$.purchaseorderajax.generateRequest(); 
-
+         this.$.purchaseorderajax.generateRequest();
       },
       FnPurchaseorderResponse:function(e){
           poarr=e.detail.response.itemarr;
          if(poarr.length>0){
-         var d=new Date(poarr[0].PO_Date);
-         //alert(d);
+         var d=new Date(poarr[0].PO_Date);         
          var y=d.getFullYear();
          var m=d.getMonth();
          var d=d.getDate();
-         poarr[0].PO_Date=d+"/"+m+"/"+y;
-         this.poarray=poarr;
-         // document.querySelector("purchaseorder-home").poarray=poarr;
-         // document.querySelector("purchaseorder-card").poarray=poarr;
+         var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+         poarr[0].PO_Date=d+"-"+months[m+1]+"-"+y;
+         this.poarray=poarr;         
+         document.querySelector("purchaseorder-card").poarray=poarr;
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitemurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitem-service";
          this.purchaseorderitemparam=obj;
-         this.$.purchaseorderitemajax.generateRequest(); 
-         //alert(JSON.stringify(poarr));
+         this.$.purchaseorderitemajax.generateRequest();         
          }
       },
+      // Function which calls item info for po creation
       FnPurchaseorderitemResponse:function(e){
-         poitemarr=e.detail.response.itemarr;         
+         poitemarr=e.detail.response.itemarr;
          if(poitemarr.length>0){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitemtaxurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemtax-service";
          this.purchaseorderitemtaxparam=obj;
-         this.$.purchaseorderitemtaxajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitemtaxajax.generateRequest();         
          }
       },
       FnPurchaseorderitemtaxResponse:function(e){
-         poitemtax=e.detail.response.itemarr;  
-         //alert(JSON.stringify(poitemtax));       
+         poitemtax=e.detail.response.itemarr;         
          if(poitemtax.length>0){
          var obj={"intentregno":"","itemdes":""};
          obj.intentregno=sessionStorage.getItem("sess_curr_intentregno");
-         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");       
+         obj.itemdes=sessionStorage.getItem("sess_curr_itemdes");
          this.purchaseorderitempriceurl=sessionStorage.getItem("curr_sess_url")+"purchaseorderitemprice-service";
          this.purchaseorderitempriceparam=obj;
-         this.$.purchaseorderitempriceajax.generateRequest(); 
-         //alert(JSON.stringify(poitemarr));
+         this.$.purchaseorderitempriceajax.generateRequest();         
          }
       },
       FnPurchaseorderitempriceResponse:function(e){
           poitemprice=e.detail.response.itemarr;
-          if(poitemprice.length>0){
-          //alert(JSON.stringify(poitemprice));
+          if(poitemprice.length>0){          
           var tax1=((parseFloat(poitemtax[0].Excise_Duty))/100);
           var tax2=((parseFloat(poitemtax[0].VAT))/100);
           var tax3=((parseFloat(poitemtax[0].CST))/100);
-          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
-          //alert(total);
+          var total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
           var exduty=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity).toFixed(2);
           poitemarr[(poitemarr.length)-1].price=(poitemprice[0].Item_Supplier_price).toFixed(2);
           poitemarr[(poitemarr.length)-1].total=(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].exduty=((parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax1))*parseFloat(poitemarr[0].Quantity)).toFixed(2);
-
-          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax2));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseInt(poitemarr[0].Quantity));
+          if(poarr[0].State=="Tamilnadu"||poarr[0].State=="tamilnadu"||poarr[0].State=="Tamil nadu"||poarr[0].State=="tamil nadu"){ 
           poitemarr[(poitemarr.length)-1].vat=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax2)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].cst=parseFloat("0").toFixed(2);
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax2))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
           else{
-            //alert(parseInt(poitemprice[0].Item_Supplier_price));
-            //alert(parseFloat(tax3));
-            //alert(parseInt(poitemarr[0].Quantity));
-            //alert(parseInt(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseInt(poitemarr[0].Quantity));
           poitemarr[(poitemarr.length)-1].vat=parseFloat("0").toFixed(2);
-          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);          
+          poitemarr[(poitemarr.length)-1].cst=parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*parseFloat(tax3)*parseFloat(poitemarr[0].Quantity)).toFixed(2);
           poitemarr[(poitemarr.length)-1].grandtot=(parseFloat(total)+parseFloat(exduty)+parseFloat(parseFloat(poitemprice[0].Item_Supplier_price)*(parseFloat(tax3))*parseFloat(poitemarr[0].Quantity))).toFixed(2);
           }
-         
-
-          //poitemarr.push(poitemprice[0].Item_Supplier_price);
-          //alert(JSON.stringify(poitemarr));
+          poitemarr[(poitemarr.length)-1].totaltax=parseFloat(exduty)+parseFloat(poitemarr[(poitemarr.length)-1].vat)+parseFloat(poitemarr[(poitemarr.length)-1].cst);
           }
           this.poitemarray=poitemarr;
-          // document.querySelector("purchaseorder-home").poitemarray=poitemarr;
-          // document.querySelector("purchaseorder-card").poitemarray=poitemarr;
+          document.querySelector("purchaseorder-card").poitemarray=poitemarr;
+          var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
+           html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
+            }
+          });
       },
       FnToggle:function(){
         this.$.dialog.toggle();
       },
-      click:function(){
+      click:function(){        
         var porder="PO"+sessionStorage.getItem("sess_curr_intentregno");
-        //window.location.href="../elements/printhome.html";
-        //window.print();
-         html2canvas($("#card"), {          
-            onrendered: function(canvas) {                 
-                var imgData = canvas.toDataURL('image/png'); 
-                //alert(imgData);
-                $("#imgRes").attr("src", imgData);             
-                var doc = new jsPDF('p', 'mm');
-                //alert(JSON.stringify(doc));
-                doc.addImage(imgData, 'PNG', 10, 8);
-                doc.save(porder+'.pdf');
-                //doc.output('datauri');
+         html2canvas(document.querySelector('#card'), {
+            onrendered: function(canvas) {
+                var imgData = canvas.toDataURL('image/jpeg');                
+                $("#imgRes").attr("src", imgData);
+                var doc = new jsPDF('p', 'mm');                
+                doc.addImage(imgData, 'JPEG', 10, 8);
+                doc.output('datauri');
             }
-          });
+      });
       }
     });
   })();
@@ -35696,20 +35986,14 @@ Polymer({is:"viewintentexpanditem-page",
       ready:function(){
 
       },
-      mail:function(){
-        //alert("mail");
+      mail:function(){        
       },
+      // Function which calls service to show the PO
       FnViewPO:function(){  
-        // document.querySelector('app-homepage').setPage('intenthome-page');
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility("false");
-        // document.querySelector('app-homepage').FnSetIntentFlowcardVisibility("false");
-        // document.querySelector('intenthome-page').setPage('purchaseorder-card');   
         this.$.intentservice.FnPurchaseorderService();
-        window.location.href="../elements/printhome.html";
-        // this.$.purchase.FnToggle();
+        window.open('../elements/printhome.html', '_blank');
       }
- 
-    });
+     });
   })();
 /**
  * Created by praba on 2/19/2016.
@@ -35762,11 +36046,9 @@ Polymer({is:"viewintentitemexpand-page",
       obj.intentstate=arr[i].intentstate;
       obj.state=arr[i].state;      
       this.createdby=arr[i].createdby;
-      //alert(obj.intentstate);
+      
       if(obj.state=='external'){
-      for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+      for(var j=0;j<(this.promotestate).length;j++){           
         if(obj.intentstate==this.promotestate[j]){
           this.promote=this.promotebtn[j];
           if(this.promote=="Send PO"){
@@ -35777,23 +36059,19 @@ Polymer({is:"viewintentitemexpand-page",
       }
       if(obj.state=='internal'){
       for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+           
         if(obj.intentstate==this.inpromotestate[j]){
           this.promote=this.inpromotebtn[j]; 
-          //if(this.promote=="Supply")
-            //this.hidesupplier=true;
+          
         }
       }
       }
       if(obj.state=='spot'){
       for(var j=0;j<(this.promotestate).length;j++){  
-      //alert(obj.intentstate); 
-      //alert(this.promotestate[j]);     
+           
         if(obj.intentstate==this.spotpromotestate[j]){
           this.promote=this.spotpromotebtn[j]; 
-          //if(this.promote=="Supply")
-            //this.hide=true;
+          
         }
       }
       }
@@ -35825,7 +36103,12 @@ Polymer({is:"viewintentitemexpand-page",
     }
   },
   FnPromoteState:function(e){
-    //alert(this.promote+" "+this.poraiseflag);  
+  // alert(this.promote); 
+
+  if(this.promote=="Send PO"){
+    this.$.intentservice.FnPurchaseorderServicemail();
+  }
+  
   if(this.promote=="Create PO"&&this.poraiseflag==0){
   //alert('show supplier');
     for(var i=0;i<(this.promotebtn).length;i++){
@@ -35841,7 +36124,7 @@ Polymer({is:"viewintentitemexpand-page",
       if(this.promote==this.promotebtn[i])
         this.$.intentservice.FnIntentStateUpdate(this.promotestate[i+1]);
     }
-  }
+  }  
   else{
   for(var i=0;i<(this.promotebtn).length;i++){
     if(this.promote==this.promotebtn[i]){      
@@ -35858,6 +36141,7 @@ Polymer({is:"viewintentitemexpand-page",
     }
   }
   }
+  
   },
    FnIntentPoItemRead:function(){
          var obj={"intentregno":"","itemdes":""};
@@ -35870,10 +36154,6 @@ Polymer({is:"viewintentitemexpand-page",
       FnintentpoitemResponse:function(e){
         this.suppliernamearr=e.detail.response.itemarr;
         this.hidesupplier=false;
-        // alert(JSON.stringify(e.detail.response.itemarr));
-        //document.querySelector('viewintentitemexpand-page').suppliernamearr=e.detail.response.itemarr;
-        //alert(document.querySelector('viewintentitemexpand-page').suppliernamearr);
-        //document.querySelector('viewintentitemexpand-page').FnShowSupplierDiv();
       },
   FnShowSupplierDiv:function(){
     //alert("hi");
@@ -35886,7 +36166,6 @@ Polymer({is:"viewintentitemexpand-page",
       this.$.intentservice.FnCreatePO(selectedsupplier);      
   },
   FnSetPoRaiseFlag:function(){
-
     this.poraiseflag=1;
   }
 });
@@ -35946,13 +36225,13 @@ Polymer({is:"viewintentitemexpand-page",
 
           if(all[i].id==document.querySelector("#card"+this.itemno).id){
             if(i!=0) {
-
-              if(i!=0){
-                all[i].style.marginTop=((i*(x))-i)+"%";
-              }
-              if(i>10){
-                all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
-              }
+              all[i].style.marginTop=((i*(x))-i-(i))+"%";
+              // if(i!=0){
+                // all[i].style.marginTop=((i*(x))-i)+"%";
+              // }
+              // if(i>10){
+                // all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
+              // }
             }
             all[i].style.visibility='visible';
           }
@@ -36001,29 +36280,24 @@ Polymer({is:"viewintentitemexpand-page",
 })();
 (function() {
     'use strict';
-    var toggleflag=0;
-    //localStorage.setItem("curr_sess_intenttoggleflag","0"); 
+    var toggleflag=0;     
     Polymer({
       is: 'intentviewtype-card',
       ready:function(){
-
       },
+      // Function which toggle the intent view eithr item based view or intent based view
       FnShowIntentView:function(){
         if(toggleflag==0){
-          document.querySelector('app-homepage').FnSetIntentFlowcardVisibility("false");
+        document.querySelector('app-homepage').FnSetIntentFlowcardVisibility("false");
         localStorage.setItem("curr_sess_intenttoggleflag","1"); 
         document.querySelector('intenthome-page').setPage('Intent View');
-        toggleflag=1;
-        
-        //window.location.href="../elements/indexhome.html";
+        toggleflag=1;        
         }
         else if(toggleflag==1){
-          document.querySelector('app-homepage').FnSetIntentFlowcardVisibility("true");
+        document.querySelector('app-homepage').FnSetIntentFlowcardVisibility("true");
         localStorage.setItem("curr_sess_intenttoggleflag","0");
         document.querySelector('intenthome-page').setPage('View Intent');
-        toggleflag=0; 
-        
-        //window.location.href="../elements/indexhome.html";
+        toggleflag=0;        
         }
       }
     });
@@ -38493,10 +38767,6 @@ window.CustomElements.addModule(function(scope) {
   var head = document.querySelector("head");
   head.insertBefore(style, head.firstChild);
 })(window.WebComponents);
-/**
- * Created by praba on 2/12/2016.
- */
-
 //JS file for the home-page
 Polymer({
   is: "home-page",
@@ -38551,9 +38821,6 @@ Polymer({
     }
   }
 });
-/**
- * Created by praba on 2/12/2016.
- */
 //JS file for the supplierlist page
 //The same card is reused in inwardslip page and the additem card
 (function() {
@@ -38572,10 +38839,8 @@ Polymer({
       this.isHidden=true;
       else
       this.isHidden=false;
-
       //Initially making all fields are editable
       this.read = false;
-
       this.suppliername="";
       this.supplierid="";
       this.itemval="";
@@ -38585,8 +38850,7 @@ Polymer({
       this.itemval1="";
       this.itemflag1="false";
       //calling service to fetch and bind supplier names to the auto complete list
-      this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";
-      //this.$.itemsupplierreadajax.generateRequest();
+      this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";      
       //Initially hiding dropdown boxes while not search for supplier names
       this.querySelector('#pl1').style.visibility='hidden';
       this.querySelector('#pl2').style.visibility='hidden';
@@ -38595,8 +38859,7 @@ Polymer({
     FnEnableFields:function(enableflag){
     this.read=enableflag;
     },
-    FnSpecificSupplierReadService:function(itemid){
-      //alert(itemname);      
+    FnSpecificSupplierReadService:function(itemid){      
       var obj={"itemid":""};
       obj.itemid=itemid;
       this.supplierparam=obj;
@@ -38609,11 +38872,9 @@ Polymer({
         document.querySelector('item-page').FnEnableHide();
         this.read=true;
         document.querySelector('item-card').FnChangeField();
-
       }
       //Condition to bind when no item found
       if(e.target.selectedItem.textContent.trim()!="-----Select-----"||e.target.selectedItem.textContent.trim()!="Others") {
-
         this.value = e.target.selectedItem.textContent.trim();
         for (var i = 0; i < item.length; i++) {
           if (item[i].itemsuppliername == this.value) {
@@ -38623,21 +38884,17 @@ Polymer({
         }
         //Binding values to the respective cards where the supplier name field have been used
         if(sessionStorage.getItem("curr_sess_roleflag")=="0"){
-          document.querySelector('item-page').FnInputChanged(this.supplierid,this.suppliername);          
+          document.querySelector('item-page').FnInputChanged(this.supplierid,this.suppliername);
           document.querySelector('autocompleteitemlist-card').FnFetchSpecificItem(this.supplierid,this.suppliername);
           this.read=true;
         }
-        //else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")=="")
-		//  document.querySelector('additem-card').FnSelectSupplier(this.supplierid,this.suppliername);
-		else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""){
+  		else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""){
       if(e.target.selectedItem.textContent.trim()!="-----Select-----")
 		  document.querySelector('supplier-detail').FnSelectSupplier(this.supplierid,this.suppliername);
       else
       alert("Please choose valid Supplier...");
-		}
-       // else
-       // document.querySelector('additem-card').FnSelectSupplier(this.supplierid,this.suppliername);
-       }
+	    }
+      }
       else{
         alert("Please choose valid item...");
         this.value="";
@@ -38714,8 +38971,7 @@ Polymer({
           }
           else
             this.itemval = this.itemval + String.fromCharCode((e.keyCode));
-          //alert(this.itemval);
-          if (this.itemval.length > 0) {
+           if (this.itemval.length > 0) {
             for (var i = 0; i < item.length; i++) {
               var subval = ((item[i].itemsuppliername).trim()).substring(0, this.itemval.length);
 
@@ -38750,8 +39006,7 @@ Polymer({
       if(e.keyCode==8){
         this.itemflag1="true";
         this.itemval1="";
-        //alert('yes');
-        var len=(this.optionalvalue).length;
+         var len=(this.optionalvalue).length;
         if(len<=1){
           this.querySelector('#pl2').style.visibility='hidden';
           this.itemOptionalArray="";
@@ -38784,8 +39039,7 @@ Polymer({
         }
         else
           this.itemval1 = this.itemval1 +String.fromCharCode((e.keyCode));
-        //alert(this.itemval);
-        if(this.itemval1.length>0)
+         if(this.itemval1.length>0)
         {
           for(var i=0;i<item1.length;i++){
             var subval=((item1[i].itemsuppliername).trim()).substring(0,this.itemval1.length);
@@ -38851,6 +39105,7 @@ Polymer({
       this.splice('itemArray',1,1);
     },
     FnSetCustomInputValue:function(itemdes,container,qtyreceived,remark,unit,measure,itemid,ponumber,purchasetypeflag){
+      
       this.flag=1;
       this.itemflag=1;
       this.container=container;
@@ -38891,6 +39146,7 @@ Polymer({
     },
     FnSetMenuinfo:function(itemdes,unit,measure,itemid,ponumber,purchasetypeflag){
       //alert(itemdes+"  "+unit);
+      // alert(itemid);
       this.unit=unit;
       this.measure=measure;
       this.itemid=itemid;
@@ -38968,8 +39224,9 @@ Polymer({
           }
         }
         if(existflag==0){
-          var obj={"purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
+          var obj={"itemid":"","purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
           //obj.purchasetype=this.purchasetype;
+          obj.itemid=this.itemid;
           obj.purchasetypeflag=this.purchasetypeflag;
           obj.podate=this.podate;
           obj.ponumber=this.ponumber;
@@ -39030,7 +39287,7 @@ Polymer({
             else if(this.unit==null||this.unit=="")
             this.$.ID_Show_Dialog.FnShowDialog("Enter unit value for container!","");
             else if(this.qtyreceived==null||this.qtyreceived=="")
-              this.$.ID_Show_Dialog.FnShowDialog("Enter received quantity unit!","");
+            this.$.ID_Show_Dialog.FnShowDialog("Enter received quantity unit!","");
             else if(this.measure==null||this.measure=="")
             this.$.ID_Show_Dialog.FnShowDialog("Enter measure for Qty Received!","");
             //alert("All fields must want to be filled");
@@ -39056,6 +39313,7 @@ Polymer({
           if(existflag==0){
             var obj={"purchasetype":"","purchasetypeflag":"","podate":"","ponumber":"","invoiceno":"","invoicedate":"","supplier":"","itemdes":"","qtyreceive":"","remark":"","unit":"","qtymeasure":"","unitmeasure":""};
             //obj.purchasetype=this.purchasetype;
+            obj.itemid=this.itemid;
             obj.purchasetypeflag=this.purchasetypeflag;
             obj.podate=this.podate;
             obj.ponumber=this.ponumber;
@@ -39102,7 +39360,7 @@ Polymer({
     },
     FnBtnDisable:function(){
       document.querySelector('#save').style.backgroundColor='grey';
-      document.querySelector('#additem').style.backgroundColor='grey';
+      // document.querySelector('#additem').style.backgroundColor='grey';
       this.Btn_disable_flag=true;
     },
     FnEnableHide:function(){
@@ -39119,7 +39377,7 @@ Polymer({
   var menus=[];
   Polymer({is:"dynamic-menu-card",
     ready:function(){
-    
+
     },
     /*Function which bind the selected menu value to the Inwardslip-page iron pages,accordingly which render the page to the user*/
     FnSelectMenu:function(){
@@ -39128,9 +39386,8 @@ Polymer({
       {
       document.getElementById(value).style.border = "none";
       }
-  
+
       value=this.menulabel;
-      //Setting page views in Inwardslip page according to the tab selection made in the Inwardslip page
       if(sessionStorage.getItem("curr_sess_roleflag")=="0"&&value=="Vehicle Info"&&localStorage.getItem("curr_sess_wardflag")!="1")
         document.querySelector("inwardslip-page").setPage(this.menulabel);
       else if(sessionStorage.getItem("curr_sess_roleflag")=="0"&&value=="Item Detail"&&localStorage.getItem("curr_sess_wardflag")!="1"){
@@ -39138,62 +39395,83 @@ Polymer({
       }
       //Setting page views in Outwardslip page according to the tab selection made in the Outwardslip page
       else if(sessionStorage.getItem("curr_sess_roleflag")=="0"&&localStorage.getItem("curr_sess_wardflag")=="1"&&value=="Vehicle Info")
-        document.querySelector("outwardslip-page").setPage("Out Vehicle Info");       
+        document.querySelector("outwardslip-page").setPage("Out Vehicle Info");
       else if(sessionStorage.getItem("curr_sess_roleflag")=="0"&&localStorage.getItem("curr_sess_wardflag")=="1"&&value=="Item Detail"){
-        //document.querySelector("customerinfo-page").FnCustomerInfoSubmit();
         document.querySelector("vehicleinfo-page").FnVehicleInfoSubmit();
-        //document.querySelector("outwardslip-page").setPage("Out Item Detail");
       }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Payment Detail")
-       	document.querySelector("addsupplier-card").FnSupplierInfoSubmit();
-        //document.querySelector("supplier-page").setPage(this.menulabel);
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&localStorage.getItem("curr_sess_searchtypeflag")=="nothing"&&value=="Item Detail")
-        document.querySelector("payment-card").FnAddPaymentInfoSubmit();
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&localStorage.getItem("curr_sess_searchtypeflag")!="nothing"&&value=="Item Detail")
-        {        
-        document.querySelector("supplier-page").setPage("Show Item"); 
-        }
-        //document.querySelector("supplier-page").setPage(this.menulabel);
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Supplier Detail")
-        document.querySelector("supplier-page").setPage("Add Supplier");
+
       else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""&&value=="Item Detail")
-	    document.querySelector("admin-page").setPage("additem-card");
-	           //document.querySelector("supplier-page").setPage(this.menulabel);
+	      document.querySelector("admin-page").setPage("additem-card");
 	    else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""&&value=="Supplier/Customer Detail")
       {
-        //alert(localStorage.getItem("curr_sess_searchtypeflag"));
         if(localStorage.getItem("curr_sess_searchtypeflag")!="1")
         document.querySelector("additem-card").FnAddItemInfoSubmit();
         if(localStorage.getItem("curr_sess_searchtypeflag")=="1"){
-        document.querySelector("admin-page").setPage("supplier-detail"); 
+        document.querySelector("admin-page").setPage("supplier-detail");
         document.querySelector('supplier-detail').ready();
         document.querySelector('viewtype-card').FnEnableEdit(false);
-        } 
-      }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Payment Detail")
-        document.querySelector("addcustomer-card").FnSupplierInfoSubmit();
-        //document.querySelector("supplier-page").setPage(this.menulabel);
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&localStorage.getItem("curr_sess_searchtypeflag")=="nothing"&&value=="Item Detail")
-        document.querySelector("customerpayment-card").FnAddPaymentInfoSubmit();
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&localStorage.getItem("curr_sess_searchtypeflag")!="nothing"&&value=="Item Detail")
-        {        
-        document.querySelector("customer-page").setPage("Show Item"); 
         }
-        //document.querySelector("supplier-page").setPage(this.menulabel);
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Supplier Detail")
-        document.querySelector("customer-page").setPage("Add Customer");
-      /*else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Customer Detail")
-      {              
-        document.querySelector("customer-page").setPage("Add Customer");
       }
       else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Payment Detail")
-      {              
-        document.querySelector("customer-page").setPage("Add Payment");
-      }
-      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Item Detail")
-      {              
-        document.querySelector("customer-page").setPage("Add Item");
-      }*/
+        document.querySelector("excise-card").FnExciseNext();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&localStorage.getItem("curr_sess_searchtypeflag")=="nothing"&&value=="Item Detail")
+        document.querySelector("contactperson-card").FnNextContact();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&localStorage.getItem("curr_sess_searchtypeflag")!="nothing"&&value=="Item Detail")
+        document.querySelector("contactperson-card").FnNextContact();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Customer Detail")
+        document.querySelector("customer-page").setPage("Add Customer");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Tax Detail")
+        document.querySelector("addcustomer-card").FnSupplierInfoSubmit();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Excise Detail")
+        document.querySelector("tax-card").FnTaxNext();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="6"&&value=="Contact Detail")
+        document.querySelector("customerpayment-card").FnAddPaymentInfoSubmit();
+
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Payment Detail")
+        document.querySelector("supplierexcise-card").FnExciseNext();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&localStorage.getItem("curr_sess_searchtypeflag")=="nothing"&&value=="Item Detail")
+        document.querySelector("suppliercontactperson-card").FnNextContact();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&localStorage.getItem("curr_sess_searchtypeflag")!="nothing"&&value=="Item Detail")
+        document.querySelector("suppliercontactperson-card").FnNextContact();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Supplier Detail")
+        document.querySelector("supplier-page").setPage("Add Supplier");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Tax Detail")
+        document.querySelector("addsupplier-card").FnSupplierInfoSubmit();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Excise Detail")
+        document.querySelector("suppliertax-card").FnTaxNext();
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"&&localStorage.getItem("curr_sess_wardflag")=="4"&&value=="Contact Detail")
+        document.querySelector("payment-card").FnAddPaymentInfoSubmit();
+
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"&&value=="Customer Detail")
+        document.querySelector("customer-read-page").setPage("Customer Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"&&value=="Tax Detail")
+        document.querySelector("customer-read-page").setPage("Tax Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"&&value=="Excise Detail")
+        document.querySelector("customer-read-page").setPage("Excise Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"&&value=="Payment Detail")
+        document.querySelector("customer-read-page").setPage("Payment Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"&&value=="Supplier Detail")
+        document.querySelector("supplier-read-page").setPage("Supplier Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"&&value=="Tax Detail")
+        document.querySelector("supplier-read-page").setPage("Tax Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"&&value=="Excise Detail")
+        document.querySelector("supplier-read-page").setPage("Excise Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"&&value=="Payment Detail")
+        document.querySelector("supplier-read-page").setPage("Payment Detail");
+
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")=="11"&&value=="Employee Detail")
+        document.querySelector("usercreation-home-card").setPage("Employee Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")=="11"&&value=="Account Detail")
+        document.querySelector("usercreation-home-card").setPage("Account Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")=="11"&&value=="Role/Department Detail")
+        document.querySelector("usercreation-home-card").setPage("Role/Department Detail");
+
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"&&value=="Employee Detail")
+        document.querySelector("user-read-page").setPage("Employee Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"&&value=="Account Detail")
+        document.querySelector("user-read-page").setPage("Account Detail");
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"&&value=="Role/Department Detail")
+        document.querySelector("user-read-page").setPage("Role Detail");
     }
   });
 })();
@@ -39205,6 +39483,7 @@ Polymer({
 Polymer({is:"dynamic-card",
   ready:function(){
     /*It loads the security menu json configurable file*/
+    // alert(localStorage.getItem("curr_sess_wardflag"));
     if(sessionStorage.getItem("curr_sess_roleflag")=="0"){
       //Reading labels according to the inward or outward page view
       if(localStorage.getItem("curr_sess_wardflag")!="1")
@@ -39213,19 +39492,29 @@ Polymer({is:"dynamic-card",
         this.url="../../config/outwardmenu.json";
     }
     if(sessionStorage.getItem("curr_sess_roleflag")=="6"){
-	 
-         if(localStorage.getItem("curr_sess_wardflag")=="")
+
+       if(localStorage.getItem("curr_sess_wardflag")=="")
         this.url="../../config/itemmenu.json";
+       if(localStorage.getItem("curr_sess_wardflag")=="11")
+        this.url="../../config/usercreationmenu.json";
     }
     if(sessionStorage.getItem("curr_sess_roleflag")=="10"){
     if(localStorage.getItem("curr_sess_wardflag")=="6")
-        this.url="../../config/customermenu.json";      
+        this.url="../../config/customermenu.json";
     }
     if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
     if(localStorage.getItem("curr_sess_wardflag")=="4")
         this.url="../../config/suppliermenu.json";
     }
-
+    if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
+      if(localStorage.getItem("curr_sess_wardflag")=="8")
+        this.url="../../config/customerreadmenu.json";
+      if(localStorage.getItem("curr_sess_wardflag")=="7")
+        this.url="../../config/supplierreadmenu.json";
+      if(localStorage.getItem("curr_sess_wardflag")=="12")
+        this.url="../../config/usercreationmenu.json";
+    }
+  
   },
   /*which receives the menu response of security menu json file,bind it to the dynamic card*/
   menureadResponse:function(e){
@@ -41710,8 +41999,6 @@ Polymer({
       this.label='Quality Inspection';
     else if(sessionStorage.getItem("curr_sess_roleflag")=="4")
       this.label='Confirm purchase';
-    //else if(sessionStorage.getItem("curr_sess_roleflag")=="9")
-      //this.label='Approve';
   },
   click:function(){
    if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
@@ -41731,15 +42018,10 @@ Polymer({
       else{
         this.$.pqs.physicqualifyacceptcheckService(sessionStorage.getItem("sess_curr_inwardregno"));
       }
-      /*else{
-        document.querySelector('physicinsitem-card').setToggle();
-        this.$.pqs.physicupdateService(sessionStorage.getItem("sess_curr_inwardregno"));
-      }*/
     }
     else
     {
-      //document.querySelector('physicinsitem-card').setToggle();
-      //this.$.pqs.physicupdateService(sessionStorage.getItem("sess_curr_inwardregno"));
+      this.$.pqs.physicqualifyacceptcheckService(sessionStorage.getItem("sess_curr_inwardregno"));
     }
   }
 });
@@ -41753,32 +42035,27 @@ Polymer({
     ready: function () {
       this.searchstateflag = "true";
       //this.enabled=true;
-      this.idval = ["Stores", "Production", "Quality", "Purchase", "Confirm"];
+      this.idval = ["Stores","Quality", "Purchase", "Confirm"];
       this.flag = "true";
       this.flowenableflag = "";
 
       var role = [{"rolename": "Stores manager", "index": "0"},
-        {"rolename": "Production manager", "index": "1"},
-        {"rolename": "Quality manager", "index": "2"},
-        {"rolename": "Purchase manager", "index": "3"},
-        {"rolename": "manager", "index": "4"}];
+        // {"rolename": "Production manager", "index": "1"},
+        {"rolename": "Quality manager", "index": "1"},
+        {"rolename": "Purchase manager", "index": "2"},
+        {"rolename": "manager", "index": "3"}];
 
       for (var i = 0; i < role.length; i++) {
         if (role[i].rolename == sessionStorage.getItem("loggedrole")) {
           this.flowenableflag = role[i].index;
         }
-      }
-
-      // alert(this.flowenableflag);
+      }      
       var buttongroup = this.querySelectorAll('paper-button');
 
       //Logged as general role for search disable all state
-      if (this.flowenableflag == 4) {
-        // alert("true");
-        for (var i = 0; i < buttongroup.length; i++) {
-          //alert("in"+  this.querySelector("#"+buttongroup[i].id));
-          this.querySelector("#" + buttongroup[i].id).disabled = true;
-          //this.querySelector("#"+buttongroup[i].id).style.backgroundColor="#e5efe2";
+      if (this.flowenableflag == 3) {        
+        for (var i = 0; i < buttongroup.length; i++) {          
+          this.querySelector("#" + buttongroup[i].id).disabled = true;          
           this.querySelector("#" + buttongroup[i].id).style.backgroundColor = "transparent";
         }
       }
@@ -41797,28 +42074,26 @@ Polymer({
 
       if (sessionStorage.getItem("curr_sess_roleflag") == "1") {
         this.querySelector("#" + this.idval[0] + "1").id = this.idval[0];
-        this.querySelector("#" + this.idval[0]).style.backgroundColor = '#bfbfbf';
-        //this.querySelector("#"+this.idval[0]).style.color='white';
+        this.querySelector("#" + this.idval[0]).style.backgroundColor = '#bfbfbf';        
         this.flag = this.idval[0];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
+      /*else if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
+        this.querySelector("#" + this.idval[1] + "1").id = this.idval[1];
+        this.querySelector("#" + this.idval[1]).style.backgroundColor = '#bfbfbf';
+        this.flag = this.idval[1];
+      }*/
+      else if (sessionStorage.getItem("curr_sess_roleflag") == "3") {
         this.querySelector("#" + this.idval[1] + "1").id = this.idval[1];
         this.querySelector("#" + this.idval[1]).style.backgroundColor = '#bfbfbf';
         this.flag = this.idval[1];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "3") {
+      else if (sessionStorage.getItem("curr_sess_roleflag") == "4") {
         this.querySelector("#" + this.idval[2] + "1").id = this.idval[2];
         this.querySelector("#" + this.idval[2]).style.backgroundColor = '#bfbfbf';
         this.flag = this.idval[2];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "4") {
-        this.querySelector("#" + this.idval[3] + "1").id = this.idval[3];
-        this.querySelector("#" + this.idval[3]).style.backgroundColor = '#bfbfbf';
-        this.flag = this.idval[3];
-      }
     },
-    click: function (e) {
-      //alert(this.flag+"  "+e.target.id);
+    click: function (e) {      
       if (this.flag == "true") {
         this.querySelector("#" + e.target.id + "1").id = e.target.id;
         this.querySelector("#" + e.target.id).style.backgroundColor = '#bfbfbf';
@@ -41839,7 +42114,7 @@ Polymer({
           window.location.href = "indexhome.html";
         }
       }
-      if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
+      /*if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
         var flowflag = localStorage.getItem('curr_sess_flowstate');
         if (e.target.id == 'Stores' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("false");
@@ -41853,7 +42128,7 @@ Polymer({
         if (e.target.id == 'Production' && flowflag == "1") {
           window.location.href = "indexhome.html";
         }
-      }
+      }*/
 
       if (sessionStorage.getItem("curr_sess_roleflag") == "3") {
         var flowflag = localStorage.getItem('curr_sess_flowstate');
@@ -41862,11 +42137,11 @@ Polymer({
           localStorage.setItem("curr_sess_expandstate", 'OldStores');
           document.querySelector('physicinsread-page').setState('OldStores');
         }
-        if (e.target.id == 'Production' && flowflag == "0") {
+        /*if (e.target.id == 'Production' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("false");
           localStorage.setItem("curr_sess_expandstate", 'OldProduction');
           document.querySelector('physicinsread-page').setState('OldProduction');
-        }
+        }*/
         if (e.target.id == 'Quality' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("true");
           document.querySelector('home-page').setPage('Inward Items');
@@ -41884,11 +42159,11 @@ Polymer({
           localStorage.setItem("curr_sess_expandstate", 'OldStores');
           document.querySelector('physicinsread-page').setState('OldStores');
         }
-        if (e.target.id == 'Production' && flowflag == "0") {
+        /*if (e.target.id == 'Production' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("false");
           localStorage.setItem("curr_sess_expandstate", 'OldProduction');
           document.querySelector('physicinsread-page').setState('OldProduction');
-        }
+        }*/
         if (e.target.id == 'Quality' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("false");
           localStorage.setItem("curr_sess_expandstate", 'OldQuality');
@@ -41897,14 +42172,9 @@ Polymer({
         if (e.target.id == 'Purchase' && flowflag == "0") {
           document.querySelector('app-homepage').setVisible("true");
           document.querySelector('home-page').setPage('Inward Items');
-          //localStorage.setItem("curr_sess_expandstate",'qualified');
-          //localStorage.setItem("curr_sess_forwardstate",'1');
-          //document.querySelector('physicinsread-page').setState('qualified');
         }
         if (e.target.id == 'Purchase' && flowflag == "1") {
           window.location.href = "indexhome.html";
-          //document.querySelector('home-page').setPage('Inward Items');
-          //document.querySelector('grn-service').physicreadService();
         }
       }
 
@@ -41917,37 +42187,31 @@ Polymer({
         this.querySelector("#" + this.idval[1]).style.backgroundColor = '#bfbfbf';
         this.flag = this.idval[1];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
+      /*else if (sessionStorage.getItem("curr_sess_roleflag") == "2") {
+        this.querySelector("#" + this.flag).style.backgroundColor = '#f2f2f2';
+        this.querySelector("#" + this.flag).id = this.flag + "1";
+        this.querySelector("#" + this.idval[2] + "1").id = this.idval[2];
+        this.querySelector("#" + this.idval[2]).style.backgroundColor = '#bfbfbf';
+        this.flag = this.idval[2];
+      }*/
+      else if (sessionStorage.getItem("curr_sess_roleflag") == "3") {
         this.querySelector("#" + this.flag).style.backgroundColor = '#f2f2f2';
         this.querySelector("#" + this.flag).id = this.flag + "1";
         this.querySelector("#" + this.idval[2] + "1").id = this.idval[2];
         this.querySelector("#" + this.idval[2]).style.backgroundColor = '#bfbfbf';
         this.flag = this.idval[2];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "3") {
+      else if (sessionStorage.getItem("curr_sess_roleflag") == "4") {
         this.querySelector("#" + this.flag).style.backgroundColor = '#f2f2f2';
         this.querySelector("#" + this.flag).id = this.flag + "1";
         this.querySelector("#" + this.idval[3] + "1").id = this.idval[3];
         this.querySelector("#" + this.idval[3]).style.backgroundColor = '#bfbfbf';
         this.flag = this.idval[3];
       }
-      else if (sessionStorage.getItem("curr_sess_roleflag") == "4") {
-        this.querySelector("#" + this.flag).style.backgroundColor = '#f2f2f2';
-        this.querySelector("#" + this.flag).id = this.flag + "1";
-        this.querySelector("#" + this.idval[4] + "1").id = this.idval[4];
-        this.querySelector("#" + this.idval[4]).style.backgroundColor = '#bfbfbf';
-        this.flag = this.idval[4];
-      }
     },
     disableBackstate: function () {
       var flowflag = localStorage.getItem('curr_sess_flowstate');
-
-      /*var alldiv=this.querySelectorAll('.div');
-       for(var i=0;i<alldiv.length;i++)
-       alert(this.querySelector("#"+alldiv[i].id));*/
-
-      if (flowflag == "1") {
-        // alert(this.flowenableflag);
+      if (flowflag == "1") {        
         var buttongroup = this.querySelectorAll('paper-button');
         for (var i = 0; i < buttongroup.length; i++) {
           if (i == (parseInt(this.flowenableflag)) || i == (parseInt(this.flowenableflag) + 1)) {
@@ -41955,10 +42219,8 @@ Polymer({
             if (i == (parseInt(this.flowenableflag) + 1)) {
               this.querySelector("#" + buttongroup[i].id).disabled = false;
               this.querySelector("#" + buttongroup[i].id).style.backgroundColor = "transparent";
-            }
-            //this.querySelector("#Purchase").innerHTML = "hello";
+            }            
           }
-
           else {
             this.querySelector("#" + buttongroup[i].id).disabled = true;
             this.querySelector("#" + buttongroup[i].id).style.backgroundColor = "transparent";
@@ -41967,7 +42229,6 @@ Polymer({
       }
     },
     setSearchflowState: function (state, stateno) {
-
       if (this.searchstateflag == "true") {
         this.querySelector("#" + (this.idval[stateno - 1]) + "1").id = this.idval[stateno - 1];
         this.querySelector("#" + (this.idval[stateno - 1])).style.backgroundColor = "#bfbfbf";
@@ -41984,17 +42245,14 @@ Polymer({
     forwardDisableBackState: function () {
       var flowflag = localStorage.getItem('curr_sess_forwarddisablestate');
       var buttongroup = this.querySelectorAll('paper-button');
-      //alert(flowflag);
+      // alert(flowflag+" "+buttongroup.length);
       this.flowenableflag = parseInt(sessionStorage.getItem("curr_sess_roleflag")) - 1;
-      if (flowflag == "0") {
-        //alert(this.flowenableflag);
+      if (flowflag == "0") {        
         //Logged as general role for search disable all state
         if (this.flowenableflag == 4) {
           // alert("true");
-          for (var i = 0; i < buttongroup.length; i++) {
-            //alert("in"+  this.querySelector("#"+buttongroup[i].id));
-            this.querySelector("#" + buttongroup[i].id).disabled = true;
-            //this.querySelector("#"+buttongroup[i].id).style.backgroundColor="#e5efe2";
+          for (var i = 0; i < buttongroup.length; i++) {            
+            this.querySelector("#" + buttongroup[i].id).disabled = true;            
             this.querySelector("#" + buttongroup[i].id).style.backgroundColor = "transparent";
           }
         }
@@ -42012,12 +42270,9 @@ Polymer({
         }
       }
       else if(flowflag=="1"){
-        if (this.flowenableflag == 4) {
-          // alert("true");
-          for (var i = 0; i < buttongroup.length; i++) {
-            //alert("in"+  this.querySelector("#"+buttongroup[i].id));
-            this.querySelector("#" + buttongroup[i].id).disabled = true;
-            //this.querySelector("#"+buttongroup[i].id).style.backgroundColor="#e5efe2";
+        if (this.flowenableflag == 4) {          
+          for (var i = 0; i < buttongroup.length; i++) {            
+            this.querySelector("#" + buttongroup[i].id).disabled = true;            
             this.querySelector("#" + buttongroup[i].id).style.backgroundColor = "transparent";
           }
         }
@@ -42095,18 +42350,24 @@ Polymer({
   edit:function(){
     //alert(localStorage.getItem("curr_sess_wardflag"));
     if(localStorage.getItem("curr_sess_wardflag")=="") {
-    document.querySelector('additem-card').FnEnableFields();    
+    document.querySelector('additem-card').FnEnableFields();
     this.$.edit.style.visibility = 'hidden';
     }
     if(localStorage.getItem("curr_sess_wardflag")=="4") {
       localStorage.setItem("curr_sess_addsuppliereditflag","1");
-      document.querySelector('addsupplier-card').FnEnableFields();    
-      this.$.edit.style.visibility = 'hidden';  
+      document.querySelector('addsupplier-card').FnEnableFields();
+
+      this.$.edit.style.visibility = 'hidden';
     }
      if(localStorage.getItem("curr_sess_wardflag")=="6") {
       localStorage.setItem("curr_sess_addcustomereditflag","1");
-      document.querySelector('addcustomer-card').FnEnableFields();    
-      this.$.edit.style.visibility = 'hidden';  
+      document.querySelector('addcustomer-card').FnEnableFields();
+      this.$.edit.style.visibility = 'hidden';
+    }
+       if(localStorage.getItem("curr_sess_wardflag")=="11") {
+      localStorage.setItem("curr_sess_addusereditflag","1");
+      document.querySelector('user-info-card').FnEnableFields();
+      this.$.edit.style.visibility = 'hidden';
     }
   },
   FnEnableEdit:function(flag){
@@ -42122,9 +42383,6 @@ Polymer({
     this.$.edit.style.visibility = 'hidden';
   }
 });
-/**
- * Created by praba on 2/13/2016.
- */
 Polymer({is:"drawermenu-card",
   ready:function(){
     sessionStorage.setItem("curr_sess_intentrefreshflag","0");
@@ -42134,13 +42392,11 @@ Polymer({is:"drawermenu-card",
     if(sessionStorage.getItem("curr_sess_roleflag")=="0"){
       if(e.target.id=="Inward Items Register"){
         localStorage.setItem("curr_sess_wardflag","0");
-        window.location.href="../elements/indexhome.html";
-        //document.querySelector('my-app').setPage("inwardslip-page");
+        window.location.href="../elements/indexhome.html";        
       }
       if(e.target.id=="Outward Items Register"){
         localStorage.setItem("curr_sess_wardflag","1");
-        window.location.href="../elements/indexhome.html";
-        //document.querySelector('my-app').setPage("outwardslip-page");
+        window.location.href="../elements/indexhome.html";        
       }
     }
     else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
@@ -42149,23 +42405,14 @@ Polymer({is:"drawermenu-card",
         window.location.href="../elements/indexhome.html";
       }
        if(e.target.id=="Add Supplier"){
-        localStorage.setItem("curr_sess_wardflag","4");
-        //document.querySelector('app-homepage').setPage('supplier-page');
-        window.location.href="../elements/indexhome.html";
-        //document.querySelector('supplier-page').setPage('addsupplier-card');
+        localStorage.setItem("curr_sess_wardflag","4");        
+        window.location.href="../elements/indexhome.html";        
       }
       if(e.target.id=="View Intent"){
        localStorage.setItem("curr_sess_wardflag","3");
         sessionStorage.setItem("curr_sess_intentrefreshflag","1");
         document.querySelector('viewintent-page').FnRefreshService();
         window.location.href="../elements/indexhome.html";
-        /*document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('intenthome-page').setPage('View Intent');        
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnHideBtns();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-        document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        window.location.href="../elements/indexhome.html";*/
       }
     }
     //Role flag 2 is for the role who may do GRN Flow navigation Intent item adding
@@ -42174,28 +42421,19 @@ Polymer({is:"drawermenu-card",
         localStorage.setItem("curr_sess_wardflag","");
         window.location.href="../elements/indexhome.html";
       }
-      if(e.target.id=="Add Intent"){
-
-        //localStorage.setItem("curr_sess_showpage","Add Intent");
+      if(e.target.id=="Add Intent"){        
         localStorage.setItem("curr_sess_wardflag","2");
         sessionStorage.setItem("curr_sess_intentrefreshflag","0");
-        /*document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnViewlist();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        document.querySelector('intenthome-page').setPage('Add Intent');*/
         window.location.href="../elements/indexhome.html";
       }
       if(e.target.id=="View Intent"){
        localStorage.setItem("curr_sess_wardflag","3");
        sessionStorage.setItem("curr_sess_intentrefreshflag","1");
-       /* document.querySelector('viewintent-page').FnRefreshService();
-        document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('intenthome-page').setPage('View Intent');        
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnHideBtns();
-        document.querySelector('app-homepage').setFlowVisibility('false');*/
+       window.location.href="../elements/indexhome.html";
+      }
+      if(e.target.id=="Internal Intent"){        
+        localStorage.setItem("curr_sess_wardflag","15");
+        // sessionStorage.setItem("curr_sess_intentrefreshflag","1");
         window.location.href="../elements/indexhome.html";
       }
     }
@@ -42205,133 +42443,95 @@ Polymer({is:"drawermenu-card",
         localStorage.setItem("curr_sess_wardflag","");
         window.location.href="../elements/indexhome.html";
       }
-       if(e.target.id=="Add Intent"){
-        //localStorage.setItem("curr_sess_showpage","Add Intent");
+       if(e.target.id=="Add Intent"){        
         localStorage.setItem("curr_sess_wardflag","2");
         sessionStorage.setItem("curr_sess_intentrefreshflag","0");
-        /*document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnViewlist();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        document.querySelector('intenthome-page').setPage('Add Intent');*/
         window.location.href="../elements/indexhome.html";
       }
-      if(e.target.id=="View Intent"){
-        //alert("yes");
+      if(e.target.id=="View Intent"){        
         localStorage.setItem("curr_sess_wardflag","3");
         sessionStorage.setItem("curr_sess_intentrefreshflag","1");
-        /*document.querySelector('viewintent-page').FnRefreshService();
-        document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('intenthome-page').setPage('View Intent');
-        
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnHideBtns();
-        document.querySelector('app-homepage').setFlowVisibility('false');*/
-
         window.location.href="../elements/indexhome.html";
-        //document.querySelector('intenthome-page').setPage('View Intent');
-        //document.querySelector('grn-service').FnIntentitemReadService();
-        //localStorage.setItem("curr_sess_showpage","Add Intent");
-        //document.querySelector('home-page').setPage('View Intent');
+      }
+      if(e.target.id=="Internal Intent"){        
+        localStorage.setItem("curr_sess_wardflag","15");
+        // sessionStorage.setItem("curr_sess_intentrefreshflag","1");
+        window.location.href="../elements/indexhome.html";
       }
     }
     else if(sessionStorage.getItem("curr_sess_roleflag")=="6"){
       if(e.target.id=="Add Item"){
         localStorage.setItem("curr_sess_wardflag","");
         window.location.href="../elements/indexhome.html";
-        //document.querySelector('app-homepage').setPage('admin-page');
-        //document.querySelector('admin-page').setPage('additem-card');
       }
       if(e.target.id=="Add Supplier"){
-        localStorage.setItem("curr_sess_wardflag","4");
-        //document.querySelector('app-homepage').setPage('supplier-page');
-        window.location.href="../elements/indexhome.html";
-        //document.querySelector('supplier-page').setPage('addsupplier-card');
+        localStorage.setItem("curr_sess_wardflag","4");        
+        window.location.href="../elements/indexhome.html";        
+      }
+      if(e.target.id=="User Management"){
+        localStorage.setItem("curr_sess_wardflag","11");       
+        window.location.href="../elements/indexhome.html";              
+      }
+      if(e.target.id=="Department Creation"){
+        localStorage.setItem("curr_sess_wardflag","13");       
+        window.location.href="../elements/indexhome.html";              
+      }
+      if(e.target.id=="Role Creation"){
+        localStorage.setItem("curr_sess_wardflag","14");       
+        window.location.href="../elements/indexhome.html";              
       }
     }
     else if(sessionStorage.getItem("curr_sess_roleflag")=="7"||sessionStorage.getItem("curr_sess_roleflag")=="8"||sessionStorage.getItem("curr_sess_roleflag")=="9"){
-         //localStorage.setItem("curr_sess_showpage","Add Intent");
-        if(e.target.id=="Add Intent"){
-        sessionStorage.setItem("curr_sess_intentrefreshflag","0");
-        //localStorage.setItem("curr_sess_showpage","Add Intent");
+      if(e.target.id=="Add Intent"){        
         localStorage.setItem("curr_sess_wardflag","2");
-        document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnViewlist();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        document.querySelector('intenthome-page').setPage('Add Intent');
-
-        //window.location.href="../elements/indexhome.html";
-      }
-      if(e.target.id=="View Intent"){
-        sessionStorage.setItem("curr_sess_intentrefreshflag","1");
-        localStorage.setItem("curr_sess_wardflag","3");
-        document.querySelector('viewintent-page').FnRefreshService();
-        document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('intenthome-page').setPage('View Intent');
-        
-        document.querySelector('app-homepage').setVisible("false");
-        document.querySelector('viewtype-card').FnHideBtns();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-
-        //window.location.href="../elements/indexhome.html";
-      }
-      if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&e.target.id=="Approve Supplier"){
-        //alert("approve");
-        localStorage.setItem("curr_sess_wardflag","7");
-        //document.querySelector('app-homepage').setPage('intenthome-page');
-        //document.querySelector('app-homepage').setVisible("false");
-        //document.querySelector('viewtype-card').FnViewlist();
-        //document.querySelector('app-homepage').setFlowVisibility('false');
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        //document.querySelector('intenthome-page').setPage('Approve Supplier');
-
+        sessionStorage.setItem("curr_sess_intentrefreshflag","0");
         window.location.href="../elements/indexhome.html";
       }
-
-        // document.querySelector('app-homepage').FnSetIntentFlowVisibility('true');
-        //document.querySelector('intenthome-page').setPage('Add Intent');
+      if(e.target.id=="View Intent"){
+        localStorage.setItem("curr_sess_wardflag","3");
+        sessionStorage.setItem("curr_sess_intentrefreshflag","1");
+        window.location.href="../elements/indexhome.html";
+      }
+      if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&e.target.id=="Approve Supplier"){        
+        localStorage.setItem("curr_sess_wardflag","7");
+        window.location.href="../elements/indexhome.html";
+      }
+      if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&e.target.id=="Approve Customer"){        
+        localStorage.setItem("curr_sess_wardflag","8");
+        window.location.href="../elements/indexhome.html";
+      }
+      if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&e.target.id=="Approve User"){        
+        localStorage.setItem("curr_sess_wardflag","12");
+        window.location.href="../elements/indexhome.html";
+      }
     }
-
-    
-
      //Role flag 2 is for the role who may do GRN Flow navigation Intent item adding
     else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
-     
+
       if(e.target.id=="View Intent"){
        localStorage.setItem("curr_sess_wardflag","3");
        sessionStorage.setItem("curr_sess_intentrefreshflag","1");
         document.querySelector('viewintent-page').FnRefreshService();
         document.querySelector('app-homepage').setPage('intenthome-page');
-        document.querySelector('intenthome-page').setPage('View Intent');        
+        document.querySelector('intenthome-page').setPage('View Intent');
         document.querySelector('app-homepage').setVisible("false");
         document.querySelector('viewtype-card').FnHideBtns();
-        document.querySelector('app-homepage').setFlowVisibility('false');
-
-       // window.location.href="../elements/indexhome.html";
+        document.querySelector('app-homepage').setFlowVisibility('false');       
       }
+     
     }
-
     else if(sessionStorage.getItem("curr_sess_roleflag")=="10"){
       if(e.target.id=="Outward Items Report"){
         localStorage.setItem("curr_sess_wardflag","5");
         window.location.href="../elements/indexhome.html";
       }
       if(e.target.id=="Add Customer"){
-        localStorage.setItem("curr_sess_wardflag","6");        
+        localStorage.setItem("curr_sess_wardflag","6");
         window.location.href="../elements/indexhome.html";
       }
     }
-
-    //else if(sessionStorage.getItem("loggedrole")=="Stores manager"||sessionStorage.getItem("loggedrole")=="Production manager"||sessionStorage.getItem("loggedrole")=="Quality manager"||sessionStorage.getItem("loggedrole")=="Purchase manager")
-      //document.querySelector('my-app').setPage("home-page");
   }
 });
-/**
- * Created by praba on 2/17/2016.
- */
 //JS file for drawer menu list
 Polymer({is:"drawermenu-list",
   ready:function(){
@@ -42339,6 +42539,184 @@ Polymer({is:"drawermenu-list",
     this.$.ID_webcomponent_service.drawermenureadService();
   }
 });
+/**
+   * `IronResizableBehavior` is a behavior that can be used in Polymer elements to
+   * coordinate the flow of resize events between "resizers" (elements that control the
+   * size or hidden state of their children) and "resizables" (elements that need to be
+   * notified when they are resized or un-hidden by their parents in order to take
+   * action on their new measurements).
+   * Elements that perform measurement should add the `IronResizableBehavior` behavior to
+   * their element definition and listen for the `iron-resize` event on themselves.
+   * This event will be fired when they become showing after having been hidden,
+   * when they are resized explicitly by another resizable, or when the window has been
+   * resized.
+   * Note, the `iron-resize` event is non-bubbling.
+   *
+   * @polymerBehavior Polymer.IronResizableBehavior
+   * @demo demo/index.html
+   **/
+  Polymer.IronResizableBehavior = {
+    properties: {
+      /**
+       * The closest ancestor element that implements `IronResizableBehavior`.
+       */
+      _parentResizable: {
+        type: Object,
+        observer: '_parentResizableChanged'
+      },
+
+      /**
+       * True if this element is currently notifying its descedant elements of
+       * resize.
+       */
+      _notifyingDescendant: {
+        type: Boolean,
+        value: false
+      }
+    },
+
+    listeners: {
+      'iron-request-resize-notifications': '_onIronRequestResizeNotifications'
+    },
+
+    created: function() {
+      // We don't really need property effects on these, and also we want them
+      // to be created before the `_parentResizable` observer fires:
+      this._interestedResizables = [];
+      this._boundNotifyResize = this.notifyResize.bind(this);
+    },
+
+    attached: function() {
+      this.fire('iron-request-resize-notifications', null, {
+        node: this,
+        bubbles: true,
+        cancelable: true
+      });
+
+      if (!this._parentResizable) {
+        window.addEventListener('resize', this._boundNotifyResize);
+        this.notifyResize();
+      }
+    },
+
+    detached: function() {
+      if (this._parentResizable) {
+        this._parentResizable.stopResizeNotificationsFor(this);
+      } else {
+        window.removeEventListener('resize', this._boundNotifyResize);
+      }
+
+      this._parentResizable = null;
+    },
+
+    /**
+     * Can be called to manually notify a resizable and its descendant
+     * resizables of a resize change.
+     */
+    notifyResize: function() {
+      if (!this.isAttached) {
+        return;
+      }
+
+      this._interestedResizables.forEach(function(resizable) {
+        if (this.resizerShouldNotify(resizable)) {
+          this._notifyDescendant(resizable);
+        }
+      }, this);
+
+      this._fireResize();
+    },
+
+    /**
+     * Used to assign the closest resizable ancestor to this resizable
+     * if the ancestor detects a request for notifications.
+     */
+    assignParentResizable: function(parentResizable) {
+      this._parentResizable = parentResizable;
+    },
+
+    /**
+     * Used to remove a resizable descendant from the list of descendants
+     * that should be notified of a resize change.
+     */
+    stopResizeNotificationsFor: function(target) {
+      var index = this._interestedResizables.indexOf(target);
+
+      if (index > -1) {
+        this._interestedResizables.splice(index, 1);
+        this.unlisten(target, 'iron-resize', '_onDescendantIronResize');
+      }
+    },
+
+    /**
+     * This method can be overridden to filter nested elements that should or
+     * should not be notified by the current element. Return true if an element
+     * should be notified, or false if it should not be notified.
+     *
+     * @param {HTMLElement} element A candidate descendant element that
+     * implements `IronResizableBehavior`.
+     * @return {boolean} True if the `element` should be notified of resize.
+     */
+    resizerShouldNotify: function(element) { return true; },
+
+    _onDescendantIronResize: function(event) {
+      if (this._notifyingDescendant) {
+        event.stopPropagation();
+        return;
+      }
+
+      // NOTE(cdata): In ShadowDOM, event retargetting makes echoing of the
+      // otherwise non-bubbling event "just work." We do it manually here for
+      // the case where Polymer is not using shadow roots for whatever reason:
+      if (!Polymer.Settings.useShadow) {
+        this._fireResize();
+      }
+    },
+
+    _fireResize: function() {
+      this.fire('iron-resize', null, {
+        node: this,
+        bubbles: false
+      });
+    },
+
+    _onIronRequestResizeNotifications: function(event) {
+      var target = event.path ? event.path[0] : event.target;
+
+      if (target === this) {
+        return;
+      }
+
+      if (this._interestedResizables.indexOf(target) === -1) {
+        this._interestedResizables.push(target);
+        this.listen(target, 'iron-resize', '_onDescendantIronResize');
+      }
+
+      target.assignParentResizable(this);
+      this._notifyDescendant(target);
+
+      event.stopPropagation();
+    },
+
+    _parentResizableChanged: function(parentResizable) {
+      if (parentResizable) {
+        window.removeEventListener('resize', this._boundNotifyResize);
+      }
+    },
+
+    _notifyDescendant: function(descendant) {
+      // NOTE(cdata): In IE10, attached is fired on children first, so it's
+      // important not to notify them if the parent is not attached yet (or
+      // else they will get redundantly notified when the parent attaches).
+      if (!this.isAttached) {
+        return;
+      }
+
+      this._notifyingDescendant = true;
+      descendant.notifyResize();
+      this._notifyingDescendant = false;
+    }
+  };
 (function(){
       var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -42355,10 +42733,10 @@ Polymer({is:"drawermenu-list",
         from = from || 0;
         angle = normalizeAngle(from);
         if ( angle < 180 && (to > (angle + 180)) ) {
-          offset = -360;
+          offset = -360; 
         }
         if ( angle >= 180 && (to <= (angle - 180)) ) {
-          offset = 360;
+          offset = 360; 
         }
         return from + offset + (to - angle);
       }
@@ -42623,11 +43001,11 @@ Polymer({is:"drawermenu-list",
         },
         _getSelectArea: function(radius, outer, inner) {
           return '\n' +
-            'M ' + (radius - outer) + ' ' + radius + '\n' +
-            'A ' + outer + ' ' + outer + ' 0 0 0 ' + (radius + outer) + ' ' + radius + '\n' +
-            'A ' + outer + ' ' + outer + ' 0 0 0 ' + (radius - outer) + ' ' + radius + '\n' +
-            'M ' + (radius - inner) + ' ' + radius + '\n' +
-            'A ' + inner + ' ' + inner + ' 0 0 1 ' + (radius + inner) + ' ' + radius + '\n'+
+            'M ' + (radius - outer) + ' ' + radius + '\n' + 
+            'A ' + outer + ' ' + outer + ' 0 0 0 ' + (radius + outer) + ' ' + radius + '\n' + 
+            'A ' + outer + ' ' + outer + ' 0 0 0 ' + (radius - outer) + ' ' + radius + '\n' + 
+            'M ' + (radius - inner) + ' ' + radius + '\n' + 
+            'A ' + inner + ' ' + inner + ' 0 0 1 ' + (radius + inner) + ' ' + radius + '\n'+ 
             'A ' + inner + ' ' + inner + ' 0 0 1 ' + (radius - inner) + ' ' + radius;
         },
         _onTouch: function(event) {
@@ -42708,7 +43086,7 @@ Polymer({is:"drawermenu-list",
             type: String,
             value: '00:00',
             notify: true,
-            observer: '_timeChanged'
+            observer: '_timeChanged' 
           },
           /**
            * The time value as the number of minutes from midnight
@@ -42921,7 +43299,7 @@ Polymer({is:"drawermenu-list",
         _viewChanged: function(toView, fromView) {
           this.$.pages._notifyPageResize();
 
-          // prevent the clock-hand transition when selecting, otherwise the
+          // prevent the clock-hand transition when selecting, otherwise the 
           // extra movement would be confusing
           if (this._selecting || !fromView || !toView || !this.animated) {
             return;
@@ -43017,16 +43395,12 @@ Polymer({
   }
 
 });
-/**
- * Created by praba on 2/13/2016.
- */
 //JS file for customer info page
 Polymer({
   is: "customerinfo-page",
   ready:function()
   {
-    this.customername=null;
-    //this.invoiceno=null;
+    this.customername=null;    
     this.city=null;
     this.outtime=null;
   },
@@ -43035,8 +43409,7 @@ Polymer({
   },
   //Function invokes when submitting customer info form
   FnCustomerInfoSubmit:function()
-  {
-    //document.querySelector('#customer_invoiceno').validate();
+  {    
     document.querySelector('#customer_name').validate();
     document.querySelector('#customer_city').validate();
 
@@ -43139,7 +43512,8 @@ Polymer({
       //alert(e.detail.response.returnval);
       if(e.detail.response.returnval=="succ"){
         for(var i=0;i<this.items.length;i++){
-          var obj={"outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","itemdes":"","weight":""};
+          var obj={"invoicedate":"","outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","itemdes":"","weight":""};
+          obj.invoicedate=this.items[i].invoicedate;
           obj.outdate=this.items[i].outdate;
           obj.outtime=this.items[i].outtime;
           obj.customername=this.items[i].customername;
@@ -43156,6 +43530,7 @@ Polymer({
           obj.unit=this.items[i].unit;
           obj.quantity=this.items[i].quantity;
           obj.weight=this.items[i].weight;
+          obj.createdby=sessionStorage.getItem("loggeduser");
           this.params=obj;
           this.$.outwarditemwriteAjax.generateRequest();
         }
@@ -43168,16 +43543,15 @@ Polymer({
     }
   });
 })();
-(function() {
+// JS file for customer-list card
+  (function() {
     'use strict';
-     var flag=0;
- 	 
+     var flag=0; 	 
   	 var item=[];
      var temp=[];
 
     Polymer({
-      is: 'customer-list',
-      
+      is: 'customer-list',      
       ready:function(){
       //Initially making all fields are editable
       this.read = false;
@@ -43185,29 +43559,21 @@ Polymer({
       this.supplierid="";
       this.itemval="";
       this.itemflag="false";
-
       //calling service to fetch and bind supplier names to the auto complete list
       this.customerurl=sessionStorage.getItem("curr_sess_url")+"itemcustomerread-service";
       this.$.itemcustomerreadajax.generateRequest();
       //Initially hiding dropdown boxes while not search for supplier names
       this.querySelector('#pl1').style.visibility='hidden';
       },
-    FnSpecificSupplierReadService:function(itemid){
-      //alert(itemname);      
+    //Function which fetch the customer of the item attached 
+    FnSpecificSupplierReadService:function(itemid){           
       var obj={"itemid":""};
       obj.itemid=itemid;
       this.supplierparam=obj;
       this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemcustomerread-service";
     },
-      //Funtion invokes when selecting item in dropdown
+    //Funtion invokes when selecting item in dropdown
     FnItemSelected:function(e){
-      /*if(e.target.selectedItem.textContent.trim()=="Others"){
-        localStorage.setItem("curr_sess_othersupplierflag","true");
-        document.querySelector('item-page').FnEnableHide();
-        this.read=true;
-        document.querySelector('item-card').FnChangeField();
-
-      }*/
       //Condition to bind when no item found
       if(e.target.selectedItem.textContent.trim()!="-----Select-----"||e.target.selectedItem.textContent.trim()!="Others") {
 
@@ -43218,23 +43584,19 @@ Polymer({
             this.suppliername = item[i].itemsuppliername;
           }
         }
-        //Binding values to the respective cards where the supplier name field have been used
-        if(sessionStorage.getItem("curr_sess_roleflag")=="0"){
-          document.querySelector('outwarditem-page').FnInputChanged(this.supplierid,this.suppliername);
-          document.querySelector('autocompleteitemlist-card').FnFetchSpecificItem(this.supplierid,this.suppliername);
-          this.read=true;
-        }
-        //else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")=="")
-		//  document.querySelector('additem-card').FnSelectSupplier(this.supplierid,this.suppliername);
-		else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""){
-      if(e.target.selectedItem.textContent.trim()!="-----Select-----")
-		  document.querySelector('supplier-detail').FnSelectCustomer(this.supplierid,this.suppliername);
-      else
-      alert("Please choose valid Customer...");
-		}
-       // else
-       // document.querySelector('additem-card').FnSelectSupplier(this.supplierid,this.suppliername);
-       }
+      //Binding values to the respective cards where the supplier name field have been used
+      if(sessionStorage.getItem("curr_sess_roleflag")=="0"){
+        document.querySelector('outwarditem-page').FnInputChanged(this.supplierid,this.suppliername);
+        document.querySelector('autocompleteitemlist-card').FnFetchSpecificItem(this.supplierid,this.suppliername);
+        this.read=true;
+      }
+  		else if(sessionStorage.getItem("curr_sess_roleflag")=="6"&&localStorage.getItem("curr_sess_wardflag")==""){
+         if(e.target.selectedItem.textContent.trim()!="-----Select-----")
+		      document.querySelector('supplier-detail').FnSelectCustomer(this.supplierid,this.suppliername);
+         else
+          alert("Please choose valid Customer...");
+	   	}
+      }
       else{
         alert("Please choose valid item...");
         this.value="";
@@ -43243,11 +43605,9 @@ Polymer({
       this.querySelector('#pl1').style.visibility='hidden';
       this.querySelector('#pl1').selected=-1;
       this.itemArray="";
-
     },
       //Function invokes when item value changes in input box to show the relevent items
       FnInputChanged:function(e){
-
         if (e.keyCode == 13 || e.keyCode == 40)
           this.querySelector('#pl1').focus();
         var arr = [];
@@ -43256,7 +43616,6 @@ Polymer({
         if (e.keyCode == 8) {
           this.itemflag = "true";
           this.itemval = "";
-          //alert('yes');
           var len = (this.value).length;
           if (len <= 1) {
             this.querySelector('#pl1').style.visibility = 'hidden';
@@ -43290,7 +43649,6 @@ Polymer({
           }
           else
             this.itemval = this.itemval + String.fromCharCode((e.keyCode));
-          //alert(this.itemval);
           if (this.itemval.length > 0) {
             for (var i = 0; i < item.length; i++) {
               var subval = ((item[i].itemsuppliername).trim()).substring(0, this.itemval.length);
@@ -43315,15 +43673,59 @@ Polymer({
 
           }
         }
-
     },
     //Fetches and binding to the auto complete dropdown list dynamically
     itemcustomerreadResponse:function(e) {
        item=e.detail.response.itemarr;
-       //alert(JSON.stringify(item));       
     }
     });
   })();
+/**
+ * Created by praba on 2/13/2016.
+ */
+//JS file for datepicker card
+Polymer({
+  is: "out-datepicker",
+  ready:function()
+  {
+    this.showdate=moment(new Date()).format('L');
+    localStorage.setItem("curr_sess_outdate",this.showdate);
+  },
+  FnShowDialog:function(){
+    this.date=new Date();
+    this.$.dialog.toggle();
+  },
+  FnDismissDialog:function(e){
+
+    if (e.detail.confirmed) {
+      var pickdate = moment(this.$.picker.date).format('L');
+      var dd1 = new Date();
+      var dd2 = new Date(pickdate);
+      var days = parseInt((dd1 - dd2) / (1000 * 60 * 60 * 24));
+
+      if (days > 0) {
+        if (days > 60)
+          this.$.ID_Show_Dialog.FnShowDialog("You can add only recent entries within 60 days!", "");
+        //alert("You can add only recent entries within 60 days!");
+        else {
+          this.showdate = moment(this.$.picker.date).format('L');
+          localStorage.setItem("curr_sess_outdate", this.showdate);
+        }
+      }
+      else
+        this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!", "");
+      //alert("Date shouldn't exceed the run date!");
+    }
+      else{
+        if(days>0)
+          this.$.ID_Show_Dialog.FnShowDialog("Due date should be future date!","");
+        else
+          this.showdate = moment(this.$.picker.date).format('L');
+      }
+
+  }
+
+});
 /**
  * Created by praba on 2/13/2016.
  */
@@ -43351,7 +43753,6 @@ Polymer({
       this.supid=supplierid;
       this.customername=suppliername;
       this.nullflag=1;
-  
     },
     FnRefreshPage:function(){
       this.flag=0;
@@ -43467,7 +43868,8 @@ Polymer({
           }
         }
         if(existflag==0){
-          var obj={"outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+          var obj={"invoicedate":"","outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+          obj.invoicedate=localStorage.getItem("curr_sess_outdate");
           obj.outdate=this.outdate;
           obj.outtime=this.outtime;
           obj.customername=this.customername;
@@ -43550,7 +43952,8 @@ Polymer({
             }
           }
           if(existflag==0){
-            var obj={"outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+            var obj={"invoicedate":"","outdate":"","outtime":"","customername":"","invoiceno":"","city":"","vehicleno":"","transportname":"","drivername":"","driverno":"","ownername":"","ownerphone":"","panno":"","quantity":"","unit":"","measure":"","itemdes":"","weight":""};
+            obj.invoicedate=localStorage.getItem("curr_sess_outdate");
             obj.outdate=this.outdate;
             obj.outtime=this.outtime;
             obj.customername=this.customername;
@@ -46473,8 +46876,6 @@ Polymer({is:"menusearch-card",
 });
 Polymer({is:"outwardsearchexpanditem-card",
       ready:function(){
-
-
       }
     });
 /**
@@ -46676,6 +47077,323 @@ Polymer({
       {
       }
     });
+(function() {
+    'use strict';
+ var batchno,container;
+      var supplyarr=[];
+    var choosenquantity=0;
+    Polymer({
+      is: 'supplybatch-card',
+     
+      properties: {
+        foo: {
+          type: String,
+          value: 'supplybatch-card',
+          notify: true
+        }
+      },
+      ready:function(){
+        this.callBatchnoService(); 
+      },
+      FnCallService:function(availunit,availunitmeasure,availquantity,availquantitymeasure){
+        this.availunit=availunit;
+        this.availunitmeasure=availunitmeasure;
+        this.availquantity=availquantity;
+        this.availquantitymeasure=availquantitymeasure;
+           
+      },
+      
+  callBatchnoService:function(){
+    var arg={"itemno":""};
+    arg.itemno=sessionStorage.getItem("sess_curr_itemno");
+    // arg.intentregno=intentregno;
+    this.fetchbatchnoparam=arg;
+    this.fetchbatchnourl=sessionStorage.getItem("curr_sess_url")+"fetchbatchnos-service";
+    this.$.fetchbatchnoajax.generateRequest();    
+  },
+  fetchbatchnoResponse:function(e){    
+    var arr=e.detail.response;
+    var temparr=[];
+    for(var i=0;i<arr.length;i++){
+    temparr.push({"Batch_No":arr[i].Batch_No+"-"+arr[i].quantity+" "+this.availquantitymeasure});
+    }
+    // alert(JSON.stringify(temparr));
+    this.batcharr=temparr;
+  },
+  FnSelectBatch:function(e){
+     batchno = e.target.selectedItem.textContent.trim();
+    batchno=(batchno.substring(0,batchno.indexOf('-'))).trim();
+    localStorage.setItem("curr_sess_batchno",batchno);
+    var arg={"batchno":""};
+    arg.batchno=batchno;    
+    this.fetchcontainerparam=arg;
+    this.fetchcontainerurl=sessionStorage.getItem("curr_sess_url")+"fetchcontainer-service";
+    this.$.fetchcontainerajax.generateRequest(); 
+  },
+  fetchcontainerResponse:function(e){
+    var arr=e.detail.response;
+    var ctemparr=[];
+    for(var i=0;i<arr.length;i++){
+    ctemparr.push({"Container_ID":arr[i].Container_ID+"-"+arr[i].quantity+" "+this.availquantitymeasure});
+    }
+    this.containerarr=ctemparr;
+  },
+  FnSelectContainer:function(e){
+    // alert(this.no);
+    // alert(e.target.index);
+    container = e.target.selectedItem.textContent.trim();
+    var containerid=(container.substring(0,container.indexOf('-'))).trim();
+    var quantity=(container.substring((container.indexOf('-')+1),container.indexOf(' '))).trim();
+    var reqquantity=this.reqquantity.substring(0,this.reqquantity.indexOf(' ')).trim();
+    var requnit=this.requnit.substring(0,this.requnit.indexOf(' ')).trim();  
+
+    var obj={"batchno":"","containerid":"","quantity":"","no":""};
+    obj.batchno=batchno;
+    obj.containerid=containerid;
+    obj.quantity=quantity;
+    obj.no=this.no;
+    // alert(supplyarr.length);
+    if(supplyarr.length==0){
+    supplyarr.push(obj);
+    choosenquantity=parseInt(choosenquantity)+parseInt(quantity);
+    }
+    else{
+
+      for(var i=0;i<supplyarr.length;i++){
+
+        // if(supplyarr[i].no==this.no)
+          // alert('thr');
+        // supplyarr[i].splice(this.no,1);
+        // else{
+        // alert(supplyarr[i].batchno+" "+batchno+" "+supplyarr[i].containerid+" "+containerid);
+        if(supplyarr[i].batchno==batchno&&supplyarr[i].containerid==containerid)
+        {
+          alert("Same Batch with the same container already added!!");
+          break;
+        }
+        else{
+
+        supplyarr.push(obj); 
+        choosenquantity=parseInt(choosenquantity)+parseInt(quantity);
+        break;
+        
+        }
+      // }
+    }
+
+    }
+    document.querySelector('supplybutton-card').FnSetSupplyContainer(supplyarr,choosenquantity,reqquantity,supplyarr.length,requnit,this.availunit,this.avalquantity);
+    
+    // alert(choosenquantity);
+
+    // alert(JSON.stringify(supplyarr));
+
+    /*if(parseInt(reqquantity)>parseInt(quantity)){
+      alert("Requested quantity more than the available quantity!!Do you want to supply??");
+    }
+    else{      
+      localStorage.setItem("curr_sess_containerid",containerid);
+      localStorage.setItem("curr_sess_reqquantity",reqquantity);
+    }*/
+  }
+    });
+  })();
+/**
+ * Created by praba on 2/19/2016.
+ */
+/**
+ * Created by praba on 2/12/2016.
+ */
+Polymer({is:"internalintentexpand-page",
+  ready:function(){    
+  },
+  //fetches item info under the INT corresponding to the user loggedin role
+  internalintentexpandreadService:function(itemno,intentregno){
+    this.itemno=itemno;
+    this.intentregno=intentregno;
+    var arg={"itemno":"","intentregno":""};
+    arg.itemno=itemno;
+    arg.intentregno=intentregno;
+    this.internalintentexpandreadparam=arg;
+    this.internalintentexpandreadurl=sessionStorage.getItem("curr_sess_url")+"internalintentexpandread-service";
+    this.$.internalintentexpandreadajax.generateRequest();
+  },
+  //Response binding to the card
+  FnInternalintentexpandreadResponse:function(e)
+  {
+    var arr=e.detail.response;
+    // alert(JSON.stringify(arr));
+    /*this.intentregno=arr[0].Intent_Register_Number;
+    this.intentdate=arr[0].Intent_Date;  
+    this.itemdes=arr[0].Product_ID;
+    this.requnit=arr[0].requnit;
+    this.requnitmeasure=arr[0].requnitmeasure;
+    this.reqquantity=arr[0].reqquantity;
+    this.reqquantitymeasure=arr[0].reqquantitymeasure;*/
+    this.availunit=arr[0].availcontainer;
+    this.availunitmeasure=arr[0].Container_Measure;
+    this.availquantity=arr[0].availquantity;
+    this.availquantitymeasure=arr[0].Quantity_Measure;
+    var temp=[];
+    // alert(this.requnit);
+    for(var i=0;i<parseInt(this.requnit);i++)
+    temp.push(i);
+    // alert(temp);
+    this.itemArray=temp;
+    // document.querySelector('supplybatch-card').FnCallService(this.availunit,this.availunitmeasure,this.availquantity,this.availquantitymeasure);
+  },
+  //Function to fetch labels for the card
+  callWebcomponentService:function(){
+    this.$.webcomponentreadajax.generateRequest();
+  },
+  FnWebcomponentreadResponse:function(e) {
+    this.current_page="viewintentitemexpand-page";    
+    var arr = e.detail.response;    
+    var labelvalue=[];
+    var errorlabelvalue=[];
+    //Binding labels to login-card
+    for(var i=1;i<arr.length;i++) {      
+      if ((arr[i].Page[0].page[0]) == this.current_page) {
+        labelvalue = arr[i].Page[1].Label;
+        /*Binding Labels and error message to the respective card*/
+        this.label = labelvalue;
+      }
+    }
+  }
+});
+/**
+ * Created by praba on 2/13/2016.
+ */
+//JS componet for search expand card
+(function() {
+  var arr=[];
+  var id="true";
+  var clrid="true";
+  var regno="";
+  //var n=1;
+  Polymer({is:"internalintentitem-page",
+    ready:function(){
+      //alert("call");
+      this.icons="icons:arrow-drop-down";
+      //this.$.osc.outwardsearchreadService(this.inwardregno);
+    },
+    //Function which invokes when click on expand icon button
+    FnExpandItemCard:function(){
+      // alert(this.itemno);
+      var n=1;
+      var x=-4;
+
+      sessionStorage.setItem("sess_curr_itemno",this.itemno);
+      sessionStorage.setItem("sess_curr_intentregno",this.intentregno);
+      sessionStorage.setItem("sess_curr_itemdes",this.itemdes);
+
+      this.$.ps.internalintentexpandreadService(this.itemno,this.intentregno);
+      var all=document.querySelectorAll('.internalintentexpandcard');
+
+      if(id=="true")
+      {
+        document.querySelector('app-homepage').FnSetSupplyVisibility('true');
+        id= document.querySelector("#"+this.intentregno);        
+        id.toggle();
+      }
+      else
+      {
+        if(id!=document.querySelector("#"+this.intentregno))
+        {
+          id.opened=false;
+        }
+        document.querySelector('app-homepage').FnSetSupplyVisibility('false');
+        id= document.querySelector("#"+this.intentregno);
+        id.toggle();
+      }
+      if(clrid=="true")
+      {
+        for(var i= 0;i<all.length;i++){
+          document.querySelector('app-homepage').FnSetSupplyVisibility('true');
+          if(all[i].id==document.querySelector("#card"+this.intentregno).id){
+            if(i!=0) {
+              all[i].style.marginTop=((i*(x))-i-(i))+"%";
+            }
+            all[i].style.visibility='visible';
+          }
+          else
+            all[i].style.visibility='hidden';
+        }
+        clrid= document.querySelector("#card"+this.intentregno);
+
+      }
+      else
+      {
+        if(clrid!=document.querySelector("#card"+this.intentregno))
+        {
+          //document.querySelector('my-app').setVisible("true");
+          document.querySelector('app-homepage').FnSetSupplyVisibility('true');
+          for(var i=0;i<all.length;i++){
+            if(all[i].id==document.querySelector("#card"+this.intentregno).id){
+              all[i].style.visibility='visible';
+            }
+            else
+              all[i].style.visibility='hidden';
+          }
+
+          clrid= document.querySelector("#card"+this.intentregno);
+        }
+        else
+        {
+          document.querySelector('app-homepage').FnSetSupplyVisibility('false');
+          for(var i=0;i<all.length;i++){
+            if(i!=0)
+              all[i].style.marginTop=(n)+"%";
+            all[i].style.visibility='visible';
+          }
+          clrid="true";
+
+        }
+      }
+    },
+    //Function to toggle the card which already opened,while navigating to another page
+    setToggle:function()
+    {
+      var toggleid=sessionStorage.getItem("sess_curr_inwardregno");
+      id= document.querySelector("#"+toggleid);
+      id.opened=false;
+    }
+  });
+})();
+/**
+ * Created by praba on 2/19/2016.
+ */
+/**
+ * Created by praba on 2/12/2016.
+ */
+Polymer({
+  is: "internalintent-page",
+  ready:function()
+  {    
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintent-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentService();
+  },
+  setState:function(){
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintent-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentService();
+  },
+  FnRefreshService:function(){    
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintent-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentService();
+  }
+});
 /**
  * Created by praba on 2/19/2016.
  */
@@ -46867,13 +47585,13 @@ Polymer({is:"intentviewitemexpand-card",
           document.querySelector('app-homepage').FnSetPromoteVisibility('true');
           if(all[i].id==document.querySelector("#viewcard"+this.intentregno).id){
             if(i!=0) {
-
-              if(i!=0){
+              // all[i].style.marginTop=((i*(x))-i-(i*0.5))+"%";
+              // if(i!=0){
                 all[i].style.marginTop=((i*(x))-i)+"%";
-              }
-              if(i>10){
-                all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
-              }
+              // }
+              // if(i>10){
+                // all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
+              // }
             }
             all[i].style.visibility='visible';
           }
@@ -46939,6 +47657,53 @@ Polymer({
     this.$.ID_Webcomponent_Service.callWebcomponentService();
     //Setting state for reading the items under current INT no
     this.$.gs.FnIntentViewitemReadService();
+  }
+});
+/**
+ * Created by praba on 2/19/2016.
+ */
+/**
+ * Created by praba on 2/12/2016.
+ */
+Polymer({
+  is: "internalintentview-itempage",
+  ready:function()
+  {    
+   
+  }
+});
+/**
+ * Created by praba on 2/19/2016.
+ */
+/**
+ * Created by praba on 2/12/2016.
+ */
+Polymer({
+  is: "internalintentview-page",
+  ready:function()
+  {    
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintentview-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentViewService();
+  },
+  setState:function(){
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintentview-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentViewService();
+  },
+  FnRefreshService:function(){    
+    //Setting current page in session for fetching labels dynamically
+    localStorage.setItem("curr_sess_showpage","internalintentview-page");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+    //Setting state for reading the items under current INT no
+    this.$.gs.FnFetchInternalIntentViewService();
   }
 });
 /**
@@ -49403,8 +50168,14 @@ Polymer({
       document.querySelector("webcomponent-service").callWebcomponentService();
       this.page=page;
     }
+    else if(localStorage.getItem("curr_sess_wardflag")=="15") {      
+      //Setting current page in local storage to fetch the labels dynamically
+      localStorage.setItem("curr_sess_showpage", page);
+      //Calling web component service to fetch label and errro label info from config file
+      document.querySelector("webcomponent-service").callWebcomponentService();
+      this.page=page;
+    }
     else {
-
       //alert(page);
       this.page = page;
       //Setting current page in local storage to fetch the labels dynamically
@@ -49587,6 +50358,7 @@ Polymer({
 /**
  * Created by praba on 2/26/2016.
  */
+ // JS component for admin service component
 (function() {
 	var suparr=[];
 	var flag=0;
@@ -49595,22 +50367,13 @@ Polymer({
   Polymer({
     is: "admin-service",
     ready: function () {
-      //Setting url to fetch item type and group type info
-     /* this.containerreadurl=sessionStorage.getItem("curr_sess_url")+"containerread-service";
-      this.unitreadurl=sessionStorage.getItem("curr_sess_url")+"unitread-service";
-      this.readurl=sessionStorage.getItem("curr_sess_url")+"additemread-service";
-      this.groupurl=sessionStorage.getItem("curr_sess_url")+"additemgroupread-service";
-      this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";*/
     },
     //Method invokes while making write req from the additem card
     callItemWriteService:function(price,itemoptionalsupplier,itemsupplier,itemflag,itemid,itemname,itemdes,container,quantity,itemgroup,itemtype,storeslocation,purchasetype){
-		//alert("yes");
-
-    var obj={
+		var obj={
       "itemoptionalsupplier" :"","itemsupplier" :"","itemflag":"","itemid":"","itemname":"","itemdes":"","container":"","quantity":"","itemgroup":"","itemtype":"","storeslocation":"","purchasetype":""
     };
-     supobj={"supplierid" :"","price":""};
-      //obj.itemoptionalsupplier=itemoptionalsupplier,
+      supobj={"supplierid" :"","price":""};
       supobj.price=price;
       obj.itemflag=itemflag;
       obj.itemid=itemid;
@@ -49622,56 +50385,43 @@ Polymer({
       obj.itemtype=itemtype;
       obj.storeslocation=storeslocation;
       obj.purchasetype=purchasetype;
-		//alert(localStorage.getItem("curr_sess_additemsupplierwrite"));
+		 
       if(localStorage.getItem("curr_sess_additemsupplierwrite")=="1"){
-      supobj.supplierid=itemoptionalsupplier;
+      supobj.supplierid=itemoptionalsupplier;      
       if(suparr.length>0){
-      for(var i=0;i<suparr.length;i++){
-		  //alert(supobj.supplierid+"  "+suparr[i].supplierid);
+      // Adding suppliers againt the item which is not already attached with the supplier
+      for(var i=0;i<suparr.length;i++){		  
 		  if((supobj.supplierid)!=(suparr[i].supplierid))
 		  suparr.push(supobj);
-	  }
+	    }
   	  }
   	  else
   	  {
-		suparr.push(supobj);
-	  }
+		  suparr.push(supobj);
+	    }
       this.callItemWriteSupplierService(itemid,suparr);
   	  }
       this.param=obj;
+      // Making request to write item information
       this.url=sessionStorage.getItem("curr_sess_url")+"additem-service";
       this.$.additemwriteajax.generateRequest();
     },
     //Response receiving after making write request
     additemwriteResponse:function(e){
-
+      // Condition will invoke when item added successfully
       if(e.detail.response.returnval=="succ"){
-		//alert("Item saved successfully!!");
-		//document.querySelector('admin-page').setPage('supplier-detail');
-		this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
-		//alert("new item");
-        //document.querySelector("additem-card").FnBtnDisable();
-        //document.querySelector("additem-card").FnClear();
-        //this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
-        /*flag=1;
-        this.writesupplierparam=supobj;
-		this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
-        this.$.additemwritesupplierajax.generateRequest();*/
+  		this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
       }
-     else if(e.detail.response.returnval=="duplicate entry"){
-		 //alert("old item");
-		  /* this.writesupplierparam=supobj;
-		   this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
-           this.$.additemwritesupplierajax.generateRequest();*/
-        if(localStorage.getItem("curr_sess_supplieritemsearchflag")!="1")
-        this.$.dialogpage.FnShowDialog("Item ID already exists!!","duplicate entry");
+      // Condition will invoke when duplicate item entry
+      else if(e.detail.response.returnval=="duplicate entry"){
+      if(localStorage.getItem("curr_sess_supplieritemsearchflag")!="1")
+      this.$.dialogpage.FnShowDialog("Item ID already exists!!","duplicate entry");
       }
+      // Condition will invoke when item failed to add
       else
-        this.$.dialogpage.FnShowDialog("Failed to add the item!!","");
+      this.$.dialogpage.FnShowDialog("Failed to add the item!!","");
     },
-	callItemWriteSupplierService:function(itemid,itemArray){
-		//alert(itemArray);
-		//alert(JSON.stringify(itemArray));
+	  callItemWriteSupplierService:function(itemid,itemArray){
 		var arr=itemArray;
 		arrlength=arr.length;
 		for(var i=0;i<arr.length;i++){
@@ -49679,39 +50429,32 @@ Polymer({
 			obj.itemid=itemid;
 			obj.supplierid=arr[i].supplierid;
       obj.price=arr[i].price;
-		this.writesupplierparam=obj;
-		this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
-        this.$.additemwritesupplierajax.generateRequest();
-        }
-	},
+		  this.writesupplierparam=obj;
+      // Making request to add item against the supplier
+		  this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
+      this.$.additemwritesupplierajax.generateRequest();
+    }
+	  },
     additemwritesupplierResponse:function(e){
-		//alert(e.detail.response.returnval);
-    //alert(arrlength+"  "+flag);
-
+    //Condition will invoke when item added against the supplier 
 		if(e.detail.response.returnval=="succ"){
 		flag=flag+1;
 		if(arrlength==flag){
 		alert("Item Added with supplier successfully!!");
-    //alert(localStorage.getItem("curr_sess_writesupplierfromadditem"));
-    /*if(localStorage.getItem("curr_sess_writesupplierfromadditem")=="1"){
-         window.location.href="../elements/indexhome.html";
-    }*/
-    //alert(supobj.supplierid);
+    // After adding item which shows the item added
     document.querySelector('supplier-page').setPage('Show Item');
+    // Fetching item added against the supplier
     document.querySelector('supplieritem-card').FnFetchItemInfo(supobj.supplierid,"");
-		document.querySelector('supplieradditem-card').FnSetClearFields();
+		// Clearing additem card field inforamation after adding items
+    document.querySelector('supplieradditem-card').FnSetClearFields();
+    // Clearing item search field after adding item
 		document.querySelector('itemsearch-card').FnSetClearFields();
 		flag=0;
-        //window.location.href = "indexhome.html";
-	    }
-		//this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-		//else
-		//this.$.dialogpage.FnShowDialog("Failed to add the items!!","");
+	  }
 		}
+    // Condition will invoke while making duplicate entry
 		else if(e.detail.response.returnval=="duplicate entry"){
       alert("Item already exists against this supplier!!");
-		//this.$.dialogpage.FnShowDialog("Item already exists!!","duplicate entry");
-
 		}
 	},
     //Method invokes while making req to fetch purhase type info
@@ -49719,8 +50462,10 @@ Polymer({
       this.purchasetypeurl=sessionStorage.getItem("curr_sess_url")+"additempurchasetype-service";
       this.$.purchasetypereadajax.generateRequest();
     },
+    // Method will retrieve purchase types 
     purchasetypereadResponse:function(e) {
-      var itemarray=e.detail.response.itemarr;
+    var itemarray=e.detail.response.itemarr;
+    // Purchase will be added to all the cards
     document.querySelector('additem-card').purchasearr=itemarray;
  	  document.querySelector('supplieradditem-card').purchasearr=itemarray;
     document.querySelector('customeradditem-card').purchasearr=itemarray;
@@ -49730,6 +50475,7 @@ Polymer({
       this.readurl=sessionStorage.getItem("curr_sess_url")+"additemread-service";
       this.$.additemreadajax.generateRequest();
     },
+    // Fetching item inforamtion and binding to the respective cards
     additemreadResponse:function(e) {
       var itemarray=e.detail.response.itemarr;
       document.querySelector('additem-card').itemarr=itemarray;
@@ -49741,6 +50487,7 @@ Polymer({
       this.groupurl=sessionStorage.getItem("curr_sess_url")+"additemgroupread-service";
       this.$.additemgroupreadajax.generateRequest();
     },
+    // Fectching itemgroup information an dbinding to the respective cards
     additemgroupreadResponse:function(e) {
       var itemgrouparray=e.detail.response.itemarr;
       document.querySelector('additem-card').itemgrouparr=itemgrouparray;
@@ -49752,6 +50499,7 @@ Polymer({
       this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";
       this.$.itemsupplierreadajax.generateRequest();
     },
+    // Fetching and binding supplier information 
     itemsupplierreadResponse:function(e) {
       var itemsupplierarray=e.detail.response.itemarr;
       document.querySelector('additem-card').itemsupplierarr=itemsupplierarray;
@@ -49762,12 +50510,12 @@ Polymer({
       this.containerreadurl=sessionStorage.getItem("curr_sess_url")+"containerread-service";
       this.$.containerreadajax.generateRequest();
     },
+    // Fetching and binding container information to the respective cards
     containerreadResponse:function(e) {
       var containerarray=e.detail.response.itemarr;
       if(document.querySelector('container-card')==null){}
-        else
-      document.querySelector('container-card').containerarr=containerarray;
-      //document.querySelector('supplieradditem-card').itemgrouparr=itemgrouparray;
+      else
+      document.querySelector('container-card').containerarr=containerarray;      
       document.querySelector('customeradditem-card').containerarr=containerarray;
     },
      //Method invokes while making req to fetch container info
@@ -49775,12 +50523,12 @@ Polymer({
       this.unitreadurl=sessionStorage.getItem("curr_sess_url")+"unitread-service";
       this.$.unitreadajax.generateRequest();
     },
+    //Method invokes while making req to fetch unit info
     unitreadResponse:function(e) {
       var unitarray=e.detail.response.itemarr;
       if(document.querySelector('unit-card')==null){}
-        else
-      document.querySelector('unit-card').unitarr=unitarray;
-      // document.querySelector('supplieradditem-card').itemgrouparr=itemgrouparray;
+      else
+      document.querySelector('unit-card').unitarr=unitarray;      
       document.querySelector('customeradditem-card').unitarr=unitarray;
     },
     //Method invokes while making req for fetch all the info of the currently selected item in listbox
@@ -49792,13 +50540,10 @@ Polymer({
       this.searchparam=obj;
       this.$.additemsearchajax.generateRequest();
     },
-    additemsearchResponse:function(e){
-		//alert(localStorage.getItem("curr_sess_wardflag"));
+    additemsearchResponse:function(e){		
     var arr= e.detail.response.itemarr;    
-    //alert(JSON.stringify(arr));
+    // Condition will invoke to bind the searched item info to the supplier page add itemcard
     if(localStorage.getItem("curr_sess_wardflag")=="4"){
-    //alert('4');
-    //document.querySelector('supplier-list').FnSpecificSupplierReadService(arr[0].itemid);
 	  document.querySelector("itemsearch-card").itemid=arr[0].itemid;
     document.querySelector("itemsearch-card").itemname=arr[0].itemname;
     document.querySelector("container-card").FnSetContainer(arr[0].container);
@@ -49806,9 +50551,8 @@ Polymer({
  	  document.querySelector("supplieradditem-card").FnSetItemValue(arr[0].itemid,arr[0].itemname,arr[0].itemdes,arr[0].container,arr[0].quantity,arr[0].itemtype,arr[0].itemgroup,arr[0].purchasetype);
     document.querySelector("stores-card").FnSetDefaultValue(arr[0].storeslocation);
     }
-    if(localStorage.getItem("curr_sess_wardflag")=="6"){
-    //alert('6');
-    
+    // Condition will invoke to bind the searched item info to the customer page add itemcard
+    if(localStorage.getItem("curr_sess_wardflag")=="6"){  
     document.querySelector("itemsearch-card").FnSetItemId(arr[0].itemid);
     document.querySelector("itemsearch-card").itemname=arr[0].itemname;
     document.querySelector("container-card").FnSetContainer(arr[0].container);
@@ -49816,8 +50560,8 @@ Polymer({
     document.querySelector("customeradditem-card").FnSetItemValue(arr[0].itemid,arr[0].itemname,arr[0].itemdes,arr[0].container,arr[0].quantity,arr[0].itemtype,arr[0].itemgroup,arr[0].purchasetype);
     document.querySelector("stores-card").FnSetDefaultValue(arr[0].storeslocation);
     }
-	 if(localStorage.getItem("curr_sess_wardflag")==""){
-    //alert('empty');
+    // Condition will invoke to bind the searched item info to the additem page add itemcard
+	  if(localStorage.getItem("curr_sess_wardflag")==""){    
       document.querySelector('supplier-list').FnSpecificSupplierReadService(arr[0].itemid);
       document.querySelector('customer-list').FnSpecificSupplierReadService(arr[0].itemid);
       document.querySelector("additem-card").itemid=arr[0].itemid;
@@ -49830,17 +50574,13 @@ Polymer({
       document.querySelector("stores-card").FnSetDefaultValue(arr[0].storeslocation);
       document.querySelector("additem-card").setSelectedItem(arr[0].itemtype,arr[0].itemgroup,arr[0].purchasetype);
       document.querySelector("supplier-detail").FnSetItemid(arr[0].itemid,arr[0].itemtype);
-      
 	  }
     },
     //Method invokes while making update request from item card
     callItemUpdateService:function(itemoptionalsupplier,itemsupplier,itemflag,itemid,itemname,itemdes,container,quantity,itemgroup,itemtype,storeslocation,purchasetype){
-
       var obj={
         "itemoptionalsupplier":"","itemsupplier":"","itemflag":"","itemid":"","itemname":"","itemdes":"","container":"","quantity":"","itemgroup":"","itemtype":"","storeslocation":"","purchasetype":""
       };
-      //obj.itemoptionalsupplier=itemoptionalsupplier,
-      //obj.itemsupplier=itemsupplier;
       obj.itemflag=itemflag;
       obj.itemid=itemid;
       obj.itemname=itemname;
@@ -49851,34 +50591,24 @@ Polymer({
       obj.itemtype=itemtype;
       obj.storeslocation=storeslocation;
       obj.purchasetype=purchasetype;
-
       this.updateparam=obj;
       this.updateurl=sessionStorage.getItem("curr_sess_url")+"additemupdate-service";
       this.$.additemupdateajax.generateRequest();
     },
     //Response for item update req
     additemupdateResponse:function(e){
-
       if(e.detail.response.returnval=="succ"){
-        //document.querySelector("additem-card").FnBtnDisable();
-        //document.querySelector("additem-card").FnClear();
-        //document.querySelector("viewtype-card").FnEnableEdit();
-        this.$.dialogpage.FnShowDialog("Item updated successfully!!","");
-       // window.location.href = "indexhome.html";
+        this.$.dialogpage.FnShowDialog("Item updated successfully!!","");       
       }
       else
         this.$.dialogpage.FnShowDialog("Failed to update the item!!","");
     },
-      //Method invokes while making write req from the additem card
+    //Method invokes while making write req from the additem card
     callCustomerItemWriteService:function(itemoptionalsupplier,itemsupplier,itemflag,itemid,itemname,itemdes,container,quantity,itemgroup,itemtype,storeslocation,purchasetype){
-    //alert("yes");
-
     var obj={
       "itemoptionalsupplier" :"","itemsupplier" :"","itemflag":"","itemid":"","itemname":"","itemdes":"","container":"","quantity":"","itemgroup":"","itemtype":"","storeslocation":"","purchasetype":""
     };
-     supobj={"supplierid" :""};
-      //obj.itemoptionalsupplier=itemoptionalsupplier,
-      //obj.itemsupplier=itemsupplier;
+      supobj={"supplierid" :""};
       obj.itemflag=itemflag;
       obj.itemid=itemid;
       obj.itemname=itemname;
@@ -49889,56 +50619,43 @@ Polymer({
       obj.itemtype=itemtype;
       obj.storeslocation=storeslocation;
       obj.purchasetype=purchasetype;
-      //alert(JSON.stringify(obj));
+      // Adding customer against the item
       if(localStorage.getItem("curr_sess_additemcustomerwrite")=="1"){
       supobj.supplierid=itemoptionalsupplier;
+      // Adding customer against the item who is not already attached to the item
       if(suparr.length>0){
-      for(var i=0;i<suparr.length;i++){
-      //alert(supobj.supplierid+"  "+suparr[i].supplierid);
+      for(var i=0;i<suparr.length;i++){      
       if((supobj.supplierid)!=(suparr[i].supplierid))
       suparr.push(supobj);
-    }
+      }
       }
       else
       {
-    suparr.push(supobj);
-    }
+      suparr.push(supobj);
+      }
+      // Calling service to write the customer against the item
       this.callItemWriteCustomerService(itemid,suparr);
       }
       this.customerparam=obj;
+      // Function will make request to additem against
       this.customerurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
       this.$.addcustomeritemwriteajax.generateRequest();
     },
     //Response receiving after making write request
     addcustomeritemwriteResponse:function(e){
-
+      // Condition will invoke when added item successfully
       if(e.detail.response.returnval=="succ"){
-    //alert("Item saved successfully!!");
-    //document.querySelector('admin-page').setPage('supplier-detail');
-    this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
-    //alert("new item");
-        //document.querySelector("additem-card").FnBtnDisable();
-        //document.querySelector("additem-card").FnClear();
-        //this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
-        /*flag=1;
-        this.writesupplierparam=supobj;
-    this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
-        this.$.additemwritesupplierajax.generateRequest();*/
+      this.$.dialogpage.FnShowDialog("Item saved successfully!!","");
       }
-     else if(e.detail.response.returnval=="duplicate entry"){
-     //alert("old item");
-      /* this.writesupplierparam=supobj;
-       this.writesupplierurl=sessionStorage.getItem("curr_sess_url")+"additemsupplier-service";
-           this.$.additemwritesupplierajax.generateRequest();*/
-        if(localStorage.getItem("curr_sess_supplieritemsearchflag")!="1")
-        this.$.dialogpage.FnShowDialog("Item ID already exists!!","duplicate entry");
+      // Condition will invoke when found duplicate item 
+      else if(e.detail.response.returnval=="duplicate entry"){
+      if(localStorage.getItem("curr_sess_supplieritemsearchflag")!="1")
+      this.$.dialogpage.FnShowDialog("Item ID already exists!!","duplicate entry");
       }
       else
-        this.$.dialogpage.FnShowDialog("Failed to add the item!!","");
+      this.$.dialogpage.FnShowDialog("Failed to add the item!!","");
     },
-  callItemWriteCustomerService:function(itemid,itemArray){
-    //alert(itemid);
-    //alert(JSON.stringify(itemArray));
+    callItemWriteCustomerService:function(itemid,itemArray){
     var arr=itemArray;
     arrlength=arr.length;
     for(var i=0;i<arr.length;i++){
@@ -49946,38 +50663,28 @@ Polymer({
       obj.itemid=itemid;
       obj.supplierid=arr[i].supplierid;
       this.writecustomerparam=obj;
+      // Making request to the service to add item against the customer
       this.writecustomerurl=sessionStorage.getItem("curr_sess_url")+"additemcustomer-service";
       this.$.additemwritecustomerajax.generateRequest();
     }
-  },
+    },
     additemwritecustomerResponse:function(e){
-    //alert(e.detail.response.returnval);
-    //alert(arrlength+"  "+flag);
-
     if(e.detail.response.returnval=="succ"){
     flag=flag+1;
     if(arrlength==flag){
     alert("Item Added with customer successfully!!");
-    //alert(localStorage.getItem("curr_sess_writesupplierfromadditem"));
-    /*if(localStorage.getItem("curr_sess_writesupplierfromadditem")=="1"){
-         window.location.href="../elements/indexhome.html";
-    }*/
-    //alert(supobj.supplierid);
+    // After successful adding of customer showing the previously added customer to that item
     document.querySelector('customer-page').setPage('Show Item');
+    // Fetching already added customer info against the item
     document.querySelector('customeritem-card').FnFetchItemInfo(supobj.supplierid,"");
+    // Clearing fields after adding the item
     document.querySelector('customeradditem-card').FnSetClearFields();
     document.querySelector('itemsearch-card').FnSetClearFields();
-    flag=0;
-        //window.location.href = "indexhome.html";
-      }
-    //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-    //else
-    //this.$.dialogpage.FnShowDialog("Failed to add the items!!","");
+    flag=0;        
+    }
     }
     else if(e.detail.response.returnval=="duplicate entry"){
       alert("Item already exists against this customer!!");
-    //this.$.dialogpage.FnShowDialog("Item already exists!!","duplicate entry");
-
     }
   },
   callCustomerSupplierService:function(itemid,itemtype){
@@ -49985,58 +50692,55 @@ Polymer({
     obj.itemid=itemid;
     obj.itemtype=itemtype;
     this.customersupplierparam=obj;
-    this.customersupplierurl=sessionStorage.getItem("curr_sess_url")+"customersupplier-service";    
+    this.customersupplierurl=sessionStorage.getItem("curr_sess_url")+"customersupplier-service";
     this.$.customersupplierajax.generateRequest();
   },
-  customersupplierResponse:function(e){
-    //alert(JSON.stringify(e.detail.response));
+  customersupplierResponse:function(e){    
     if(e.detail.response.returntype=="FG"){
       document.querySelector('customersupplier-card').itemCusArray=e.detail.response.itemarr;
     }
     else{
       document.querySelector('customersupplier-card').itemSupArray=e.detail.response.itemarr;
     }
-    
+
   },
+  // Method to delete the supplier who already attached with the item
   calldeleteitemsupplierService:function(itemid,supplierid){
     var obj={"supplierid":"","itemid":""};
     obj.itemid=itemid;
     obj.supplierid=supplierid;
     this.deleteitemsupplierparam=obj;
-    this.deleteitemsupplierurl=sessionStorage.getItem("curr_sess_url")+"deleteitemsupplier-service";    
+    this.deleteitemsupplierurl=sessionStorage.getItem("curr_sess_url")+"deleteitemsupplier-service";
     this.$.deleteitemsupplierajax.generateRequest();
   },
   deleteitemsupplierResponse:function(e){
-    alert(e.detail.response.itemarr);  
-    //document.querySelector('apphome-page').setPage('admin-page'); 
-    //document.querySelector('admin-page').setPage('supplier-detail');
+    alert(e.detail.response.itemarr);
   },
+  // Method to update the price against the each supplier for that item
   callupdateitempricesupplierService:function(itemid,supplierid,supplierprice){
     var obj={"supplierid":"","itemid":"","supplierprice":""};
     obj.itemid=itemid;
     obj.supplierid=supplierid;
     obj.supplierprice=supplierprice;
     this.updateitempricesupplierparam=obj;
-    this.updateitempricesupplierurl=sessionStorage.getItem("curr_sess_url")+"updateitempricesupplier-service";    
+    this.updateitempricesupplierurl=sessionStorage.getItem("curr_sess_url")+"updateitempricesupplier-service";
     this.$.updateitempricesupplierajax.generateRequest();
   },
   updateitempricesupplierResponse:function(e){
     alert(JSON.stringify(e.detail.response.itemarr));
   },
+  // Method to delete the customer who already attached against the item
    calldeleteitemcustomerService:function(itemid,customerid){
     var obj={"customerid":"","itemid":""};
     obj.itemid=itemid;
     obj.customerid=customerid;
     this.deleteitemcustomerparam=obj;
-    this.deleteitemcustomerurl=sessionStorage.getItem("curr_sess_url")+"deleteitemcustomer-service";    
+    this.deleteitemcustomerurl=sessionStorage.getItem("curr_sess_url")+"deleteitemcustomer-service";
     this.$.deleteitemcustomerajax.generateRequest();
   },
   deleteitemcustomerResponse:function(e){
-    alert(e.detail.response.itemarr);  
-    //document.querySelector('apphome-page').setPage('admin-page'); 
-    //document.querySelector('admin-page').setPage('supplier-detail');
+    alert(e.detail.response.itemarr);
   }
-
   });
 })();
 /**
@@ -50191,11 +50895,11 @@ Polymer({
         this.$.storeslist.style.width='150%';
       }
     this.querySelector('#storeslist').style.visibility = 'hidden';
-    this.storesurl=sessionStorage.getItem("curr_sess_url")+"itemstoresread-service";     
+    this.storesurl=sessionStorage.getItem("curr_sess_url")+"itemstoresread-service";
     },
     //Method to toggle supplier names readonly or non editable
     FnEnableFields:function(enableflag){
-    this.read=enableflag;    
+    this.read=enableflag;
     },
     FnSetDefaultValue:function(storesid){
       //alert(storesid);
@@ -50203,8 +50907,10 @@ Polymer({
         if(item[i].Store_Location_ID==storesid){
           this.value=item[i].Store_Location_Name;
           document.querySelector('additem-card').FnSetStoresInfo(item,storesid);
+          document.querySelector('supplieradditem-card').FnSetStoresInfo(item,storesid);
+          document.querySelector('supplieradditem-card').FnSetStoresInfo(item,storesid);
         }
-      }      
+      }
     },
     //Funtion invokes when selecting item in dropdown
     FnItemSelected:function(e){
@@ -50212,7 +50918,7 @@ Polymer({
         this.value = e.target.selectedItem.textContent.trim();
         for(var i=0;i<item.length;i++){
           if(this.value==item[i].Store_Location_Name)
-            storesid=item[i].Store_Location_ID;          
+            storesid=item[i].Store_Location_ID;
         }
         if(localStorage.getItem("curr_sess_wardflag") == ""){
         document.querySelector('additem-card').FnSetStoresInfo(item,storesid);
@@ -50226,18 +50932,18 @@ Polymer({
         this.querySelector('#storeslist').style.visibility = 'hidden';
         this.querySelector('#storeslist').selected=-1;
         this.itemArray="";
-      } 
+      }
       else
       {
         this.querySelector('#storeslist').style.visibility = 'hidden';
-        this.querySelector('#storeslist').selected=-1; 
+        this.querySelector('#storeslist').selected=-1;
         this.itemArray="";
-      }   
+      }
     },
-    
+
     //Function invokes when item value changes in input box to show the relevent items
     FnInputChanged:function(e){
-        localStorage.setItem("curr_sess_storeschangeflag","1"); 
+        localStorage.setItem("curr_sess_storeschangeflag","1");
         if (e.keyCode == 13 || e.keyCode == 40)
           this.querySelector('#storeslist').focus();
         var arr = [];
@@ -50309,8 +51015,8 @@ Polymer({
     },
     //Fetches and binding to the auto complete dropdown list dynamically
     itemstoresreadResponse:function(e) {
-       item=e.detail.response.itemarr; 
-       //alert(JSON.stringify(item));      
+       item=e.detail.response.itemarr;
+       //alert(JSON.stringify(item));
     },
     FnValidate:function(){
       this.$.stores.validate();
@@ -50325,38 +51031,36 @@ Polymer({
 
     Polymer({
       is: 'container-card',
+    // Function which read the container information
     ready:function(){
       this.containertype=this.container;
       this.$.adminservice.callContainerReadService();
     },
+    // Function which invoke when changing container and binding container to the corresponding card
     FnSelectcontainer:function(e){
       document.querySelector('additem-card').FnContainerChange((e.target.selectedItem.textContent).trim());
       document.querySelector('supplieradditem-card').FnContainerChange((e.target.selectedItem.textContent).trim());
-      
     },
+    // Function which set the container while search for an item info in additem,supplieritem or customer item page
     FnSetContainer:function(container){
-      //alert(container);
       this.containertype=container;
     }
     });
   })();
 (function() {
     'use strict';
-
     Polymer({
       is: 'unit-card',
     ready:function(){
     this.$.adminservice.callUnitReadService();
     },
-    FnSelectunit:function(e){      
+    // Fun which bind unit to the corresponding card
+    FnSelectunit:function(e){
     document.querySelector('additem-card').FnQuantityChange((e.target.selectedItem.textContent).trim());
     document.querySelector('supplieradditem-card').FnQuantityChange((e.target.selectedItem.textContent).trim());
-    
     },
     FnSetQuantity:function(unit){
-      //alert(unit);
-      this.unittype=unit;
-      //alert(this.unittype);
+      this.unittype=unit;      
     }
     });
   })();
@@ -50369,7 +51073,7 @@ Polymer({
   is: "additem-card",
   ready:function()
   {
-
+    // Initial resetting of the parameters
     this.itemid="";
     this.itemname="";
     this.container="";
@@ -50516,12 +51220,10 @@ Polymer({
       this.querySelector('#searchid').style.visibility = 'visible';
       var arr = [];
       arr.push({"itemid": "-----Select-----"});
-      var item = e.detail.response.itemarr;
-      //alert(this.itemval);
+      var item = e.detail.response.itemarr;      
       if (this.itemid.length > 0) {
         for (var i = 0; i < item.length; i++) {
           var subval = ((item[i].itemid).trim()).substring(0, this.itemid.length);
-
           if ((subval).toLowerCase() == (this.itemid).toLowerCase()) {
             var obj = {"itemid": ""};
             obj.itemid = item[i].itemid;
@@ -50562,7 +51264,7 @@ Polymer({
         this.$.adminservice.callSearchService(this.itemid, "");
       }
     }
-    else   {
+    else{
       this.read=false;
       this.itemidArray="";
       this.querySelector('#searchid').style.visibility='hidden';
@@ -50570,12 +51272,10 @@ Polymer({
     }
   },
   //Function which invokes when selecting item type name in dropdown
-  FnItemSelected:function(e){
-    
+  FnItemSelected:function(e){    
     //if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
     if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
       this.itemname = e.target.selectedItem.textContent.trim();
-
       //Making invisible and deselection in dropdown of item name search list box
       this.querySelector('#searchname').style.visibility='hidden';
       this.querySelector('#searchname').selected=-1;
@@ -50585,8 +51285,8 @@ Polymer({
         this.$.adminservice.callSearchService("", this.itemname);
       }
     }
-    else   {
-      this.read=false;
+    else{
+    this.read=false;
     this.itemArray="";
     this.querySelector('#searchname').style.visibility='hidden';
     this.querySelector('#searchname').selected=-1;
@@ -50601,7 +51301,7 @@ Polymer({
     for(var i=0;i<itemarray.length;i++)
     {
        if(itemarray[i].itemtypename==this.itemtypename) {
-        this.itemtype = itemarray[i].itemtypeid;
+         this.itemtype = itemarray[i].itemtypeid;
       }
     }
   },
@@ -50621,34 +51321,21 @@ Polymer({
   },
   //Method invokes to fetch item supplier id of the currently selected supplier name in dropdown
   FnSelectSupplier:function(supplierid,suppliername){
-    //Flag is used to identify the supplier name drop down change and it is later refered in update mode
-/*    localStorage.setItem("curr_sess_supplierchangeflag","1");
-    this.itemsuppliername=suppliername;
-    this.itemsupplier=supplierid;*/
   },
   //Method invokes to fetch optional item supplier id of the currently selected optional supplier name in dropdown
   FnSelectOptionalSupplier:function(supplierid,suppliername){
-    //Flag is used to identify the optional supplier name drop down change and it is later refered in update mode
-   /* localStorage.setItem("curr_sess_optionalsupplierchangeflag","1");
-    this.itemoptionalsuppliername=suppliername;
-    this.itemoptionalsupplier=supplierid;*/
   },
   //Function invokes when performing save button click
   FnAddItemInfoSubmit:function()
   {
-
     //Fields mandatory validation performing here
     document.querySelector('#itemid').validate();
     document.querySelector('#itemname').validate();
     document.querySelector('#itemdes').validate();
-    //document.querySelector('#container').validate();
-    //document.querySelector('#quantity').validate();
     document.querySelector('#dropitemtype').validate();
     document.querySelector('#dropgrouptype').validate();
-    //document.querySelector('supplier-list').FnValidate();
   //Fetching selected radio button value
   var purchasetype=document.querySelector('#radio').selected;
-
   if(this.container==null||this.container==""||this.quantity==null||this.quantity==""||this.itemid==null||this.itemid==""||this.itemname==null||this.itemname==""||this.itemdes==null||this.itemdes==""||this.itemgroup==null||this.itemgroup==""||this.itemtype==null||this.itemtype==""||purchasetype==""||purchasetype==null){
   }
     else {
@@ -50656,28 +51343,14 @@ Polymer({
     for(var i=0;i<this.purchasearr.length;i++)
     if(document.querySelector('#radio').selected==this.purchasearr[i].purchasetypename)
     this.itemflag=this.purchasearr[i].purchasetypeid;
-
     //While upadting if not changing item type name it would fetch item type id
     if(localStorage.getItem("curr_sess_itemtypechangeflag")!="1"){
-
       this.itemtype=localStorage.getItem("curr_sess_ItemTypeId");
     }
     //While upadting if not changing item group name it would fetch item group id
     if(localStorage.getItem("curr_sess_grouptypechangeflag")!="1"){
-
       this.itemgroup=localStorage.getItem("curr_sess_ItemTypeGroup");
     }
-    //While upadting if not changing item supplier name it would fetch item supplier id
-    /*if(localStorage.getItem("curr_sess_supplierchangeflag")!="1"){
-
-      this.itemsupplier=localStorage.getItem("curr_sess_ItemTypeSupplier");
-    }
-    //While upadting if not changing item supplier name it would fetch item supplier id
-    if(localStorage.getItem("curr_sess_optionalsupplierchangeflag")!="1"){
-
-      this.itemoptionalsupplier=localStorage.getItem("curr_sess_ItemTypeOptionalSupplier");
-    }*/
-
     //Condition will invoke and calling save service by ensuring the searchflag is 0,if it is 0 it would in create mode
     if(localStorage.getItem("curr_sess_searchitemflag")=="0") {
       //Calling dialog ensure  the save item details
@@ -50693,8 +51366,6 @@ Polymer({
     }
     localStorage.setItem("curr_sess_ItemTypeId","");
     localStorage.setItem("curr_sess_ItemTypeGroup","");
-    //localStorage.setItem("curr_sess_ItemTypeSupplier","");
-    //localStorage.setItem("curr_sess_ItemTypeOptionalSupplier","");
   },
   FnSetStoresInfo:function(storesarr,storesid){    
     this.storesarr=storesarr;
@@ -50702,11 +51373,8 @@ Polymer({
   },
   //Clearing fields after save / edit
   FnClear:function(){
-
     localStorage.setItem("curr_sess_ItemTypeId","");
     localStorage.setItem("curr_sess_ItemTypeGroup","");
-    //localStorage.setItem("curr_sess_ItemTypeSupplier","");
-    //localStorage.setItem("curr_sess_ItemTypeOptionalSupplier","");
   },
   //Function to diable Save button,once after search or save
   FnBtnDisable:function(){
@@ -50718,28 +51386,25 @@ Polymer({
     localStorage.setItem("curr_sess_storeschangeflag","0");
     localStorage.setItem("curr_sess_itemtypechangeflag","0");
     localStorage.setItem("curr_sess_grouptypechangeflag","0");
-    //localStorage.setItem("curr_sess_supplierchangeflag","0");
-    //localStorage.setItem("curr_sess_optionalsupplierchangeflag","0");
     localStorage.setItem("curr_sess_itemidflag","0");
     localStorage.setItem("curr_sess_itemnameflag","0");
     localStorage.setItem("curr_sess_itemdesflag","0");
     localStorage.setItem("curr_sess_itemcontainerflag","0");
     localStorage.setItem("curr_sess_itemquantityflag","0");
     localStorage.setItem("curr_sess_itempurchasetypeflag","0");
-
     this.read=false;
+    // Functions to call the methods of corresponding card to enable the fields
     document.querySelector('stores-card').FnEnableFields(false);
     document.querySelector('supplier-list').FnEnableFields(false);
     this.Btn_disable_flag=false;
-    document.querySelector('#save').style.backgroundColor='#3d6868';
+    // Changing Button color
+    document.querySelector('#save').style.backgroundColor='#A0A0A0';
   },
   //Function to set selected item info like itemtype name,itemgroup name once after click on search icon
   setSelectedItem:function(itemtype,itemgroup,selection){
     //Setting itemid,group and supplier info in local storage
     localStorage.setItem("curr_sess_ItemTypeId",itemtype);
     localStorage.setItem("curr_sess_ItemTypeGroup",itemgroup);
-    //localStorage.setItem("curr_sess_ItemTypeSupplier",itemsupplier);
-    //localStorage.setItem("curr_sess_ItemTypeOptionalSupplier",itemoptionalsupplier);
     for(var i=0;i<this.itemarr.length;i++){
       if(this.itemarr[i].itemtypeid==itemtype)
         this.itemtype=this.itemarr[i].itemtypename;
@@ -50748,43 +51413,23 @@ Polymer({
       if(this.itemgrouparr[i].itemgroupid==itemgroup)
         this.itemgroup=this.itemgrouparr[i].itemgroupname;
     }
-    /*for(var i=0;i<this.itemsupplierarr.length;i++){
-      if(this.itemsupplierarr[i].itemsupplierid==itemsupplier)
-        this.itemsupplier=this.itemsupplierarr[i].itemsuppliername;
-    }
-    for(var i=0;i<this.itemoptionalsupplierarr.length;i++){
-      if(this.itemoptionalsupplierarr[i].itemsupplierid==itemoptionalsupplier) {
-        this.itemoptionalsupplier = this.itemoptionalsupplierarr[i].itemsuppliername;
-      }
-    }*/
     for(var i=0;i<this.purchasearr.length;i++){
       if(this.purchasearr[i].purchasetypeid==selection)
         this.selection=this.purchasearr[i].purchasetypename;
     }
-    //alert(this.itemsupplier+" "+this.itemoptionalsupplier);
-    /*if(itemoptionalsupplier=="")
-      document.querySelector("supplier-list").setDefaultValue(this.itemsupplier,"");
-    else
-    document.querySelector("supplier-list").setDefaultValue(this.itemsupplier,this.itemoptionalsupplier);*/
-    //this.selection=selection;
   },
   FnSetValue:function(suppliername,supplierid){
-	//alert(suppliername+"  "+supplierid);
-	 //this.itemsupplier=suppliername;
-	 //alert(document.querySelector('supplier-list'));
-	 //this.$.supplier.setDefaultValue(suppliername);
   }
 });
 (function() {
     'use strict';
-
     Polymer({
       is: 'itemprice-card',
-
-     ready:function(){
-
-     },
-    FnInputChanged:function(){   
+    ready:function(){
+      this.price="";
+    },
+    // Functiom which invoke while changing the item price and binding to the respoective cards
+    FnInputChanged:function(){
     document.querySelector('supplier-detail').FnSetPrice(this.price);
     document.querySelector('supplieradditem-card').FnSetPrice(this.price);
     }
@@ -50805,24 +51450,23 @@ Polymer({
         this.hideedit=true;
         this.hidesave=false;
       },
+      // Function which update theitem price of the item which attached against the supplier
       FnSave:function(){
         this.$.adminservice.callupdateitempricesupplierService(this.itemid,this.supplierid,this.supplierprice);
       },
+      // Function which delete the supplier who attached againt the item
       FnDelete:function(e){
-        this.$.adminservice.calldeleteitemsupplierService(this.itemid,this.supplierid);
-        //alert(this.itemid+" "+this.supplierid);
+        this.$.adminservice.calldeleteitemsupplierService(this.itemid,this.supplierid);        
       }
     });
   })();
 (function() {
     'use strict';
-
     Polymer({
       is: 'itemattachedcustomer-card',
-
      ready:function(){
-
      },
+     // Function to delete the customer who attached against the item
      FnDelete:function(e){
         this.$.adminservice.calldeleteitemcustomerService(this.itemid,this.customerid);
      }
@@ -50836,7 +51480,7 @@ Polymer({
         this.read=true;
       },
       FnSetcussupItemId:function(itemid,itemtype){
-        //alert(itemid);
+        // Fn to fetch the customer/supplier attached to the item
         this.$.adminservice.callCustomerSupplierService(itemid,itemtype);
       }
     });
@@ -50854,13 +51498,11 @@ Polymer({
 	 this.hidesupplier=true;
 	 this.idd=0;
 	 this.price="";
-	 //this.hideprice=false;	 
+	 	 
 	 localStorage.setItem("curr_sess_unitset",this.idd);
 	 localStorage.setItem("curr_sess_addsupplierforitem","0");
 	 localStorage.setItem("curr_sess_addcustomerforitem","0");
-	 //document.querySelector('#addsupplier').checked=true;
-	 //alert(itemtype);
-	 
+
 	 if(itemtype!="FG"){
 	 	localStorage.setItem("curr_sess_addsupplierforitem","1");
 	 	this.hidesupplier=false;
@@ -50873,50 +51515,33 @@ Polymer({
 	 this.supArray=[{id:this.idd,supname:'',price:''}];
      this.splice('supArray',1,1);
 	 },
-	 /*FnChooseSupplier:function(e){
-	 	localStorage.setItem("curr_sess_addsupplierforitem","1");
-		this.hidecustomer=true;
-	 	this.hidesupplier=false;
-	 },
-	 FnChooseCustomer:function(e){
-	 	//this.hideprice=true;
-	 	document.querySelector('#addsupplier').checked=false;
-	 	localStorage.setItem("curr_sess_addcustomerforitem","1");
-		this.hidecustomer=false;
-	 	this.hidesupplier=true;
-	 },*/
-	
+	 //Function which invokes while adding supplier 
      FnAddSupplier:function(){
-     	//alert(itemArray.length);
-     	//alert("halo"+this.price);
-     	itemArray[(itemArray.length)-1].price=this.price;
-     	//alert(JSON.stringify(itemArray));
-     	//this.idd=parseInt(this.idd)+1;
-     	// alert(this.idd);
-    	
-		this.push('supArray', {id: this.idd, supname: '',price:''});
-		
+     	itemArray[(itemArray.length)-1].price=this.price;	
+		this.push('supArray', {id: this.idd, supname: '',price:''});		
 	 },
-	 FnSaveSupplier:function(){
-	 	//localStorage.setItem("curr_sess_writesupplierfromadditem","1");
+	 // Function which add supplier/customer
+	 FnSaveSupplier:function(){	 	
 	 	if(localStorage.getItem("curr_sess_addsupplierforitem")=="1"){
 	 	itemArray[(itemArray.length)-1].price=this.price;
+	 	// Function which calls service to add supplier
 		document.querySelector('admin-service').callItemWriteSupplierService(itemid,itemArray);
 		}
 		else if(localStorage.getItem("curr_sess_addcustomerforitem")=="1")
+		// Function which calls service to add customer
 		document.querySelector('admin-service').callItemWriteCustomerService(itemid,itemArray);	
 		else
 		alert("unable to add supplier");
 		this.FnBtnDisable();
 	 },
+	 // Function which invoke while selecting supplier
 	 FnSelectSupplier:function(supplierid,suppliername){
 		 var obj={"supplierid":"","suppliername":"","price":""};
 		 obj.supplierid=supplierid;
-		 obj.suppliername=suppliername;
-		 
-		 itemArray.push(obj);
-		 // alert(JSON.stringify(itemArray));
+		 obj.suppliername=suppliername;		 
+		 itemArray.push(obj);		 
 	 },
+	 // Function which invoke while selecting customer
 	 FnSelectCustomer:function(cusid,cusname){
 	     var obj={"supplierid":"","suppliername":""};
 		 obj.supplierid=cusid;
@@ -50933,9 +51558,8 @@ Polymer({
       	 document.querySelector('#add').style.backgroundColor='grey';
      	 this.Btn_disable_flag=true;
     },
-     FnSetPrice:function(price){
-    	//alert(price);
-    	this.price=price;
+     FnSetPrice:function(price){    
+    	 this.price=price;
     }
     });
   })();
@@ -53372,18 +53996,13 @@ window.CustomElements.addModule(function(scope) {
 /**
  * Created by praba on 2/12/2016.
  */
-
-//JS file for the home-page
+//JS file for the admin-page
 Polymer({
   is: "admin-page",
   ready:function()
   {
-    localStorage.setItem("curr_sess_showpage","additem-card");
-    //if(localStorage.getItem("curr_sess_showpage")=="additem-card")
+    localStorage.setItem("curr_sess_showpage","additem-card");    
     this.page="additem-card";
-    //if(localStorage.getItem("curr_sess_showpage")=="addsupplier-card")
-    //this.page="addsupplier-card";
-
   },
   //Method to change the page view in base page ie home page
   setPage:function(page)
@@ -53398,19 +54017,24 @@ Polymer({
 /**
  * Created by praba on 2/26/2016.
  */
+ // JS component for adminsupplier-service
 (function() {
 	var supplierid;
    var obj1;
   var obj2;
   var obj3;
+  var obj4;
+  var obj5;
+  var obj6;
   var approvesupplierarr=[];
   Polymer({
     is: "adminsupplier-service",
     ready: function () {
 
     },
-    callSearchService:function(supplierid,suppliername){
-	  this.supplierreadurl=sessionStorage.getItem("curr_sess_url")+"readsupplierinfo-service";
+  //Method which make req to fetch the supplier information while searching 
+  callSearchService:function(supplierid,suppliername){
+	    this.supplierreadurl=sessionStorage.getItem("curr_sess_url")+"readsupplierinfo-service";
       var obj={"supplierid":"","suppliername":""};
       obj.supplierid=supplierid;
       obj.suppliername=suppliername;
@@ -53419,69 +54043,121 @@ Polymer({
 	},
 	readsupplierResponse:function(e){
 		var arr= e.detail.response.itemarr;
-		//alert(JSON.stringify(arr));
-		document.querySelector("addsupplier-card").supplierid=arr[0].supplierid;
-		document.querySelector("addsupplier-card").suppliername=arr[0].suppliername;
-		document.querySelector("addsupplier-card").landmark=arr[0].landmark;
-		document.querySelector("addsupplier-card").location=arr[0].location;
-        document.querySelector("addsupplier-card").city=arr[0].city;
-        document.querySelector("addsupplier-card").district=arr[0].district;
-        document.querySelector("addsupplier-card").state=arr[0].state;
-        document.querySelector("addsupplier-card").country=arr[0].country;
-        document.querySelector("addsupplier-card").pincode=arr[0].pincode;
-        document.querySelector("addsupplier-card").phoneno=arr[0].phoneno;
-        document.querySelector("addsupplier-card").mobileno=arr[0].mobileno;
-        document.querySelector("addsupplier-card").emailid=arr[0].emailid;
-        //To call show item card when click item detail tab after add supplier page
-        document.querySelector("supplieradditem-card").FnSetValue(arr[0].supplierid,arr[0].suppliername);
-        document.querySelector("supplieritem-card").FnFetchItemInfo(arr[0].supplierid,arr[0].suppliername);
+    localStorage.setItem('curr_sess_supplierloggedid',arr[0].Supplier_ID);
+    // Method which bind the searched supplier information to the supplier card
+    document.querySelector("addsupplier-card").suppliername=arr[0].Supplier_Name;
+    document.querySelector("addsupplier-card").aliasname=arr[0].Alias_Name;
+    document.querySelector("addsupplier-card").address1=arr[0].Address1;
+    document.querySelector("addsupplier-card").address2=arr[0].Address2;
+    document.querySelector("addsupplier-card").doorno=arr[0].Doorno;
+    document.querySelector("addsupplier-card").streetno=arr[0].Streetno;
+    document.querySelector("addsupplier-card").streetname=arr[0].Street_Name;
+    document.querySelector("addsupplier-card").location=arr[0].Location;
+    document.querySelector("addsupplier-card").city=arr[0].City;
+    document.querySelector("addsupplier-card").district=arr[0].District;
+    document.querySelector("addsupplier-card").state=arr[0].State;
+    document.querySelector("addsupplier-card").country=arr[0].Country;
+    document.querySelector("addsupplier-card").pincode=arr[0].Pincode;
+    document.querySelector("addsupplier-card").phoneno=arr[0].Phoneno;
+    document.querySelector("addsupplier-card").mobileno=arr[0].Mobileno;
+    document.querySelector("addsupplier-card").emailid=arr[0].Email;
+    document.querySelector("addsupplier-card").faxno=arr[0].Faxno;
+    document.querySelector("addsupplier-card").website=arr[0].Website;
+    //To call show item card when click item detail tab after add supplier page
+    document.querySelector("supplieradditem-card").FnSetValue(arr[0].Supplier_ID,arr[0].Supplier_Name);
+    document.querySelector("supplieritem-card").FnFetchItemInfo(arr[0].Supplier_ID,arr[0].Supplier_Name);
 	},
-	callPaymentService:function(supid,supname){
+  // Method which make request to search the payment information of the searched supplier
+	callPaymentService:function(){
 		this.paymentreadurl=sessionStorage.getItem("curr_sess_url")+"readpaymentinfo-service";
-		      var obj={"supplierid":"","suppliername":""};
-		      obj.supplierid=supid;
-		      obj.suppliername=supname;
-		      this.paymentreadparam=obj;
-      this.$.readpaymentajax.generateRequest();
+		var obj={"supplierid":"","suppliername":""};
+		obj.supplierid=localStorage.getItem('curr_sess_supplierloggedid');		      
+		this.paymentreadparam=obj;
+    this.$.readpaymentajax.generateRequest();
 	},
 	readpaymentResponse:function(e){
 		var arr= e.detail.response.itemarr;
-	    document.querySelector("payment-card").paymenttype=arr[0].paymenttype;
-	    document.querySelector("payment-card").bankname=arr[0].bankname;
-	    document.querySelector("payment-card").accountno=arr[0].accountno;
-	    document.querySelector("payment-card").address=arr[0].address;
-	    document.querySelector("payment-card").term=arr[0].paymentterm;
-	    document.querySelector("payment-card"). setSelectType(arr[0].paymenttype,arr[0].paymentterm);
-
+    // Binding payment information of the searched supplier to payment card 
+    document.querySelector("payment-card").accountname=arr[0].Account_Name;
+    document.querySelector("payment-card").accountno=arr[0].Account_No;
+    document.querySelector("payment-card").accounttype=arr[0].Account_Type;
+    document.querySelector("payment-card").paymenttype=arr[0].Payment_Type;
+    document.querySelector("payment-card").bankname=arr[0].Bank_Name;
+    document.querySelector("payment-card").branch=arr[0].Branch;
+    document.querySelector("payment-card").ifsccode=arr[0].IFSC_Code;
+    document.querySelector("payment-card").micrcode=arr[0].MICR_Code;
+    document.querySelector("payment-card").swiftcode=arr[0].Swift_Code;
+    document.querySelector("payment-card").term=arr[0].Payment_Term;
+    document.querySelector("payment-card"). setSelectType(arr[0].Payment_Type,arr[0].Payment_Term);
 	},
-    callItemService:function(supplierid){
-	this.itemreadurl=sessionStorage.getItem("curr_sess_url")+"readiteminfo-service";
-		      var obj={"supplierid":""};
-		      this.supplierid=supplierid;
-		      obj.supplierid=supplierid;
-		      this.itemreadparam=obj;
-      this.$.readitemajax.generateRequest();
-    },
-    readitemResponse:function(e){
+  // Fetching item information against the supplier
+  callItemService:function(supplierid){
+    this.itemreadurl=sessionStorage.getItem("curr_sess_url")+"readiteminfo-service";
+	  var obj={"supplierid":""};
+	  this.supplierid=supplierid;
+	  obj.supplierid=supplierid;
+	  this.itemreadparam=obj;
+    this.$.readitemajax.generateRequest();
+  },
+  readitemResponse:function(e){
 			var arr= e.detail.response.itemarr;
-			//alert(JSON.stringify(arr));
 			if(this.supplierid!="")
-		    document.querySelector("supplieritem-card").itemArray=arr;
-		    /*document.querySelector("payment-card").bankname=arr[0].bankname;
-		    document.querySelector("payment-card").accountno=arr[0].accountno;
-		    document.querySelector("payment-card").address=arr[0].address;
-		    document.querySelector("payment-card").selection=arr[0].paymentterm;
-		    document.querySelector("payment-card"). setSelectType(arr[0].paymenttype,arr[0].paymentterm);*/
-
+	    document.querySelector("supplieritem-card").itemArray=arr;
 	},
-    addsupplierService:function(supplieridd,suppliername,landmark,location,city,district,state,country,pincode,phoneno,mobileno,emailid){
+  // Fetching tax information for the searched supplier
+  callTaxreadService:function(){
+    this.readtaxurl=sessionStorage.getItem("curr_sess_url")+"suppliertaxread-service";
+    var obj={"supplierid":""};
+    this.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+    obj.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+    this.readtaxparam=obj;
+    this.$.readtaxajax.generateRequest();
+  },
+  readtaxResponse:function(e){
+    var arr= e.detail.response.itemarr;
+    // Binding tax information to the supplier tax card for the searched supplier
+    document.querySelector("suppliertax-card").tinno=arr[0].TIN;
+    document.querySelector("suppliertax-card").cstno=arr[0].CST;
+    document.querySelector("suppliertax-card").panno=arr[0].PAN;
+    document.querySelector("suppliertax-card").tanno=arr[0].TAN;
+    document.querySelector("suppliertax-card").cinno=arr[0].CIN;
+    document.querySelector("suppliertax-card").FnEnableFields();
+  },
+  // Fetching excise information for the searched supplier
+  callExcisereadService:function(){
+    this.readexciseurl=sessionStorage.getItem("curr_sess_url")+"supplierexciseread-service";
+    var obj={"supplierid":""};
+    this.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+    obj.supplierid=localStorage.getItem('curr_sess_supplierloggedid');    
+    this.readexciseparam=obj;
+    this.$.readexciseajax.generateRequest();
+  },
+  readexciseResponse:function(e){
+    var arr= e.detail.response.itemarr;
+    // Binding excise information to the supplier excise card for the searched supplier
+    document.querySelector("supplierexcise-card").regno=arr[0].Reg_No;
+    document.querySelector("supplierexcise-card").eccno=arr[0].Ecc_No;
+    document.querySelector("supplierexcise-card").range=arr[0].Range;
+    document.querySelector("supplierexcise-card").division=arr[0].Division;
+    document.querySelector("supplierexcise-card").commission=arr[0].Commission;
+    document.querySelector("supplierexcise-card").servicetax=arr[0].Service_Tax;
+    document.querySelector("supplierexcise-card").FnEnableFields();
+  },
+  // Method which make request to add the supplier
+  addsupplierService:function(supplieridd,suppliername,aliasname,address1,address2,doorno,streetno,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid,faxno,website){
       obj1={
-        "supplierid":"","suppliername":"","landmark":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""
+        "supplierid":"","suppliername":"","aliasname":"","address1":"","address2":"","doorno":"","streetno":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":"",
+        "faxno":"","website":""
       };
       supplierid=supplieridd;
       obj1.supplierid=supplierid;
       obj1.suppliername=suppliername;
-      obj1.landmark=landmark;
+      obj1.aliasname=aliasname;
+      obj1.address1=address1;
+      obj1.address2=address2;
+      obj1.doorno=doorno;
+      obj1.streetno=streetno;
+      obj1.streetname=streetname;
       obj1.location=location;
       obj1.city=city;
       obj1.district=district;
@@ -53491,54 +54167,90 @@ Polymer({
       obj1.phoneno=phoneno;
       obj1.mobileno=mobileno;
       obj1.emailid=emailid;
-      },
-    addsupplierResponse:function(e){
+      obj1.faxno=faxno;
+      obj1.website=website;      
+  },
+  addsupplierResponse:function(e){
       if(e.detail.response.returnval=="succ"){
-		  //alert("Supplier Added!");
-		  this.paymentparam=obj2;
-		  this.paymenturl=sessionStorage.getItem("curr_sess_url")+"addpayment-service";
-		  this.$.addpaymentajax.generateRequest();
-		  //document.querySelector('addsupplier-card').FnBtnDisable();
-      //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
+        localStorage.setItem('curr_sess_supplierloggedid',e.detail.response.id);
+        obj3.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+        this.customertaxaddparam=obj3;
+        this.customertaxaddurl=sessionStorage.getItem("curr_sess_url")+"suppliertaxadd-service";
+        this.$.customertaxaddajax.generateRequest();
       }
       else{
-      	  alert("Supplier ID already exists!..Create new supplier...");
-      	  window.location.href="../elements/indexhome.html";
       }
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
+  },
+  // Function which make request to add the supplier tax info
+  FnCustomerTaxAddService:function(tin,cst,pan,tan,cin){
+      obj3={"supplierid":"","tin":"","cst":"","pan":"","tan":"","cin":""};
+      obj3.supplierid=localStorage.getItem('curr_sess_supplierloggedid');      
+      obj3.tin=tin;
+      obj3.cst=cst;
+      obj3.pan=pan;
+      obj3.tan=tan;
+      obj3.cin=cin;      
+      document.querySelector('supplier-page').setPage('Add Excise');
+  },
+  customertaxaddResponse:function(e){
+      if(e.detail.response.returnval=="succ") {
+        obj4.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+        this.customerexciseaddparam = obj4;
+        this.customerexciseaddurl = sessionStorage.getItem("curr_sess_url") + "supplierexciseadd-service";
+        this.$.customeraddexciseajax.generateRequest();
+      }
+  },
+  // Function which make request to add the supplier excise info
+  FnSupplierExciseAddService:function(regno,eccno,range,division,commission,servicetax){
+      obj4={"supplierid":"","regno":"","eccno":"","range":"","division":"","commission":"","servicetax":""};
+      obj4.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+      obj4.regno=regno;
+      obj4.eccno=eccno;
+      obj4.range=range;
+      obj4.division=division;
+      obj4.commission=commission;
+      obj4.servicetax=servicetax;      
+      document.querySelector('supplier-page').setPage('Add Payment');
     },
-    addpaymentService:function(accno,bankname,address,mode,paymentterm){
-		 obj2={
-		        "supplierid":"","accno":"","bankname":"","mode":"","paymentterm":""
-		      };
-		      obj2.supplierid=supplierid;
-		      obj2.accno=accno;
-		      obj2.bankname=bankname;
-		      obj2.mode=mode;
-		      obj2.paymentterm=paymentterm;
-		      obj2.address=address;
-  			  this.supplierparam=obj1;
-
-			  if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-              this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addsupplier-service";
-		      this.$.addsupplierajax.generateRequest();
-		  	  }
-
-	},
-	addpaymentResponse:function(e){
-
-	if(e.detail.response.returnval=="succ"){
-		alert("Supplier Added successfully!!");
-		//this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-		//this.itemparam=obj3;
-        //this.$.additemajax.generateRequest();
-    	  //document.querySelector('addsupplier-card').FnBtnDisable();
-	      //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-	      }
-	      else
-	      	  alert("Unable to add payment!");
-	       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
+    customerexciseaddResponse:function(e) {
+      if (e.detail.response.returnval=="succ"){
+        obj5.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+        this.paymentparam = obj5;
+        this.paymenturl = sessionStorage.getItem("curr_sess_url") + "addpayment-service";
+        this.$.addpaymentajax.generateRequest();
+      }
     },
+    // Function which make request to add the supplier payment info
+    addpaymentService:function(accountname,accountno,accounttype,paymenttype,bankname,branch,ifsccode,micrcode,swiftcode,paymentterm){
+      obj5={
+        "supplierid":"","accountname":"","accountno":"","accounttype":"","paymenttype":"","bankname":"",
+        "branch":"","ifsccode":"","micrcode":"","swiftcode":"","paymentterm":""
+      };
+      obj5.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+      obj5.accountname=accountname;
+      obj5.accountno=accountno;
+      obj5.accounttype=accounttype;
+      obj5.paymenttype=paymenttype;
+      obj5.bankname=bankname;
+      obj5.branch=branch;
+      obj5.ifsccode=ifsccode;
+      obj5.micrcode=micrcode;
+      obj5.swiftcode=swiftcode;
+      obj5.paymentterm=paymentterm;
+      this.supplierparam=obj1;      
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+        this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addsupplier-service";
+        this.$.addsupplierajax.generateRequest();
+      }
+    },
+    addpaymentResponse:function(e){      
+      if(e.detail.response.returnval=="succ"){
+        alert("Supplier Added successfully!!");
+      }
+      else
+        alert("Unable to add payment!");
+    },
+    // Function which make request to add item to the supplier
     additemService:function(itemflag,itemid, itemname, itemdes, container, quantity, itemgroup, itemtype,supplier, purchasetype){
 		 obj3={
 		        "itemflag":"","supplierid":"","itemid":"","itemname":"","itemdes":"","container":"","quantity":"","itemgroup":"","itemtype":"","itemsupplier":"","purchasetype":""
@@ -53554,40 +54266,42 @@ Polymer({
 		      obj3.itemsupplier=supplier;
 		      obj3.purchasetype=purchasetype;
 		      obj3.itemflag=itemflag;
-			  this.supplierparam=obj1;
+			    this.supplierparam=obj1;
 
-			  if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-              this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addsupplier-service";
-		      this.$.addsupplierajax.generateRequest();
+			    if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+            this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addsupplier-service";
+		        this.$.addsupplierajax.generateRequest();
 		  	  }
 		  	  else
 		  	  {
-				this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-				this.itemparam=obj3;
+				    this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
+				    this.itemparam=obj3;
         		this.$.additemajax.generateRequest();
 			  }
 
 	},
-	additemResponse:function(e){
-		//this.$.addpaymentajax.generateRequest();
+	additemResponse:function(e){		
       if(e.detail.response.returnval=="succ"){
-		  //alert("Supplier Added!");
-		  //document.querySelector('supplieradditem-card').FnBtnDisable();
-          this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
+        this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
       }
       else
-      	  alert("Unable to add suppliers!");
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
-    },
-    updatesupplierService:function(supplieridd,suppliername,landmark,location,city,district,state,country,pincode,phoneno,mobileno,emailid){
-    	//alert(supplieridd+" "+suppliername+" "+landmark+" "+location+" "+city+" "+district+" "+state+" "+country+" "+pincode+" "+phoneno+" "+mobileno+" "+emailid)
+      	alert("Unable to add suppliers!");       
+  },
+  // // Function which make request to update the supplier info
+  updatesupplierService:function(supplierid,suppliername,aliasname,address1,address2,doorno,streetno,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid,faxno,website){
       obj1={
-        "supplierid":"","suppliername":"","landmark":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""
+        "supplierid":"","suppliername":"","aliasname":"","address1":"","address2":"","doorno":"","streetno":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":"",
+        "faxno":"","website":""
       };
-      supplierid=supplieridd;
+      supplierid=localStorage.getItem('curr_sess_supplierloggedid');
       obj1.supplierid=supplierid;
       obj1.suppliername=suppliername;
-      obj1.landmark=landmark;
+      obj1.aliasname=aliasname;
+      obj1.address1=address1;
+      obj1.address2=address2;
+      obj1.doorno=doorno;
+      obj1.streetno=streetno;
+      obj1.streetname=streetname;
       obj1.location=location;
       obj1.city=city;
       obj1.district=district;
@@ -53597,89 +54311,196 @@ Polymer({
       obj1.phoneno=phoneno;
       obj1.mobileno=mobileno;
       obj1.emailid=emailid;
-      },
-     updatesupplierResponse:function(e){
-     	//alert(e.detail.response.returnval);
-      if(e.detail.response.returnval=="succ"){
-		  //alert("Supplier Added!");
-		  this.updatepaymentparam=obj2;
-		  this.updatepaymenturl=sessionStorage.getItem("curr_sess_url")+"updatepayment-service";
-		  this.$.updatepaymentajax.generateRequest();
-
-		  //document.querySelector('addsupplier-card').FnBtnDisable();
-          //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
+      obj1.faxno=faxno;
+      obj1.website=website;
+     },
+    updatesupplierResponse:function(e){
+       if(e.detail.response.returnval=="succ"){
+        this.updatetaxparam=obj3;
+        this.updatetaxurl=sessionStorage.getItem("curr_sess_url")+"supplierupdatetax-service";
+        this.$.updatetaxajax.generateRequest();
       }
       else{
-      	  alert("Supplier ID already exists!..Create new supplier...");
-      	  window.location.href="../elements/indexhome.html";
+        alert("Unable to update supplier");
+        window.location.href="../elements/indexhome.html";
       }
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
     },
-    updatepaymentService:function(accno,bankname,address,mode,paymentterm){
-    	//alert(accno+" "+bankname+" "+address+" "+mode+" "+paymentterm);
-		 obj2={
-		        "supplierid":"","accno":"","bankname":"","mode":"","paymentterm":""
-		      };
-		      obj2.supplierid=supplierid;
-		      obj2.accno=accno;
-		      obj2.bankname=bankname;
-		      obj2.mode=mode;
-		      obj2.paymentterm=paymentterm;
-		      obj2.address=address;
-  			  this.updatesupplierparam=obj1;
-
-			  //if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-          this.updatesupplierurl=sessionStorage.getItem("curr_sess_url")+"updatesupplier-service";
-		      this.$.updatesupplierajax.generateRequest();
-		  	  //}
-
-	},
-	updatepaymentResponse:function(e){
-		//alert(e.detail.response.returnval);
-	if(e.detail.response.returnval=="succ"){
-		alert("Supplier Info Updated successfully!!");
-		//this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-		//this.itemparam=obj3;
-        //this.$.additemajax.generateRequest();
-    	  //document.querySelector('addsupplier-card').FnBtnDisable();
-	      //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-	      }
-	      else
-	      	  alert("Unable to add payment!");
-	       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
+    // Function which make request to add the supplier tax info
+    updatesuppliertaxService:function(tin,cst,pan,tan,cin){
+      obj3={"supplierid":"","tin":"","cst":"","pan":"","tan":"","cin":""};
+      obj3.supplierid=localStorage.getItem('curr_sess_supplierloggedid');      
+      obj3.tin=tin;
+      obj3.cst=cst;
+      obj3.pan=pan;
+      obj3.tan=tan;
+      obj3.cin=cin;      
     },
-    readsuppliertoapproveService:function(){
-    	//alert("call");
+    updatetaxResponse:function(e){      
+      if(e.detail.response.returnval=="succ") {
+        this.updateexciseparam = obj4;
+        this.updateexciseurl = sessionStorage.getItem("curr_sess_url") + "supplierupdateexcise-service";
+        this.$.updateexciseajax.generateRequest();
+      }
+    },
+    // Function which make request to update the supplier excise info
+    updatesupplierexciseService:function(regno,eccno,range,division,commission,servicetax){
+      obj4={"supplierid":"","regno":"","eccno":"","range":"","division":"","commission":"","servicetax":""};
+      obj4.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+      obj4.regno=regno;
+      obj4.eccno=eccno;
+      obj4.range=range;
+      obj4.division=division;
+      obj4.commission=commission;
+      obj4.servicetax=servicetax;      
+    },
+    updateexciseResponse:function(e) {      
+      if (e.detail.response.returnval=="succ"){
+        this.updatepaymentparam=obj5;
+        this.updatepaymenturl=sessionStorage.getItem("curr_sess_url")+"updatepayment-service";
+        this.$.updatepaymentajax.generateRequest();
+      }
+    } ,
+    // Function which make request to update the supplier payment info
+    updatepaymentService:function(accountname,accountno,accounttype,paymenttype,bankname,branch,ifsccode,micrcode,swiftcode,paymentterm){
+      obj5={
+        "supplierid":"","accountname":"","accountno":"","accounttype":"","paymenttype":"","bankname":"",
+        "branch":"","ifsccode":"","micrcode":"","swiftcode":"","paymentterm":""
+      };
+      obj5.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+      obj5.accountname=accountname;
+      obj5.accountno=accountno;
+      obj5.accounttype=accounttype;
+      obj5.paymenttype=paymenttype;
+      obj5.bankname=bankname;
+      obj5.branch=branch;
+      obj5.ifsccode=ifsccode;
+      obj5.micrcode=micrcode;
+      obj5.swiftcode=swiftcode;
+      obj5.paymentterm=paymentterm;      
+      this.updatesupplierparam=obj1;
+      this.updatesupplierurl=sessionStorage.getItem("curr_sess_url")+"updatesupplier-service";
+      this.$.updatesupplierajax.generateRequest();
+    },
+    updatepaymentResponse:function(e){      
+      if(e.detail.response.returnval=="succ"){
+        alert("Supplier Info Updated successfully!!");
+      }
+      else
+        alert("Unable to add payment!");
+    },
+    // Function which fetch the created supplier for approval
+    readsuppliertoapproveService:function(){    	
       this.readsuppliertoapproveurl=sessionStorage.getItem("curr_sess_url")+"readsuppliertoapprove-service";
       this.$.readsuppliertoapproveajax.generateRequest();
     },
-    FnreadsuppliertoapproveResponse:function(e){
-      //alert(e.detail.response.itemarr);
+    FnreadsuppliertoapproveResponse:function(e){      
       document.querySelector('approvesupplier-card').itemArray=e.detail.response.itemarr;
     },
+    // Function which receive all the suppliers who have accepted for approve
     FnSetSupplierforApprove:function(supplierid){
     	approvesupplierarr.push(supplierid);
     },
-     approvesupplierforpurchaseService:function(){
-      //alert("call"+JSON.stringify(approvesupplierarr));
-      	
-      for(var i=0;i<approvesupplierarr.length;i++){
-      var obj={"supplierid":""};
-      obj.supplierid=approvesupplierarr[i];
+    // Function which make request to approve the created supplier
+    approvesupplierforpurchaseService:function(status){
+      var obj={"supplierid":"","status":""};
+      obj.status=status;      
+      obj.supplierid=sessionStorage.getItem("sess_curr_supplierid");
       this.approvesupplierforpurchaseparam=obj;
       this.approvesupplierforpurchaseurl=sessionStorage.getItem("curr_sess_url")+"approvesupplierforpurchase-service";
       this.$.approvesupplierforpurchaseajax.generateRequest();
-  	  }
     },
     FnapprovesupplierforpurchaseResponse:function(e){
-      //alert(e.detail.response.itemarr);
       if(e.detail.response.itemarr=="succ"){
-      	alert("Suppliers are approved!!");
+        this.$.dialogpage.FnShowDialog(sessionStorage.getItem("sess_curr_suppliername")+" Approved Successfully!!","");
       	window.location.href="../elements/indexhome.html";
       }
       else
       	alert("Failed to approve the supplier!!");
-      //document.querySelector('approvesupplier-card').itemArray=e.detail.response.itemarr;
+    },
+    // Function which make request to add the supplier contact info
+    FnAddContactService:function(designation,mobileno,emailid){
+      obj2={"supplierid":"","designation":"","mobileno":"","emailid":""};
+      obj2.supplierid=localStorage.getItem('curr_sess_supplierloggedid');
+      obj2.designation=designation;
+      obj2.mobileno=mobileno;
+      obj2.emailid=emailid;
+      this.supplieraddcontactparam=obj2;
+      this.supplieraddcontacturl=sessionStorage.getItem("curr_sess_url")+"supplieraddcontact-service";
+      this.$.supplieraddcontactajax.generateRequest();
+    },
+    supplieraddcontactResponse:function(e){
+      if(e.detail.response.itemarr=="succ") {
+        alert('Contact Added!');        
+        this.FnsupplierreadcontactService();
+      }
+      else
+        alert("Problem in adding contact!");
+    },
+    // Function which make request to fetch the supplier contact info
+    FnsupplierreadcontactService:function(){
+      document.querySelector("supplier-page").setPage("Add Contact");
+      var obj={"supplierid":""};
+      obj.supplierid=localStorage.getItem('curr_sess_supplierloggedid');      
+      this.supplierreadcontactparam=obj;
+      this.supplierreadcontacturl=sessionStorage.getItem("curr_sess_url")+"supplierreadcontact-service";
+      this.$.supplierreadcontactajax.generateRequest();
+    },
+    supplierreadcontactResponse:function(e) {      
+      document.querySelector('suppliercontactperson-card').itemArray=e.detail.response.itemarr;
+    },
+    // Function which make request to read the supplier info
+    FnSupplierinforeadService:function(){
+      var obj={"supplierid":""};
+      obj.supplierid=sessionStorage.getItem("sess_curr_supplierid");      
+      this.supplierinforeadparam=obj;
+      this.supplierinforeadurl=sessionStorage.getItem("curr_sess_url")+"supplierinforead-service";
+      this.$.supplierinforeadajax.generateRequest();
+    },
+    FnsupplierinforeadResponse:function(e){
+      var arr=e.detail.response;
+      // Binding supplier info to the card in approve supplier page
+      document.querySelector("supplier-detail-read").suppliername=arr[0].Supplier_Name;
+      document.querySelector("supplier-detail-read").aliasname=arr[0].Alias_Name;
+      document.querySelector("supplier-detail-read").address1=arr[0].Address1;
+      document.querySelector("supplier-detail-read").address2=arr[0].Address2;
+      document.querySelector("supplier-detail-read").doorno=arr[0].Doorno;
+      document.querySelector("supplier-detail-read").streetno=arr[0].Streetno;
+      document.querySelector("supplier-detail-read").streetname=arr[0].Street_Name;
+      document.querySelector("supplier-detail-read").location=arr[0].Location;
+      document.querySelector("supplier-detail-read").city=arr[0].City;
+      document.querySelector("supplier-detail-read").district=arr[0].District;
+      document.querySelector("supplier-detail-read").state=arr[0].State;
+      document.querySelector("supplier-detail-read").country=arr[0].Country;
+      document.querySelector("supplier-detail-read").pincode=arr[0].Pincode;
+      document.querySelector("supplier-detail-read").phoneno=arr[0].Phoneno;
+      document.querySelector("supplier-detail-read").mobileno=arr[0].Mobileno;
+      document.querySelector("supplier-detail-read").emailid=arr[0].Email;
+      document.querySelector("supplier-detail-read").faxno=arr[0].Faxno;
+      document.querySelector("supplier-detail-read").website=arr[0].Website;
+      // Binding supplier payment info to the card in approve supplier page
+      document.querySelector("customer-payment-read").accountname=arr[0].Account_Name;
+      document.querySelector("customer-payment-read").accountno=arr[0].Account_No;
+      document.querySelector("customer-payment-read").accounttype=arr[0].Account_Type;
+      document.querySelector("customer-payment-read").paymenttype=arr[0].Payment_Type;
+      document.querySelector("customer-payment-read").bankname=arr[0].Bank_Name;
+      document.querySelector("customer-payment-read").branch=arr[0].Branch;
+      document.querySelector("customer-payment-read").ifsccode=arr[0].IFSC_Code;
+      document.querySelector("customer-payment-read").micrcode=arr[0].MICR_Code;
+      document.querySelector("customer-payment-read").swiftcode=arr[0].Swift_Code;
+      document.querySelector("customer-payment-read").term=arr[0].Payment_Term;
+      // Binding supplier tax info to the card in approve supplier page
+      document.querySelector("customer-tax-read").tinno=arr[0].TIN;
+      document.querySelector("customer-tax-read").cstno=arr[0].CST;
+      document.querySelector("customer-tax-read").panno=arr[0].PAN;
+      document.querySelector("customer-tax-read").tanno=arr[0].TAN;
+      document.querySelector("customer-tax-read").cinno=arr[0].CIN;
+      // Binding supplier excise info to the card in approve supplier page
+      document.querySelector("customer-excise-read").regno=arr[0].Reg_No;
+      document.querySelector("customer-excise-read").eccno=arr[0].Ecc_No;
+      document.querySelector("customer-excise-read").range=arr[0].Range;
+      document.querySelector("customer-excise-read").division=arr[0].Division;
+      document.querySelector("customer-excise-read").commission=arr[0].Commission;
+      document.querySelector("customer-excise-read").servicetax=arr[0].Service_Tax;
     }
 
   });
@@ -53899,198 +54720,188 @@ Polymer({
 /**
  * Created by praba on 3/10/2016.
  */
+ // JS file for the addsupplier-card
 (function() {
   'use strict';
 
   Polymer({
     is: 'addsupplier-card',
+    // Ready function to set the initial parameters
     ready:function(){
-
-		this.Btn_disable_flag=false;
-		this.read=false;
-		 //Initially hiding paperlistbox of itemtype and itemgroup fields
-		    this.isHidden=true;
-    		this.isHiddenid=true;
-    		this.IDread=true;
-    		localStorage.setItem("curr_sess_searchtypeflag", "nothing");
-    		localStorage.setItem("curr_sess_addsuppliereditflag","0");
-	},
-	FnEmailChange:function(){
-	   document.querySelector('#emailid').validate();
-	},
-	FnInputChange:function(){
-	localStorage.setItem("curr_sess_searchtypeflag","nothing");
-	this.IDread=true;
-	this.supplierid=(this.suppliername).substring(0,4);
-	},
-   FnSupplierInfoSubmit:function(){
-     document.querySelector('#emailid').validate();   	
-     document.querySelector('#supplierid').validate();
-     document.querySelector('#suppliername').validate();
-     document.querySelector('#location').validate();
-     document.querySelector('#district').validate();
-     document.querySelector('#state').validate();
-     document.querySelector('#country').validate();
-     document.querySelector('#pincode').validate();
-     document.querySelector('#city').validate();
-     document.querySelector('#mobileno').validate();
-     //document.querySelector('#landmark').validate();
-     if(this.supplierid==""||this.supplierid==null||this.suppliername==""||this.suppliername==null||this.location==""||this.location==null||this.city==null||this.city==""||this.district==""||this.district==null||this.state==null||this.state==""||this.country==null||this.country==""||this.pincode==""||this.pincode==null||this.mobileno==null||this.mobileno==""){}
-     else{
-     	
-		 document.querySelector("supplieradditem-card").FnSetValue(this.supplierid,this.suppliername);
-		 if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-         this.$.adminsupplierservice.addsupplierService(this.supplierid,this.suppliername,this.landmark,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
-         document.querySelector("supplier-page").setPage("Add Payment");
-     	//document.querySelector("payment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
- 		}
- 		else if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
- 			this.$.adminsupplierservice.updatesupplierService(this.supplierid,this.suppliername,this.landmark,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
-            document.querySelector("payment-card").FnEnableFields();
-            document.querySelector("supplier-page").setPage("Add Payment");
-
-            document.querySelector("payment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
- 		}
- 		else{
-			document.querySelector("supplier-page").setPage("Add Payment");
-			//if(localStorage.getItem("curr_sess_searchtypeflag")=="0")
-			document.querySelector("payment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
-			//else if(localStorage.getItem("curr_sess_searchtypeflag")=="1")
-			//document.querySelector("supplieradditem-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
-		}
-	}
+      this.country="India";
+      this.Btn_disable_flag=false;
+      this.read=false;
+      //Initially hiding paperlistbox of itemtype and itemgroup fields
+      this.isHidden=true;
+      this.isHiddenid=true;
+      this.IDread=true;
+      localStorage.setItem("curr_sess_searchtypeflag", "nothing");
+      localStorage.setItem("curr_sess_addsuppliereditflag","0");
     },
-    FnSearchSupplierId:function(){
-	//The flag is used to ensure the search is performed by using item id
-    localStorage.setItem("curr_sess_searchtypeflag","0");
-    //When performing search using itemid making listbox visible with items
-    this.isHiddenid=false;
-	this.read=true;
-    this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";
-	this.$.supplierlistreadajax.generateRequest();
-	},
-	FnSearchSupplierName:function(){
-	//The flag is used to ensure the search is performed by using item name
-    localStorage.setItem("curr_sess_searchtypeflag","1");
-    document.querySelector('viewtype-card').FnEnableEdit(true);
-    //When performing search using itemname making listbox visible with items
-    this.isHidden=false;
-    this.read=true;
-    this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";
-    this.$.supplierlistreadajax.generateRequest();
-	},
-	supplierlistreadResponse:function(e){
+    // Function which invokes while changing the email
+    FnEmailChange:function(){
+      document.querySelector('#emailid').validate();
+    },
+    // Function which invokes while enterning supplier name and doing substring operation to get the supplier id
+    FnInputChange:function(){
+      localStorage.setItem("curr_sess_searchtypeflag","nothing");
+      this.IDread=true;
+      this.supplierid=(this.suppliername).substring(0,4);
+    },
+    // Function which invokes while submitting the supplier inforamtion form
+    FnSupplierInfoSubmit:function(){
+      // Method which validate the fields if it is left blank
+      document.querySelector('#address1').validate();      
+      document.querySelector('#suppliername').validate();
+      document.querySelector('#doorno').validate();
+      document.querySelector('#streetno').validate();
+      document.querySelector('#streetname').validate();
+      document.querySelector('#location').validate();
+      document.querySelector('#city').validate();
+      document.querySelector('#district').validate();
+      document.querySelector('#state').validate();
+      document.querySelector('#country').validate();
+      document.querySelector('#pincode').validate();
+      document.querySelector('#mobileno').validate();
+      document.querySelector('#emailid').validate();
+      // Condition which check for all the fields are entered
+      if(this.address1==""||this.address1==null||this.supplierid==""||this.supplierid==null||this.suppliername==""||this.suppliername==null||this.location==""||this.location==null||this.city==null||this.city==""||this.district==""||this.district==null||this.state==null||this.state==""||this.country==null||this.country==""||this.pincode==""||this.pincode==null||this.mobileno==null||this.mobileno==""){}
+      // Else condition will invoke if all the fileds are entered
+      else{
+        // Setting entered supplier name in session for later use
+        document.querySelector("supplieradditem-card").FnSetValue(localStorage.getItem('curr_sess_supplierloggedid'),this.suppliername);
+        // Condition will invoke for new supplier adding
+        if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+          localStorage.setItem('curr_sess_supplierloggedid',this.supplierid);
+          // Calling service to store the supplier information
+          this.$.adminsupplierservice.addsupplierService(this.supplierid,this.suppliername,this.aliasname,this.address1,this.address2,this.doorno,this.streetno,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid,this.faxno,this.website);
+          // After submitting supplier it would show the tax page to enter
+          document.querySelector("supplier-page").setPage("Add Tax");          
+        }
+        // Condition will invoke while searching existing supplier and updating
+        else if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+          // Caalling service to fetch the supplier information
+          this.$.adminsupplierservice.updatesupplierService(localStorage.getItem('curr_sess_supplierloggedid'),this.suppliername,this.aliasname,this.address1,this.address2,this.doorno,this.streetno,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid,this.faxno,this.website);
+          // Calling service to fetch the tax information
+          this.$.adminsupplierservice.callTaxreadService();
+          // Showing tax page with values while moving from supplier page
+          document.querySelector("supplier-page").setPage("Add Tax");
+          // Calling method to fetch the payment information of the currently searched supplier
+          document.querySelector("payment-card").FnFetchPaymentInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.suppliername);
+        }
+        // Condition will invoke while searching existing supplier
+        else{          
+          this.$.adminsupplierservice.callTaxreadService();
+          // Showing tax page with values while moving from supplier page
+          document.querySelector("supplier-page").setPage("Add Tax");
+          // Calling method to fetch the payment information of the currently searched supplier
+          document.querySelector("payment-card").FnFetchPaymentInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.suppliername);
+        }
+      }
+    },
+    // Method will invoke while searching supplier
+    FnSearchSupplierName:function(){
+      //The flag is used to ensure the search is performed by using item name
+      localStorage.setItem("curr_sess_searchtypeflag","1");
+      // While searching existing customer which shows the edit button
+      document.querySelector('viewtype-card').FnEnableEdit(true);
+      //When performing search using itemname making listbox visible with items
+      this.isHidden=false;
+      // While searching customer making all the fields as readonly
+      this.read=true;
+      // Making ajax call to fetch the supplier names
+      this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemsupplierread-service";
+      this.$.supplierlistreadajax.generateRequest();
+    },
+    // Method will list/load all the supplier names in the listbox while search for the supplier
+    supplierlistreadResponse:function(e){
+      //Fetching items matching with searc items to populate it in listbox
+      //Condition will invoke if we performed item search using name
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="1") {
+        this.querySelector('#searchname').style.visibility = 'visible';
+        var arr = [];
+        arr.push({"itemname": "-----Select-----"});
+        var item = e.detail.response.itemarr;
+        if (this.suppliername.length > 0) {
+          for (var i = 0; i < item.length; i++) {
+            var subval = ((item[i].itemsuppliername).trim()).substring(0, this.suppliername.length);
+            if ((subval).toLowerCase() == (this.suppliername).toLowerCase()) {
+              var obj = {"itemname": ""};
+              obj.itemname = item[i].itemsuppliername;
+              arr.push(obj);
+            }
+          }
+          //Binding items to the listbox when it has the matching items otherwise showing no items
+          if (arr.length > 0)
+            this.itemArray = arr;
+          else {
+            var obj = {"itemname": ""};
+            obj.itemname = "No items found";
+            arr.push(obj);
+            this.itemArray = arr;
+          }
+        }
+      }
+      //Condition will invoke if we performed item search using name
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="0") {
+        //Fetching items matching with searc items to populate it in listbox
+        //Condition will invoke if we performed item search using id
+        this.querySelector('#searchid').style.visibility = 'visible';
+        var arr = [];
+        arr.push({"itemid": "-----Select-----"});
+        var item = e.detail.response.itemarr;
+        if (this.supplierid.length > 0) {
+          for (var i = 0; i < item.length; i++) {
+            var subval = ((item[i].itemsupplierid).trim()).substring(0, this.supplierid.length);
 
-		//Fetching items matching with searc items to populate it in listbox
-		    //Condition will invoke if we performed item search using name
-		    if(localStorage.getItem("curr_sess_searchtypeflag")=="1") {
-		      this.querySelector('#searchname').style.visibility = 'visible';
-		      var arr = [];
-		      arr.push({"itemname": "-----Select-----"});
-		      var item = e.detail.response.itemarr;
-		      //alert(item);
-		      //alert(JSON.stringify(item));
-		      if (this.suppliername.length > 0) {
-		        for (var i = 0; i < item.length; i++) {
-		          var subval = ((item[i].itemsuppliername).trim()).substring(0, this.suppliername.length);
-		          if ((subval).toLowerCase() == (this.suppliername).toLowerCase()) {
-		            var obj = {"itemname": ""};
-		            obj.itemname = item[i].itemsuppliername;
-		            arr.push(obj);
-		          }
-		        }
-		        //Binding items to the listbox when it has the matching items otherwise showing no items
-		        if (arr.length > 0)
-		          this.itemArray = arr;
-		        else {
-		          var obj = {"itemname": ""};
-		          obj.itemname = "No items found";
-		          arr.push(obj);
-		          this.itemArray = arr;
-		          		        }
-		      }
-		    }
-		    //Condition will invoke if we performed item search using name
-		    if(localStorage.getItem("curr_sess_searchtypeflag")=="0") {
-		      //Fetching items matching with searc items to populate it in listbox
-		      //Condition will invoke if we performed item search using id
-		      this.querySelector('#searchid').style.visibility = 'visible';
-		      var arr = [];
-		      arr.push({"itemid": "-----Select-----"});
-		      var item = e.detail.response.itemarr;
-		      //alert(JSON.stringify(item));
-		      //alert(this.itemval);
-		      if (this.supplierid.length > 0) {
-		        for (var i = 0; i < item.length; i++) {
-		          var subval = ((item[i].itemsupplierid).trim()).substring(0, this.supplierid.length);
+            if ((subval).toLowerCase() == (this.supplierid).toLowerCase()) {
+              var obj = {"itemid": ""};
+              obj.itemid = item[i].itemsupplierid;
+              arr.push(obj);
+            }
+          }
+          //Binding items to the listbox when it has the matching items otherwise showing no items
+          if (arr.length > 0)
+            this.itemidArray = arr;
+          else {
+            var obj = {"itemid": ""};
+            obj.itemid = "No items found";
+            arr.push(obj);
+            this.itemidArray = arr;
 
-		          if ((subval).toLowerCase() == (this.supplierid).toLowerCase()) {
-		            var obj = {"itemid": ""};
-		            obj.itemid = item[i].itemsupplierid;
-		            arr.push(obj);
-		          }
-		        }
-		        //Binding items to the listbox when it has the matching items otherwise showing no items
-		        if (arr.length > 0)
-		          this.itemidArray = arr;
-		        else {
-		          var obj = {"itemid": ""};
-		          obj.itemid = "No items found";
-		          arr.push(obj);
-		          this.itemidArray = arr;
+          }
+        }
+      }
+    },
+    // Method will invoke while selecting name in the listbox
+    FnSupplierNameSelected:function(e){
+      //if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
+      if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
+        this.suppliername = e.target.selectedItem.textContent.trim();
+        //Making invisible and deselection in dropdown of item name search list box
+        this.querySelector('#searchname').style.visibility='hidden';
+        this.querySelector('#searchname').selected=-1;
+        this.itemArray="";
+        //if selected item id is not null invoking service to fetch item info
+        if(this.suppliername!=""||this.suppliername!="-----Select-----") {
 
-		        }
-		      }
+          this.$.adminsupplierservice.callSearchService("", this.suppliername);
+
+        }
+      }
+      else{
+        this.read=false;
+        this.suppliername="";
+        this.supplierid="";
+        this.itemArray="";
+        this.querySelector('#searchname').style.visibility='hidden';
+        this.querySelector('#searchname').selected=-1;
+      }
+    },
+    // Function to change fields as editable while cicking edit button
+    FnEnableFields:function(){
+      this.read=false;
     }
-	},
-	FnSupplierIdSelected:function(e){
-		//if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
-		if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
-		this.supplierid = e.target.selectedItem.textContent.trim();
-		//Making invisible and deselection in dropdown of item id search list box
-		this.querySelector('#searchid').style.visibility='hidden';
-		this.querySelector('#searchid').selected=-1;
-		this.itemidArray="";
-		//if selected item id is not null invoking service to fetch item info
-		if(this.supplieritemid!=""||this.supplierid!="-----Select-----") {
-		    this.$.adminsupplierservice.callSearchService(this.supplierid, "");
-		}
-		}
-		else   {
-		this.read=false;
-		this.itemidArray="";
-		this.querySelector('#searchid').style.visibility='hidden';
-		this.querySelector('#searchid').selected=-1;
-    }
-	},
-	FnSupplierNameSelected:function(e){
-		//if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
-		    if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
-		      this.suppliername = e.target.selectedItem.textContent.trim();
-		      //Making invisible and deselection in dropdown of item name search list box
-		      this.querySelector('#searchname').style.visibility='hidden';
-		      this.querySelector('#searchname').selected=-1;
-		      this.itemArray="";
-		      //if selected item id is not null invoking service to fetch item info
-		      if(this.suppliername!=""||this.suppliername!="-----Select-----") {
-
-		        this.$.adminsupplierservice.callSearchService("", this.suppliername);
-
-		      }
-		    }
-		    else   {
-		    	//alert("hi")
-		    this.read=false;
-		    this.suppliername="";
-		    this.supplierid="";
-		    this.itemArray="";
-		    this.querySelector('#searchname').style.visibility='hidden';
-		    this.querySelector('#searchname').selected=-1;
-    }
-	},
-	FnEnableFields:function(){
-		this.read=false;
-	}
   });
 })();
 /**
@@ -54169,16 +54980,20 @@ Polymer({
       var arr = [];
       arr.push({"itemname": "-----Select-----"});
       var item = e.detail.response.itemarr;
+      //alert(JSON.stringify(e.detail.response.itemarr));
+      //alert(this.itemname);
       if (this.itemname.length > 0) {
         for (var i = 0; i < item.length; i++) {
           var subval = ((item[i].itemname).trim()).substring(0, this.itemname.length);
           if ((subval).toLowerCase() == (this.itemname).toLowerCase()) {
             var obj = {"itemname": ""};
             obj.itemname = item[i].itemname;
+            //alert(JSON.stringify(obj));
             arr.push(obj);
           }
         }
         //Binding items to the listbox when it has the matching items otherwise showing no items
+        //alert(JSON.stringify(arr));
         if (arr.length > 0)
           this.itemArray = arr;
         else {
@@ -54356,16 +55171,27 @@ FnAddItemSubmit:function(){
     if(document.querySelector('#radio').selected==this.purchasearr[i].purchasetypename)
     this.itemflag=this.purchasearr[i].purchasetypeid;
 	}
+  //alert(this.itemid+"  "+this.itemname+"  "+this.itemdes+"  "+this.container+"  "+this.quantity+"  "+this.itemgroup+"  "+this.itemtype+"  "+this.storesid+" "+purchasetype);
 	if(this.itemid==null||this.itemid==""||this.itemname==null||this.itemname==""||this.itemdes==null||this.itemdes==""||this.container==null||this.container==""||this.itemgroup==null||this.itemgroup==""||this.itemtype==null||this.itemtype==""||purchasetype==""||purchasetype==null){
-	}
+	//alert('empty');
+  }
 	else
 	{
+    //alert('calling service');
 	//this.$.adminsupplierservice.additemService(this.itemflag,this.itemid, this.itemname, this.itemdes, this.container, this.quantity, this.itemgroup, this.itemtype, this.supplier,purchasetype);
 	//alert(this.supplier+" "+this.itemflag+"  "+this.itemid+"  "+this.itemname+"  "+this.itemdes+"  "+this.container+"  "+this.quantity+"  "+this.itemgroup+" "+this.itemtype+" "+purchasetype);
   localStorage.setItem("curr_sess_additemsupplierwrite","1");
-	this.$.adminservice.callItemWriteService(this.price,this.supplierid,this.supplier,this.itemflag,this.itemid,this.itemname,this.itemdes,this.container,this.quantity,this.itemgroup,this.itemtype,this.storesid,purchasetype);
+	this.$.adminservice.callItemWriteService(this.price,localStorage.getItem('curr_sess_supplierloggedid'),this.supplier,this.itemflag,this.itemid,this.itemname,this.itemdes,this.container,this.quantity,this.itemgroup,this.itemtype,this.storesid,purchasetype);
 	}
-  document.querySelector('stores-card').FnClear();
+  document.querySelector('#storescard').FnClear();
+  document.querySelector('#storescard').FnEnableFields(false);
+  document.querySelector('#itemsearchcard').FnSetClearFields();
+  this.itemdes="";
+  document.querySelector('#dropitemtype').selected=-1;
+  document.querySelector('#dropgrouptype').selected=-1;
+  document.querySelector('#radio').selected=-1;
+  this.read=false;
+  document.querySelector('#itempricecard').ready();
 },
 FnSetValue:function(supplierid,suppliername){
 	this.supplierid=supplierid;
@@ -54381,8 +55207,8 @@ FnSetItemValue:function(itemid,itemname,itemdes,container,quantity,itemtype,item
 	this.itemid=itemid;
 	this.itemname=itemname;
 	this.itemdes=itemdes;
-	//this.container=container;
-	//this.quantity=quantity;
+	this.container=container;
+	this.quantity=quantity;
 	for(var i=0;i<this.itemarr.length;i++){
 	   if(this.itemarr[i].itemtypeid==itemtype)
 	      this.itemtype=this.itemarr[i].itemtypename;
@@ -54395,11 +55221,11 @@ FnSetItemValue:function(itemid,itemname,itemdes,container,quantity,itemtype,item
 	   if(this.purchasearr[i].purchasetypeid==selection)
 	      this.selection=this.purchasearr[i].purchasetypename;
     }
-  
+
 },
- FnSetStoresInfo:function(storesarr,storesid){    
+ FnSetStoresInfo:function(storesarr,storesid){
     this.storesarr=storesarr;
-    this.storesid=storesid;    
+    this.storesid=storesid;
   },
 FnSetItemId:function(itemid){
 
@@ -54446,60 +55272,64 @@ Polymer({
   ready:function()
   {
     this.read=false;
-	this.mode="";
-	this.supid="";
-	this.supname="";
+    this.mode="";
+    this.supid="";
+    this.supname="";
   },
   FnModeSelected:function(e){
-	if(e.target.selectedItem.textContent.trim()!="-----Select-----")
+    if(e.target.selectedItem.textContent.trim()!="-----Select-----")
       this.mode = e.target.selectedItem.textContent.trim();
   },
   FnAddPaymentInfoSubmit:function(){
-
-	 document.querySelector('#droppaymentmode').validate();
-	 document.querySelector('#bankname').validate();
-	 document.querySelector('#accno').validate();
-	 document.querySelector('#address').validate();
-	 var paymentterm=document.querySelector('#radio').selected;
-	 if(this.mode==""||this.address==null||this.address==""||this.bankname==null||this.bankname==""||this.accountno==null||this.accountno==""){
-	 }
-	 else{
-		 if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-	     this.$.adminsupplierservice.addpaymentService(this.accountno,this.bankname,this.address,this.mode,paymentterm);
-	     document.querySelector('supplier-page').setPage('Show Item');
-	     document.querySelector('supplieritem-card').FnFetchItemInfo(this.supid,this.supname);
- 		}
- 		else if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
- 		this.$.adminsupplierservice.updatepaymentService(this.accountno,this.bankname,this.address,this.mode,paymentterm);
- 		document.querySelector('supplier-page').setPage('Show Item');
-		document.querySelector('supplieritem-card').FnFetchItemInfo(this.supid,this.supname);
- 		}
- 		else
- 		{
-		document.querySelector('supplier-page').setPage('Show Item');
-		document.querySelector('supplieritem-card').FnFetchItemInfo(this.supid,this.supname);
-		}
-	}
+    document.querySelector('#droppaymentmode').validate();
+    document.querySelector('#bankname').validate();
+    document.querySelector('#accountno').validate();
+    document.querySelector('#accountname').validate();
+    document.querySelector('#accounttype').validate();
+    document.querySelector('#branch').validate();
+    document.querySelector('#ifsccode').validate();
+    document.querySelector('#micrcode').validate();
+    document.querySelector('#swiftcode').validate();
+    var paymentterm=this.querySelector('#radio').selected;
+    if(this.accountno==null||this.accountno==""){
+    }
+    else{
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+        this.$.adminsupplierservice.addpaymentService(this.accountname,this.accountno,this.accounttype,this.paymenttype,this.bankname,this.branch,this.ifsccode,this.micrcode,this.swiftcode,paymentterm);
+        document.querySelector("supplier-page").setPage("Add Contact");
+        // document.querySelector('supplier-page').setPage('Show Item');
+        // document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+      else if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+        this.$.adminsupplierservice.updatepaymentService(this.accountname,this.accountno,this.accounttype,this.paymenttype,this.bankname,this.branch,this.ifsccode,this.micrcode,this.swiftcode,paymentterm);
+        this.$.adminsupplierservice.FnsupplierreadcontactService();
+        document.querySelector("supplier-page").setPage("Add Contact");
+        // document.querySelector('supplier-page').setPage('Show Item');
+        // document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+      else
+      {
+        this.$.adminsupplierservice.FnsupplierreadcontactService();
+        document.querySelector("supplier-page").setPage("Add Contact");        
+        // document.querySelector('supplier-page').setPage('Show Item');
+        // document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+    }
   },
-
   FnFetchPaymentInfo:function(supplierid,suppliername){
-	this.supid=supplierid;
-	this.supname=suppliername;
-	localStorage.setItem("curr_sess_suppliername",suppliername);
-	this.$.adminsupplierservice.callPaymentService(supplierid,suppliername);
+    this.supid=supplierid;
+    this.supname=suppliername;
+    localStorage.setItem("curr_sess_suppliername",suppliername);
+    this.$.adminsupplierservice.callPaymentService(supplierid,suppliername);
   },
   setSelectType:function(mode,term){
-  	if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1")
-  		this.read=false;
-  	else
-	  this.read=true;
-	  this.paymenttype=mode;
-	  this.selected=term;
-	  //this.term=term;
-  },
-  FnEnableFields:function(){
-  	//alert('coming...');
-  	this.read=false;
+    if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1")
+      this.read=false;
+    else
+      this.read=true;
+    this.paymenttype=mode;
+    this.selected=term;
+    //this.term=term;
   }
 });
 (function() {
@@ -54507,37 +55337,189 @@ Polymer({
     Polymer({
       is: 'supplierattacheditem-card',
       FnDelete:function(){
+        // Function which calls service to delete the slected supplier attached against the item
         this.$.adminservice.calldeleteitemsupplierService(this.itemid,this.supplierid);
       }
     });
   })();
-/**
- * Created by praba on 3/14/2016.
- */
 (function() {
   'use strict';
 var supname="";
 var supid="";
   Polymer({
     is: 'supplieritem-card',
-
     ready:function(){
 	},
-	
+ 
 	FnFetchItemInfo:function(supplierid,suppliername){
 		supname=suppliername;
 		supid=supplierid;
-	
+
 	this.$.adminsupplierservice.callItemService(supplierid);
+    //alert('fetch item info...'+supplierid);
 	},
-	FnCreateItemSupplier:function(){	
+	FnCreateItemSupplier:function(){
 	document.querySelector('supplier-page').setPage('Add Item');
 	},
 	FnDelete:function(e){
-		
+
 	}
   });
 })();
+(function() {
+      'use strict';
+
+      Polymer({
+        is: 'suppliercontactperson-display-card',
+
+        properties: {
+          foo: {
+            type: String,
+            value: 'suppliercontactperson-display-card',
+            notify: true
+          }
+        }
+      });
+    })();
+/**
+ * Created by praba on 3/14/2016.
+ */
+ // JS component for the card supplier contactperson card
+(function() {
+  'use strict';
+  Polymer({
+    is: 'suppliercontactperson-card',
+    ready:function(){
+    },
+    FnCreateContact:function(){
+      document.querySelector('supplier-page').setPage('Add Contact Detail');
+    },
+    FnNextContact:function(){
+      // Condition which calls the function to store the supplier contact information
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing") {        
+        document.querySelector('supplier-page').setPage('Show Item');
+        document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+      // Condition which calls the function to update the supplier contact information in serach mode
+      else if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+        document.querySelector('supplier-page').setPage('Show Item');
+        document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+      // Condition which calls the function to fetch the supplier contact information in search mode
+      else{
+        document.querySelector('supplier-page').setPage('Show Item');
+        document.querySelector('supplieritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_supplierloggedid'),this.supname);
+      }
+    }
+  });
+})();
+// JS component for supplier contactperson-item-card
+(function() {
+  Polymer({is:"suppliercontactperson-item-card",
+    ready:function(){
+
+    },
+    // Function which calls while submitting the contact card of the supplier
+    FnAddContact:function(){
+      // Function which validates the input fields
+      document.querySelector('#designation').validate();
+      document.querySelector('#mobileno').validate();
+      document.querySelector('#emailid').validate();
+      if(this.designation==""||this.designation==null){}
+      else
+      // Function which calls service to store the contact info of the supplier
+      this.$.adminsupplierservice.FnAddContactService(this.designation,this.mobileno,this.emailid);
+    }
+  });
+})();
+(function() {
+      'use strict';
+      Polymer({
+        is: 'suppliertax-card',
+        ready:function(){
+          this.read=false;
+        },
+        FnTaxNext:function(){
+          document.querySelector('#tinno').validate();
+          document.querySelector('#cstno').validate();
+          document.querySelector('#panno').validate();
+          document.querySelector('#tanno').validate();
+          document.querySelector('#cinno').validate();
+          if(this.tinno==""||this.tinno==null){}
+          else {
+            // Condition will invoke to add the supplier tax info
+            if (localStorage.getItem("curr_sess_searchtypeflag") == "nothing") {
+              this.$.adminsupplierservice.FnCustomerTaxAddService(this.tinno, this.cstno, this.panno, this.tanno, this.cinno);
+            }
+            else if (localStorage.getItem("curr_sess_addsuppliereditflag") == "1" && localStorage.getItem("curr_sess_searchtypeflag") == "1") {
+              // Condition will invoke to update the supplier tax info
+              this.$.adminsupplierservice.updatesuppliertaxService(this.tinno, this.cstno, this.panno, this.tanno, this.cinno);
+              // Condition will invoke to fetch the supplier exciseinfo
+              this.$.adminsupplierservice.callExcisereadService();
+              document.querySelector('supplier-page').setPage('Add Excise');
+            }
+            else {
+              // Condition will invoke to fetch the supplier exciseinfo
+              this.$.adminsupplierservice.callExcisereadService();
+              document.querySelector('supplier-page').setPage('Add Excise');
+            }
+          }
+        },
+        FnEnableFields:function(){
+          if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1")
+            this.read=false;
+          else
+            this.read=true;
+        }
+      });
+    })();
+(function() {
+      'use strict';
+      Polymer({
+        is: 'supplierexcise-card',
+        ready:function(){
+          this.read=false;
+        },        
+        FnExciseNext:function(){
+          // Function to validate the input fields
+          document.querySelector('#regno').validate();
+          document.querySelector('#eccno').validate();
+          document.querySelector('#range').validate();
+          document.querySelector('#division').validate();
+          document.querySelector('#commission').validate();
+          document.querySelector('#servicetaxno').validate();
+          if(this.regno==""||this.regno==null){}
+          else {
+            // Condition which calls the service to add the excise info
+             if (localStorage.getItem("curr_sess_searchtypeflag") == "nothing") {
+              this.$.adminsupplierservice.FnSupplierExciseAddService(this.regno, this.eccno, this.range, this.division, this.commission, this.servicetax);
+            }
+            // Condition which calls the service to update the excise info
+            else if (localStorage.getItem("curr_sess_addcustomereditflag") == "1" && localStorage.getItem("curr_sess_searchtypeflag") == "1") {
+              this.$.adminsupplierservice.updatesupplierexciseService(this.regno, this.eccno, this.range, this.division, this.commission, this.servicetax);
+              //Invoking service to fetch the payment info of the searched supplier
+              this.$.adminsupplierservice.callPaymentService();
+              // Showing payment page while click on next in excise page
+              document.querySelector('supplier-page').setPage('Add Payment');
+            }
+            // Condition which calls the service to search the excise info
+            else {
+              //Invoking service to fetch the payment info of the searched supplier
+              this.$.adminsupplierservice.callPaymentService();
+              // Showing payment page while click on next in excise page
+              document.querySelector('supplier-page').setPage('Add Payment');
+            }
+          }
+        },
+        // Method to make fields are editable and non editable
+        FnEnableFields:function(){
+          if(localStorage.getItem("curr_sess_addsuppliereditflag")=="1")
+            this.read=false;
+          else
+            this.read=true;
+        }
+      });
+    })();
 /**
  * @license
  * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
@@ -56968,22 +57950,13 @@ window.CustomElements.addModule(function(scope) {
   var head = document.querySelector("head");
   head.insertBefore(style, head.firstChild);
 })(window.WebComponents);
-/**
- * Created by praba on 2/12/2016.
- */
-
 //JS file for the supplier-page
 Polymer({
   is: "supplier-page",
   ready:function()
   {
-
-    localStorage.setItem("curr_sess_showpage","Add Supplier");
-    //if(localStorage.getItem("curr_sess_showpage")=="additem-card")
+    localStorage.setItem("curr_sess_showpage","Add Supplier");    
     this.page="Add Supplier";
-    //if(localStorage.getItem("curr_sess_showpage")=="addsupplier-card")
-    //this.page="addsupplier-card";
-
   },
   //Method to change the page view in base page ie home page
   setPage:function(page)
@@ -57162,9 +58135,6 @@ Polymer.IronLabel = Polymer({
           reflectToAttribute: true,
           observer: '_forChanged'
         },
-        /**
-         * @type {Element}
-         */
         _forElement: Object
       },
 
@@ -57288,7 +58258,7 @@ Polymer({
 
       },
       FnGetFormattedDate:function(todayTime) {
-      //alert(todayTime);        
+      //alert(todayTime);
         var month = todayTime .getMonth() + 1;
         if(month<10)
           month="0"+month;
@@ -57300,28 +58270,26 @@ Polymer({
       },
       callOutwardService:function(dayval){
         //alert(todayTime);
-
-        
         var flag=true;
         var obj={"outdate":""};
-        if(dayval=="current"){ 
-        if(todayTime=="")         
-        todayTime = new Date();                  
+        if(dayval=="current"){
+        if(todayTime=="")
+        todayTime = new Date();
         }
         if(dayval=="forward"){
-        if(todayTime=="") 
+        if(todayTime=="")
         todayTime = new Date();
-        if((todayTime.getDate()+1)<=(new Date().getDate())){              
+        if((todayTime.getDate()+1)<=(new Date().getDate())){
         todayTime.setDate(todayTime.getDate() + 1);
         document.querySelector('fromtopicker-card').FnSetToDate(this.FnGetFormattedDate(todayTime));
         }
         else{
-          flag=false;
-        this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!",""); 
+        flag=false;
+        this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!","");
         }
         }
         if(dayval=="backward"){
-        if(todayTime=="") 
+        if(todayTime=="")
         todayTime = new Date();
         todayTime.setDate(todayTime.getDate() - 1);
         document.querySelector('fromtopicker-card').FnSetFromDate(this.FnGetFormattedDate(todayTime));
@@ -57346,10 +58314,10 @@ Polymer({
           document.querySelector('outwardreport-card').FnEnableHide(false);
         document.querySelector('outwardreport-card').itemarr=e.detail.response.itemarr;
       }
-      
+
       },
       FnFromToDateChange:function(fromdate,todate){
-        
+
         todayTime=new Date(localStorage.getItem("curr_sess_todaydate"));
         var obj={"fromdate":"","todate":""};
         obj.fromdate=fromdate;
@@ -57359,6 +58327,7 @@ Polymer({
         this.$.outwarditemfromtofetchajax.generateRequest();
       },
       outwardfromtoResponse:function(e){
+        // alert(JSON.stringify(e.detail.response.itemarr));
         if((e.detail.response.itemarr).length==0){
           var arr=[];
           document.querySelector('outwardreport-card').FnEnableHide(true);
@@ -57370,7 +58339,7 @@ Polymer({
           document.querySelector('outwardreport-card').FnEnableHide(false);
         document.querySelector('outwardreport-card').itemarr=e.detail.response.itemarr;
       }
-      
+
       },
       FnSetTodayTime:function(){
         //todayTime=localStorage.getItem("curr_sess_todaydate");
@@ -57389,12 +58358,10 @@ Polymer({
     this.fromshowdate=moment(new Date()).format('L');    
     this.toshowdate=moment(new Date()).format('L');    
   },
-  FnForward:function(){
-    //alert('forward');
+  FnForward:function(){    
     this.$.reportservice.callOutwardService("forward");
   },
-  FnBackward:function(){
-    //alert('backward');
+  FnBackward:function(){    
     this.forward=false;
     this.$.reportservice.callOutwardService("backward");
   },
@@ -57412,16 +58379,9 @@ Polymer({
       var pickdate=moment(this.$.frompicker.date).format('L');      
       var dd1=new Date();
       var dd2=new Date(pickdate);
-      var days=parseInt((dd1 - dd2) / (1000 * 60 * 60 * 24));
-      //alert(days);
+      var days=parseInt((dd1 - dd2) / (1000 * 60 * 60 * 24));      
       if(days<0)
       {
-        //if(days>60)
-          //this.$.ID_Show_Dialog.FnShowDialog("You can see 60 days!","");
-          //alert("You can add only recent entries within 60 days!");
-        //else{
-  
-          //alert('no');
           if(this.fromshowdate>this.toshowdate) { 
            this.fromshowdate=moment(new Date()).format('L');
            this.$.ID_Show_Dialog.FnShowDialog("From date shouldn't exceed the to date!","");    
@@ -57429,33 +58389,25 @@ Polymer({
           else{
           this.fromshowdate=moment(new Date()).format('L');
           this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!",""); 
-          }   
-              
-        //}
+          }             
+        
       }
       else if(days==0&&(this.fromshowdate==this.toshowdate)){
           this.fromshowdate = moment(this.$.frompicker.date).format('L');
-          localStorage.setItem("curr_sess_todaydate",this.fromshowdate);  
-          
-          //alert(this.fromshowdate+"  "+this.toshowdate)
+          localStorage.setItem("curr_sess_todaydate",this.fromshowdate);        
           if(this.fromshowdate>this.toshowdate) { 
           this.fromshowdate=moment(new Date()).format('L');
           this.$.ID_Show_Dialog.FnShowDialog("From date shouldn't exceed the to date!","");    
-          }     
-          
+          }               
       }
-      else{
-        // alert('infrom');
+      else{        
           this.fromshowdate = moment(this.$.frompicker.date).format('L');
-          localStorage.setItem("curr_sess_todaydate",this.fromshowdate); 
-          //alert(this.fromshowdate+"  "+this.toshowdate)
-          if(this.fromshowdate<this.toshowdate) {   
-          //alert('yes');     
+          localStorage.setItem("curr_sess_todaydate",this.fromshowdate);          
+          if(this.fromshowdate<this.toshowdate) {           
           document.querySelector('report-service').FnFromToDateChange(this.fromshowdate,this.toshowdate);
-          }
-        // this.$.ID_Show_Dialog.FnShowDialog("Date shouldn't exceed the run date!","");
+          }        
       }
-        //alert("Date shouldn't exceed the run date!");
+        
     }
   },
   FnDismissToDialog:function(e){
@@ -57464,8 +58416,7 @@ Polymer({
       var pickdate=moment(this.$.topicker.date).format('L');
       var dd1=new Date();
       var dd2=new Date(pickdate);
-      var days=parseInt((dd1 - dd2) / (1000 * 60 * 60 * 24));
-      // alert(days);
+      var days=parseInt((dd1 - dd2) / (1000 * 60 * 60 * 24));      
     if(days<0)
       {
        
@@ -57516,19 +58467,29 @@ Polymer({
     Polymer({
       is: 'outwardreport-card',
      ready:function(){
-      
-      this.hidenoitem=true;
-      localStorage.setItem("curr_sess_showpage","Outward Report");
-      //alert(localStorage.getItem("curr_sess_showpage"));
-      if(sessionStorage.getItem("curr_sess_roleflag")=="10"&&localStorage.getItem("curr_sess_wardflag")=="5")
+
+      this.hidenoitem=true;      
+      if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
+         if(localStorage.getItem("curr_sess_wardflag")=="7")
+         localStorage.setItem("curr_sess_showpage","approvesupplier-card");
+         if(localStorage.getItem("curr_sess_wardflag")=="8")
+         localStorage.setItem("curr_sess_showpage","approvecustomer-card");
+         if(localStorage.getItem("curr_sess_wardflag")=="12")
+         localStorage.setItem("curr_sess_showpage","approveuser-card");
+       }
+      if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
+         localStorage.setItem("curr_sess_showpage","retest-card");
+       }
+      if(sessionStorage.getItem("curr_sess_roleflag")=="10"||sessionStorage.getItem("curr_sess_roleflag")=="11") {
+        localStorage.setItem("curr_sess_showpage","Outward Report");        
         this.$.reportservice.callOutwardService("current");
+      }
      },
-    
+
      forward:function(){
         this.$.reportservice.callOutwardService("forward");
      },
-     backward:function(){
-      //alert('back');
+     backward:function(){      
         this.$.reportservice.callOutwardService("backward");
      },
      FnEnableHide:function(flag){
@@ -57541,7 +58502,6 @@ Polymer({
   })();
 (function() {
     'use strict';
-
     Polymer({
       is: 'poitemdialog-card',
 
@@ -57551,107 +58511,171 @@ Polymer({
           value: 'poitemdialog-card',
           notify: true
         }
-      },
-      
-  FnToggleDialog:function(){   
-      //this.$.Fn_PoItem_dialog.toggle();
+      },      
+  FnToggleDialog:function(){       
       document.querySelector('Fn_PoItem_dialog').open();
   },
   FnClickOk:function(){
-    document.querySelector('Fn_PoItem_dialog').open();
-    //this.$.Fn_PoItem_dialog.close();
+    document.querySelector('Fn_PoItem_dialog').open();    
   }
     });
   })();
+(function() {
+      Polymer({is:"customerdialog-card",
+        ready:function(){
+        },
+        FnShowDialog:function(dialogmsg){
+          this.dialogmsg=dialogmsg;
+          this.$.Fn_Customer_Open_dialog.open();
+        }
+      });
+    })();
 /**
  * Created by praba on 2/26/2016.
  */
+ // JS component for customer-service
 (function() {
   var supplierid;
-   var obj1;
+  var obj1;
   var obj2;
   var obj3;
+  var obj4;
+  var obj5;
+  var obj6;
+  var approvecustomerarr=[];
   Polymer({
     is: "customer-service",
     ready: function () {
-
     },
-    callSearchService:function(supplierid,suppliername){
-    this.supplierreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomerinfo-service";
-      var obj={"supplierid":"","suppliername":""};
-      obj.supplierid=supplierid;
+    //Method which make req to fetch the customer information while searching 
+  callSearchService:function(supplierid,suppliername){
+     this.supplierreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomerinfo-service";
+      var obj={"supplierid":"","suppliername":""};      
       obj.suppliername=suppliername;
       this.supplierreadparam=obj;
       this.$.readsupplierajax.generateRequest();
   },
   readsupplierResponse:function(e){
-    var arr= e.detail.response.itemarr;
-   // alert(JSON.stringify(arr));
-    document.querySelector("addcustomer-card").supplierid=arr[0].supplierid;
-    document.querySelector("addcustomer-card").suppliername=arr[0].suppliername;
-    document.querySelector("addcustomer-card").landmark=arr[0].landmark;
-    document.querySelector("addcustomer-card").location=arr[0].location;
-        document.querySelector("addcustomer-card").city=arr[0].city;
-        document.querySelector("addcustomer-card").district=arr[0].district;
-        document.querySelector("addcustomer-card").state=arr[0].state;
-        document.querySelector("addcustomer-card").country=arr[0].country;
-        document.querySelector("addcustomer-card").pincode=arr[0].pincode;
-        document.querySelector("addcustomer-card").phoneno=arr[0].phoneno;
-        document.querySelector("addcustomer-card").mobileno=arr[0].mobileno;
-        document.querySelector("addcustomer-card").emailid=arr[0].emailid;
-        //To call show item card when click item detail tab after add supplier page
-        document.querySelector("customeradditem-card").FnSetValue(arr[0].supplierid,arr[0].suppliername);
-        document.querySelector("customeritem-card").FnFetchItemInfo(arr[0].supplierid,arr[0].suppliername);
+        var arr= e.detail.response.itemarr;
+        // Method which bind the searched customer information to the customer card
+        localStorage.setItem('curr_sess_customerloggedid',arr[0].Customer_ID);
+        document.querySelector("addcustomer-card").category=arr[0].Category;
+        document.querySelector("addcustomer-card").suppliername=arr[0].Customer_Name;
+        document.querySelector("addcustomer-card").aliasname=arr[0].Alias_Name;
+        document.querySelector("addcustomer-card").address1=arr[0].Address1;
+        document.querySelector("addcustomer-card").address2=arr[0].Address2;
+        document.querySelector("addcustomer-card").doorno=arr[0].Doorno;
+        document.querySelector("addcustomer-card").streetno=arr[0].Streetno;
+        document.querySelector("addcustomer-card").streetname=arr[0].Street_Name;
+        document.querySelector("addcustomer-card").location=arr[0].Location;
+        document.querySelector("addcustomer-card").city=arr[0].City;
+        document.querySelector("addcustomer-card").district=arr[0].District;
+        document.querySelector("addcustomer-card").state=arr[0].State;
+        document.querySelector("addcustomer-card").country=arr[0].Country;
+        document.querySelector("addcustomer-card").pincode=arr[0].Pincode;
+        document.querySelector("addcustomer-card").phoneno=arr[0].PhoneNo1;
+        document.querySelector("addcustomer-card").mobileno=arr[0].Mobileno;
+        document.querySelector("addcustomer-card").emailid=arr[0].Email;
+        document.querySelector("addcustomer-card").faxno=arr[0].Faxno;
+        document.querySelector("addcustomer-card").website=arr[0].Website;
+        //To call show item card when click item detail tab after add customer page
+        document.querySelector("customeradditem-card").FnSetValue(arr[0].Customer_ID,arr[0].Customer_Name);
+        document.querySelector("customeritem-card").FnFetchItemInfo(arr[0].Customer_ID,arr[0].Customer_Name);
   },
-  callPaymentService:function(supid,supname){
-    this.paymentreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomerpaymentinfo-service";
-          var obj={"supplierid":"","suppliername":""};
-          obj.supplierid=supid;
-          obj.suppliername=supname;
-          this.paymentreadparam=obj;
-      this.$.readpaymentajax.generateRequest();
+  // Method which make request to search the payment information of the searched customer
+  callPaymentService:function(){
+        this.paymentreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomerpaymentinfo-service";
+        var obj={"supplierid":"","suppliername":""};
+        obj.supplierid=localStorage.getItem('curr_sess_customerloggedid');
+        this.paymentreadparam=obj;
+        this.$.readpaymentajax.generateRequest();
   },
   readpaymentResponse:function(e){
-    var arr= e.detail.response.itemarr;
-    //alert(JSON.stringify(arr));
-      document.querySelector("customerpayment-card").paymenttype=arr[0].paymenttype;
-      document.querySelector("customerpayment-card").bankname=arr[0].bankname;
-      document.querySelector("customerpayment-card").accountno=arr[0].accountno;
-      document.querySelector("customerpayment-card").address=arr[0].address;
-      document.querySelector("customerpayment-card").term=arr[0].paymentterm;
-      document.querySelector("customerpayment-card"). setSelectType(arr[0].paymenttype,arr[0].paymentterm);
-
-  },
-    callItemService:function(supplierid){
-      this.itemreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomeriteminfo-service";
-          var obj={"supplierid":""};
-          //alert("supplier: "+supplierid);
-          this.supplierid=supplierid;
-          obj.supplierid=supplierid;
-          this.itemreadparam=obj;
-      this.$.readitemajax.generateRequest();
-    },
-    readitemResponse:function(e){
       var arr= e.detail.response.itemarr;
-      //alert(JSON.stringify(arr));
-        if(this.supplierid!="")
-        document.querySelector("customeritem-card").itemArray=arr;
-        /*document.querySelector("payment-card").bankname=arr[0].bankname;
-        document.querySelector("payment-card").accountno=arr[0].accountno;
-        document.querySelector("payment-card").address=arr[0].address;
-        document.querySelector("payment-card").selection=arr[0].paymentterm;
-        document.querySelector("payment-card"). setSelectType(arr[0].paymenttype,arr[0].paymentterm);*/
-
+      // Binding payment information of the searched customer to payment card 
+      document.querySelector("customerpayment-card").accountname=arr[0].Account_Name;
+      document.querySelector("customerpayment-card").accountno=arr[0].Account_No;
+      document.querySelector("customerpayment-card").accounttype=arr[0].Account_Type;
+      document.querySelector("customerpayment-card").paymenttype=arr[0].Payment_Type;
+      document.querySelector("customerpayment-card").bankname=arr[0].Bank_Name;
+      document.querySelector("customerpayment-card").branch=arr[0].Branch;
+      document.querySelector("customerpayment-card").ifsccode=arr[0].IFSC_Code;
+      document.querySelector("customerpayment-card").micrcode=arr[0].MICR_Code;
+      document.querySelector("customerpayment-card").swiftcode=arr[0].Swift_Code;
+      document.querySelector("customerpayment-card").term=arr[0].Payment_Term;
+      document.querySelector("customerpayment-card"). setSelectType(arr[0].Payment_Type,arr[0].Payment_Term);
   },
-    addsupplierService:function(supplieridd,suppliername,landmark,location,city,district,state,country,pincode,phoneno,mobileno,emailid){
-
+  // Fetching item information against the Customer
+  callItemService:function(supplierid){
+      this.itemreadurl=sessionStorage.getItem("curr_sess_url")+"readcustomeriteminfo-service";
+      var obj={"supplierid":""};
+      this.supplierid=supplierid;
+      obj.supplierid=supplierid;
+      this.itemreadparam=obj;
+      this.$.readitemajax.generateRequest();
+  },
+  readitemResponse:function(e){
+      var arr= e.detail.response.itemarr;      
+      if(this.supplierid!="")
+      document.querySelector("customeritem-card").itemArray=arr;
+  },
+  // Fetching tax information for the searched customer
+  callTaxreadService:function(){
+      this.readtaxurl=sessionStorage.getItem("curr_sess_url")+"taxread-service";
+      var obj={"customerid":""};
+      this.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      obj.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      //alert(obj.customerid);
+      this.readtaxparam=obj;
+      this.$.readtaxajax.generateRequest();
+  },
+  readtaxResponse:function(e){
+      var arr= e.detail.response.itemarr; 
+      // Binding tax information to the supplier tax card for the searched customer     
+      document.querySelector("tax-card").tinno=arr[0].TIN;
+      document.querySelector("tax-card").cstno=arr[0].CST;
+      document.querySelector("tax-card").panno=arr[0].PAN;
+      document.querySelector("tax-card").tanno=arr[0].TAN;
+      document.querySelector("tax-card").cinno=arr[0].CIN;
+      document.querySelector("tax-card").FnEnableFields();
+  },
+  // Fetching excise information for the searched customer
+  callExcisereadService:function(){
+      this.readexciseurl=sessionStorage.getItem("curr_sess_url")+"exciseread-service";
+      var obj={"customerid":""};
+      this.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      obj.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      //alert(obj.customerid);
+      this.readexciseparam=obj;
+      this.$.readexciseajax.generateRequest();
+  },
+  readexciseResponse:function(e){
+      var arr= e.detail.response.itemarr;
+      // Binding excise information to the supplier excise card for the searched customer
+      document.querySelector("excise-card").regno=arr[0].Reg_No;
+      document.querySelector("excise-card").eccno=arr[0].Ecc_No;
+      document.querySelector("excise-card").range=arr[0].Range;
+      document.querySelector("excise-card").division=arr[0].Division;
+      document.querySelector("excise-card").commission=arr[0].Commission;
+      document.querySelector("excise-card").servicetax=arr[0].Service_Tax;
+      document.querySelector("excise-card").FnEnableFields();
+  },
+  // Method which make request to add the customer
+  addsupplierService:function(category,supplieridd,suppliername,aliasname,address1,address2,doorno,streetno,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid,faxno,website){
       obj1={
-        "supplierid":"","suppliername":"","landmark":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""
+        "category":"","supplierid":"","suppliername":"","aliasname":"","address1":"","address2":"","doorno":"","streetno":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":"",
+        "faxno":"","website":""
       };
       supplierid=supplieridd;
+      obj1.category=category;
       obj1.supplierid=supplierid;
       obj1.suppliername=suppliername;
-      obj1.landmark=landmark;
+      obj1.aliasname=aliasname;
+      obj1.address1=address1;
+      obj1.address2=address2;
+      obj1.doorno=doorno;
+      obj1.streetno=streetno;
+      obj1.streetname=streetname;
       obj1.location=location;
       obj1.city=city;
       obj1.district=district;
@@ -57661,61 +58685,126 @@ Polymer({
       obj1.phoneno=phoneno;
       obj1.mobileno=mobileno;
       obj1.emailid=emailid;
+      obj1.faxno=faxno;
+      obj1.website=website;
       },
     addsupplierResponse:function(e){
-
       if(e.detail.response.returnval=="succ"){
-      //alert("Supplier Added!");
-      this.paymentparam=obj2;
-      this.paymenturl=sessionStorage.getItem("curr_sess_url")+"addcustomerpayment-service";
-      this.$.addpaymentajax.generateRequest();
-
-      //document.querySelector('addsupplier-card').FnBtnDisable();
-          //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
+        localStorage.setItem('curr_sess_customerloggedid',e.detail.response.id);
+        obj3.customerid=localStorage.getItem('curr_sess_customerloggedid');
+        this.customertaxaddparam=obj3;
+        this.customertaxaddurl=sessionStorage.getItem("curr_sess_url")+"customertaxadd-service";
+        this.$.customertaxaddajax.generateRequest();
       }
       else{
-          alert("Customer ID already exists!..Create new customer...");
-          window.location.href="../elements/indexhome.html";
       }
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
     },
-    addpaymentService:function(accno,bankname,address,mode,paymentterm){
-     obj2={
-            "supplierid":"","accno":"","bankname":"","mode":"","paymentterm":""
-          };
-          obj2.supplierid=supplierid;
-          obj2.accno=accno;
-          obj2.bankname=bankname;
-          obj2.mode=mode;
-          obj2.paymentterm=paymentterm;
-          obj2.address=address;
-          this.supplierparam=obj1;
-
-        if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-              this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addcustomer-service";
-          this.$.addsupplierajax.generateRequest();
-          }
-
+  // Function which make request to add the customer contact info
+  FnAddContactService:function(designation,mobileno,emailid){
+    obj2={"customerid":"","designation":"","mobileno":"","emailid":""};
+    obj2.customerid=localStorage.getItem('curr_sess_customerloggedid');
+    obj2.designation=designation;
+    obj2.mobileno=mobileno;
+    obj2.emailid=emailid;
+    this.customeraddcontactparam=obj2;
+    this.customeraddcontacturl=sessionStorage.getItem("curr_sess_url")+"customeraddcontact-service";
+    this.$.customeraddcontactajax.generateRequest();
   },
-  addpaymentResponse:function(e){
-
+  customeraddcontactResponse:function(e){
+    if(e.detail.response.itemarr=="succ") {
+      this.FncustomerreadcontactService();
+    }
+    else
+      this.$.customerdialogcard.FnShowDialog("Problem in adding contact!");
+  },
+  // Function which make request to fetch contact info of the customer
+  FncustomerreadcontactService:function(){
+    document.querySelector("customer-page").setPage("Add Contact");
+    var obj={"customerid":""};
+    obj.customerid=localStorage.getItem('curr_sess_customerloggedid');    
+    this.customerreadcontactparam=obj;
+    this.customerreadcontacturl=sessionStorage.getItem("curr_sess_url")+"customerreadcontact-service";
+    this.$.customerreadcontactajax.generateRequest();
+  },
+  customerreadcontactResponse:function(e) {    
+    document.querySelector('contactperson-card').itemArray=e.detail.response.itemarr;
+  },
+  // Function which make request to add the customer tax info
+  FnCustomerTaxAddService:function(tin,cst,pan,tan,cin){
+    obj3={"customerid":"","tin":"","cst":"","pan":"","tan":"","cin":""};
+    obj3.customerid=localStorage.getItem('curr_sess_customerloggedid');    
+    obj3.tin=tin;
+    obj3.cst=cst;
+    obj3.pan=pan;
+    obj3.tan=tan;
+    obj3.cin=cin;
+    document.querySelector('customer-page').setPage('Add Excise');
+  },
+  customertaxaddResponse:function(e){
+    if(e.detail.response.returnval=="succ") {
+      obj4.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      this.customerexciseaddparam = obj4;
+      this.customerexciseaddurl = sessionStorage.getItem("curr_sess_url") + "customerexciseadd-service";
+      this.$.customeraddexciseajax.generateRequest();
+    }
+  },
+  // Function which make request to add the customer excise info
+  FnCustomerExciseAddService:function(regno,eccno,range,division,commission,servicetax){
+    obj4={"customerid":"","regno":"","eccno":"","range":"","division":"","commission":"","servicetax":""};
+    obj4.customerid=localStorage.getItem('curr_sess_customerloggedid');
+    obj4.regno=regno;
+    obj4.eccno=eccno;
+    obj4.range=range;
+    obj4.division=division;
+    obj4.commission=commission;
+    obj4.servicetax=servicetax;
+    document.querySelector('customer-page').setPage('Add Payment');
+  },
+  customerexciseaddResponse:function(e) {  
+  if (e.detail.response.returnval=="succ"){
+    obj5.customerid=localStorage.getItem('curr_sess_customerloggedid');
+    this.paymentparam = obj5;
+    this.paymenturl = sessionStorage.getItem("curr_sess_url") + "addcustomerpayment-service";
+    this.$.addpaymentajax.generateRequest();
+  }
+  },
+  // Function which make request to add the customer payment info
+  addpaymentService:function(accountname,accountno,accounttype,paymenttype,bankname,branch,ifsccode,micrcode,swiftcode,paymentterm){
+    
+    obj5={
+            "customerid":"","accountname":"","accountno":"","accounttype":"","paymenttype":"","bankname":"",
+            "branch":"","ifsccode":"","micrcode":"","swiftcode":"","paymentterm":""
+          };
+          obj5.customerid=localStorage.getItem('curr_sess_customerloggedid');
+          obj5.accountname=accountname;
+          obj5.accountno=accountno;
+          obj5.accounttype=accounttype;
+          obj5.paymenttype=paymenttype;
+          obj5.bankname=bankname;
+          obj5.branch=branch;
+          obj5.ifsccode=ifsccode;
+          obj5.micrcode=micrcode;
+          obj5.swiftcode=swiftcode;
+          obj5.paymentterm=paymentterm;
+          this.supplierparam=obj1;
+        if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+          this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addcustomer-service";
+          this.$.addsupplierajax.generateRequest();
+        }
+  },
+  addpaymentResponse:function(e){    
   if(e.detail.response.returnval=="succ"){
     alert("Customer Added successfully!!");
-    //this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-    //this.itemparam=obj3;
-        //this.$.additemajax.generateRequest();
-        //document.querySelector('addsupplier-card').FnBtnDisable();
-        //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-        }
-        else
-            alert("Unable to add payment!");
-         // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
-    },
-    additemService:function(itemflag,itemid, itemname, itemdes, container, quantity, itemgroup, itemtype,supplier, purchasetype){
+  }
+  else
+    alert("Unable to add payment!");
+  },
+  // Function which make request to add item to the customer
+  additemService:function(itemflag,itemid, itemname, itemdes, container, quantity, itemgroup, itemtype,supplier, purchasetype){
      obj3={
             "itemflag":"","supplierid":"","itemid":"","itemname":"","itemdes":"","container":"","quantity":"","itemgroup":"","itemtype":"","itemsupplier":"","purchasetype":""
           };
-          obj3.supplierid=supplierid;
+          obj3.supplierid=localStorage.getItem('curr_sess_customerloggedid');
           obj3.itemid=itemid;
           obj3.itemname=itemname;
           obj3.itemdes=itemdes;
@@ -57726,41 +58815,41 @@ Polymer({
           obj3.itemsupplier=supplier;
           obj3.purchasetype=purchasetype;
           obj3.itemflag=itemflag;
-        this.supplierparam=obj1;
-
-        if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-              this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addcustomer-service";
-          this.$.addsupplierajax.generateRequest();
+          this.supplierparam=obj1;
+          if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+            this.supplierurl=sessionStorage.getItem("curr_sess_url")+"addcustomer-service";
+            this.$.addsupplierajax.generateRequest();
           }
           else
           {
-        this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-        this.itemparam=obj3;
+            this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
+            this.itemparam=obj3;
             this.$.additemajax.generateRequest();
-        }
-
+          }
   },
-  additemResponse:function(e){
-    //this.$.addpaymentajax.generateRequest();
+  additemResponse:function(e){    
       if(e.detail.response.returnval=="succ"){
-      //alert("Supplier Added!");
-      //document.querySelector('supplieradditem-card').FnBtnDisable();
-          this.$.dialogpage.FnShowDialog("Customer Added successfully!!","");
+        this.$.dialogpage.FnShowDialog("Customer Added successfully!!","");
       }
       else
-          alert("Unable to add customer!");
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
+        alert("Unable to add customer!");       
     },
-    updatesupplierService:function(supplieridd,suppliername,landmark,location,city,district,state,country,pincode,phoneno,mobileno,emailid){
-      //alert(supplieridd+" "+suppliername+" "+landmark+" "+location+" "+city+" "+district+" "+state+" "+country+" "+pincode+" "+phoneno+" "+mobileno+" "+emailid)
+  // Function to update the customer info
+  updatesupplierService:function(category,supplierid,suppliername,aliasname,address1,address2,doorno,streetno,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid,faxno,website){   
       obj1={
-        "supplierid":"","suppliername":"","landmark":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""
+        "supplierid":"","suppliername":"","aliasname":"","address1":"","address2":"","doorno":"","streetno":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":"",
+        "faxno":"","website":""
       };
-      supplierid=supplieridd;
-      //alert(supplierid);
+      supplierid=localStorage.getItem('curr_sess_customerloggedid');
+      obj1.category=category;
       obj1.supplierid=supplierid;
       obj1.suppliername=suppliername;
-      obj1.landmark=landmark;
+      obj1.aliasname=aliasname;
+      obj1.address1=address1;
+      obj1.address2=address2;
+      obj1.doorno=doorno;
+      obj1.streetno=streetno;
+      obj1.streetname=streetname;
       obj1.location=location;
       obj1.city=city;
       obj1.district=district;
@@ -57770,65 +58859,168 @@ Polymer({
       obj1.phoneno=phoneno;
       obj1.mobileno=mobileno;
       obj1.emailid=emailid;
+      obj1.faxno=faxno;
+      obj1.website=website;      
       },
-     updatecustomerResponse:function(e){
-      //alert(e.detail.response.returnval);
+     updatecustomerResponse:function(e){      
       if(e.detail.response.returnval=="succ"){
-      //alert("Supplier Added!");
-      this.updatecustomerpaymentparam=obj2;
-      this.updatecustomerpaymenturl=sessionStorage.getItem("curr_sess_url")+"updatecustomerpayment-service";
-      this.$.updatecustomerpaymentajax.generateRequest();
-
-      //document.querySelector('addsupplier-card').FnBtnDisable();
-          //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
+        this.updatetaxparam=obj3;
+        this.updatetaxurl=sessionStorage.getItem("curr_sess_url")+"updatetax-service";
+        this.$.updatetaxajax.generateRequest();
       }
       else{
-          alert("Unable to update customer");
-          window.location.href="../elements/indexhome.html";
+        alert("Unable to update customer");
+        window.location.href="../elements/indexhome.html";
       }
-       // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
     },
-    updatepaymentService:function(accno,bankname,address,mode,paymentterm){
-      //alert(supplierid+" "+accno+" "+bankname+" "+address+" "+mode+" "+paymentterm);
-     obj2={
-            "supplierid":"","accno":"","bankname":"","mode":"","paymentterm":""
-          };
-          obj2.supplierid=supplierid;
-          obj2.accno=accno;
-          obj2.bankname=bankname;
-          obj2.mode=mode;
-          obj2.paymentterm=paymentterm;
-          obj2.address=address;
-          this.updatecustomerparam=obj1;
-
-        //if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-              this.updatecustomerurl=sessionStorage.getItem("curr_sess_url")+"updatecustomer-service";
-          this.$.updatecustomerajax.generateRequest();
-          //}
-
-  },
-  updatecustomerpaymentResponse:function(e){
-    //alert(e.detail.response.returnval);
-  if(e.detail.response.returnval=="succ"){
-    alert("Customer Info Updated successfully!!");
-    //this.itemurl=sessionStorage.getItem("curr_sess_url")+"additem-service";
-    //this.itemparam=obj3;
-        //this.$.additemajax.generateRequest();
-        //document.querySelector('addsupplier-card').FnBtnDisable();
-        //this.$.dialogpage.FnShowDialog("Supplier Added successfully!!","");
-        }
-        else
-            alert("Unable to add payment!");
-         // this.$.dialogpage.FnShowDialog("Failed to Add Supplier!!","");
+    // Function which make request to add the customer tax info
+    updatecustomertaxService:function(tin,cst,pan,tan,cin){
+      obj3={"customerid":"","tin":"","cst":"","pan":"","tan":"","cin":""};
+      obj3.customerid=localStorage.getItem('curr_sess_customerloggedid');      
+      obj3.tin=tin;
+      obj3.cst=cst;
+      obj3.pan=pan;
+      obj3.tan=tan;
+      obj3.cin=cin;      
+    },
+    updatetaxResponse:function(e){      
+       if(e.detail.response.returnval=="succ") {
+        this.updateexciseparam = obj4;
+        this.updateexciseurl = sessionStorage.getItem("curr_sess_url") + "updateexcise-service";
+        this.$.updateexciseajax.generateRequest();
+      }
+    },
+    // Function which make request to update the customer excise info
+    updatecustomerexciseService:function(regno,eccno,range,division,commission,servicetax){
+      obj4={"customerid":"","regno":"","eccno":"","range":"","division":"","commission":"","servicetax":""};
+      obj4.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      obj4.regno=regno;
+      obj4.eccno=eccno;
+      obj4.range=range;
+      obj4.division=division;
+      obj4.commission=commission;
+      obj4.servicetax=servicetax;      
+    },
+    updateexciseResponse:function(e) {      
+      if (e.detail.response.returnval=="succ"){
+        this.updatecustomerpaymentparam=obj5;
+        this.updatecustomerpaymenturl=sessionStorage.getItem("curr_sess_url")+"updatecustomerpayment-service";
+        this.$.updatecustomerpaymentajax.generateRequest();
+      }
+    } ,
+    // Function which make request to update the customer payment info
+    updatepaymentService:function(accountname,accountno,accounttype,paymenttype,bankname,branch,ifsccode,micrcode,swiftcode,paymentterm){
+      obj5={
+        "customerid":"","accountname":"","accountno":"","accounttype":"","paymenttype":"","bankname":"",
+        "branch":"","ifsccode":"","micrcode":"","swiftcode":"","paymentterm":""
+      };
+      obj5.customerid=localStorage.getItem('curr_sess_customerloggedid');
+      obj5.accountname=accountname;
+      obj5.accountno=accountno;
+      obj5.accounttype=accounttype;
+      obj5.paymenttype=paymenttype;
+      obj5.bankname=bankname;
+      obj5.branch=branch;
+      obj5.ifsccode=ifsccode;
+      obj5.micrcode=micrcode;
+      obj5.swiftcode=swiftcode;
+      obj5.paymentterm=paymentterm;      
+      this.updatecustomerparam=obj1;
+      this.updatecustomerurl=sessionStorage.getItem("curr_sess_url")+"updatecustomer-service";
+      this.$.updatecustomerajax.generateRequest();
+    },
+    updatecustomerpaymentResponse:function(e){      
+      if(e.detail.response.returnval=="succ"){
+        alert("Customer Info Updated successfully!!");
+      }
+      else
+        alert("Unable to add payment!");
+    },
+    // Function which fetch the created customer for approval
+    readcustomertoapproveService:function(){      
+      this.readcustomertoapproveurl=sessionStorage.getItem("curr_sess_url")+"readcustomertoapprove-service";
+      this.$.readcustomertoapproveajax.generateRequest();
+    },
+    FnreadcustomertoapproveResponse:function(e){      
+      document.querySelector('approvecustomer-card').itemArray=e.detail.response.itemarr;
+    },
+    FnSetCustomerforApprove:function(customerid){
+      approvecustomerarr.push(customerid);
+    },
+    // Function which receive all customer who have accepted for approve
+    approvecustomerforsalesService:function(status){
+        var obj={"customerid":"","status":""};
+        obj.status=status;
+        obj.customerid=sessionStorage.getItem("sess_curr_customerid");        
+        this.approvecustomerforsalesparam=obj;
+        this.approvecustomerforsalesurl=sessionStorage.getItem("curr_sess_url")+"approvecustomerforsales-service";
+        this.$.approvecustomerforsalesajax.generateRequest();      
+    },
+    FnapprovecustomerforsalesResponse:function(e){      
+      if(e.detail.response.itemarr=="succ"){        
+        this.$.dialogpage.FnShowDialog(sessionStorage.getItem("sess_curr_customername")+" Approved Successfully!!","");
+        window.location.href="../elements/indexhome.html";
+      }
+      else
+        alert("Failed to approve the customer!!");
+    },
+    // Fetching customer info
+    FnCustomerinforeadService:function(){
+      var obj={"customerid":""};
+      obj.customerid=sessionStorage.getItem("sess_curr_customerid");
+      this.customerinforeadparam=obj;
+      this.customerinforeadurl=sessionStorage.getItem("curr_sess_url")+"customerinforead-service";
+      this.$.customerinforeadajax.generateRequest();
+    },
+    FncustomerinforeadResponse:function(e){      
+      var arr=e.detail.response;
+      // Binding customer info to the card in approve customer page
+      document.querySelector("customer-detail-read").suppliername=arr[0].Category;
+      document.querySelector("customer-detail-read").suppliername=arr[0].Customer_Name;
+      document.querySelector("customer-detail-read").aliasname=arr[0].Alias_Name;
+      document.querySelector("customer-detail-read").address1=arr[0].Address1;
+      document.querySelector("customer-detail-read").address2=arr[0].Address2;
+      document.querySelector("customer-detail-read").doorno=arr[0].Doorno;
+      document.querySelector("customer-detail-read").streetno=arr[0].Streetno;
+      document.querySelector("customer-detail-read").streetname=arr[0].Street_Name;
+      document.querySelector("customer-detail-read").location=arr[0].Location;
+      document.querySelector("customer-detail-read").city=arr[0].City;
+      document.querySelector("customer-detail-read").district=arr[0].District;
+      document.querySelector("customer-detail-read").state=arr[0].State;
+      document.querySelector("customer-detail-read").country=arr[0].Country;
+      document.querySelector("customer-detail-read").pincode=arr[0].Pincode;
+      document.querySelector("customer-detail-read").phoneno=arr[0].PhoneNo1;
+      document.querySelector("customer-detail-read").mobileno=arr[0].Mobileno;
+      document.querySelector("customer-detail-read").emailid=arr[0].Email;
+      document.querySelector("customer-detail-read").faxno=arr[0].Faxno;
+      document.querySelector("customer-detail-read").website=arr[0].Website;
+      // Binding customer payment info to the card in approve customer page
+      document.querySelector("customer-payment-read").accountname=arr[0].Account_Name;
+      document.querySelector("customer-payment-read").accountno=arr[0].Account_No;
+      document.querySelector("customer-payment-read").accounttype=arr[0].Account_Type;
+      document.querySelector("customer-payment-read").paymenttype=arr[0].Payment_Type;
+      document.querySelector("customer-payment-read").bankname=arr[0].Bank_Name;
+      document.querySelector("customer-payment-read").branch=arr[0].Branch;
+      document.querySelector("customer-payment-read").ifsccode=arr[0].IFSC_Code;
+      document.querySelector("customer-payment-read").micrcode=arr[0].MICR_Code;
+      document.querySelector("customer-payment-read").swiftcode=arr[0].Swift_Code;
+      document.querySelector("customer-payment-read").term=arr[0].Payment_Term;
+      // Binding customer tax info to the card in approve customer page
+      document.querySelector("customer-tax-read").tinno=arr[0].TIN;
+      document.querySelector("customer-tax-read").cstno=arr[0].CST;
+      document.querySelector("customer-tax-read").panno=arr[0].PAN;
+      document.querySelector("customer-tax-read").tanno=arr[0].TAN;
+      document.querySelector("customer-tax-read").cinno=arr[0].CIN;
+      // Binding customer excise info to the card in approve customer page
+      document.querySelector("customer-excise-read").regno=arr[0].Reg_No;
+      document.querySelector("customer-excise-read").eccno=arr[0].Ecc_No;
+      document.querySelector("customer-excise-read").range=arr[0].Range;
+      document.querySelector("customer-excise-read").division=arr[0].Division;
+      document.querySelector("customer-excise-read").commission=arr[0].Commission;
+      document.querySelector("customer-excise-read").servicetax=arr[0].Service_Tax;
     }
-
-
   });
 })();
-/**
- * Created by praba on 2/12/2016.
- */
-
 //JS file for the supplier-page
 Polymer({
   is: "customeradditem-card",
@@ -57856,7 +59048,7 @@ Polymer({
   FnSelectcontainer:function(e){
     document.querySelector('customeradditem-card').FnContainerChange((e.target.selectedItem.textContent).trim());
   },
-  FnSelectunit:function(e){  
+  FnSelectunit:function(e){
     document.querySelector('customeradditem-card').FnQuantityChange((e.target.selectedItem.textContent).trim());
   },
   //Method invokes to fetch item id of the currently selected Item type name in dropdown
@@ -57887,54 +59079,57 @@ Polymer({
       }
   },
 FnAddItemSubmit:function(){
-  //alert('click');
 //Fields mandatory validation performing here
     document.querySelector('#itemid').validate();
     document.querySelector('#itemname').validate();
     document.querySelector('#itemdes').validate();
-    //document.querySelector('#container').validate();
-    //document.querySelector('#quantity').validate();
     document.querySelector('#dropitemtype').validate();
     document.querySelector('#dropgrouptype').validate();
     document.querySelector('#supplier').validate();
 	//Fetching selected radio button value
 	var purchasetype=this.querySelector('#radio').selected;
-  //alert(purchasetype);
-  //alert(JSON.stringify(this.purchasearr));
 	for(var i=0;i<this.purchasearr.length;i++){
     if(this.querySelector('#radio').selected==this.purchasearr[i].purchasetypename)
     this.itemflag=this.purchasearr[i].purchasetypeid;
-	}
-  //alert(this.itemflag);
-  //alert(this.supplier+" "+this.itemflag+"  "+this.itemid+"  "+this.itemname+"  "+this.itemdes+"  "+this.container+"  "+this.quantity+"  "+this.itemgroup+" "+this.itemtype+" "+purchasetype);
+	}  
 	if(this.itemid==null||this.itemid==""||this.itemname==null||this.itemname==""||this.itemdes==null||this.itemdes==""||this.container==null||this.container==""||this.itemgroup==null||this.itemgroup==""||this.itemtype==null||this.itemtype==""){
 	}
 	else
-	{
-	//this.$.adminsupplierservice.additemService(this.itemflag,this.itemid, this.itemname, this.itemdes, this.container, this.quantity, this.itemgroup, this.itemtype, this.supplier,purchasetype);
-	//alert(this.supplier+" "+this.itemflag+"  "+this.itemid+"  "+this.itemname+"  "+this.itemdes+"  "+this.container+"  "+this.quantity+"  "+this.itemgroup+" "+this.itemtype+" "+purchasetype);
-  localStorage.setItem("curr_sess_additemcustomerwrite","1");
-	this.$.adminservice.callCustomerItemWriteService(this.supplierid,this.supplier,this.itemflag,this.itemid,this.itemname,this.itemdes,this.container,this.quantity,this.itemgroup,this.itemtype,this.storesid,purchasetype);
+	{   
+	localStorage.setItem("curr_sess_additemcustomerwrite","1");
+  // Function which calls service to add the customer information
+	this.$.adminservice.callCustomerItemWriteService(localStorage.getItem('curr_sess_customerloggedid'),this.supplier,this.itemflag,this.itemid,this.itemname,this.itemdes,this.container,this.quantity,this.itemgroup,this.itemtype,this.storesid,purchasetype);
 	}
+  // After adding customer info which clear the field info
   document.querySelector('stores-card').FnClear();
+  document.querySelector('itemsearch-card').FnSetClearFields();
+  this.itemdes="";
+  document.querySelector('#dropcontainertype').selected=-1;
+  document.querySelector('#dropunittype').selected=-1;
+  document.querySelector('#dropitemtype').selected=-1;
+  document.querySelector('#dropgrouptype').selected=-1;
+  document.querySelector('#radio').selected=-1;
+  this.read=false;
 },
+// Function which receives the customer id and name from customer card
 FnSetValue:function(supplierid,suppliername){
 	this.supplierid=supplierid;
-	this.supplier=suppliername;
- // this.supplierid=localStorage.getItem("curr_sess_supplieradditemtab_supplierid");
- // this.suppliern=localStorage.getItem("curr_sess_supplieradditemtab_suppliername");
+	this.supplier=suppliername; 
 },
+// Function which disable the buttons
 FnBtnDisable:function(){
 	document.querySelector('#save').style.backgroundColor='grey';
 	this.Btn_disable_flag=true;
 },
+// Function which receives the item info
 FnSetItemValue:function(itemid,itemname,itemdes,container,quantity,itemtype,itemgroup,selection){
-  
 	this.itemid=itemid;
 	this.itemname=itemname;
 	this.itemdes=itemdes;
 	this.containertype=container;
 	this.unittype=quantity;
+  this.container=container;
+  this.quantity=quantity;
 	for(var i=0;i<this.itemarr.length;i++){
 	   if(this.itemarr[i].itemtypeid==itemtype)
 	      this.itemtype=this.itemarr[i].itemtypename;
@@ -57947,23 +59142,21 @@ FnSetItemValue:function(itemid,itemname,itemdes,container,quantity,itemtype,item
 	   if(this.purchasearr[i].purchasetypeid==selection)
 	      this.selection=this.purchasearr[i].purchasetypename;
     }
-  
 },
- FnSetStoresInfo:function(storesarr,storesid){
- //alert(storesid);    
+// Function which receives stores info from stores card
+FnSetStoresInfo:function(storesarr,storesid){
     this.storesarr=storesarr;
-    this.storesid=storesid;    
-  },
+    this.storesid=storesid;
+},
+// Function which receives the item id
 FnSetItemId:function(itemid){
-  //alert(itemid);
 	this.itemid=itemid;
-
 },
+// Function which receives the item name
 FnSetItemName:function(itemname){
-
 	this.itemname=itemname;
-
 },
+// Function which used to reset the fields
 FnSetClearFields:function(){
 	this.itemid="";
 	this.itemname="";
@@ -57973,249 +59166,249 @@ FnSetClearFields:function(){
 	this.itemtype="";
 	this.itemgroup="";
 	this.selection="";
-
 },
+// Function which toggle the read state of the stores card in search and edit mode
 FnSetEnableDisableFields:function(flag){
   document.querySelector("stores-card"). FnEnableFields(flag);
   this.read=flag;
 },
+// Function which receive the container value from container card
 FnContainerChange:function(container){
 this.container=container;
 },
+// Function which receive the container value from quantity card
 FnQuantityChange:function(quantity){
 this.quantity=quantity;
 }
 });
-/**
- * Created by praba on 2/12/2016.
- */
-
-//JS file for the supplier-page
+//JS file for the customer payment card
 Polymer({
   is: "customerpayment-card",
   ready:function()
   {
-    this.read=false;
+  this.read=false;
 	this.mode="";
 	this.supid="";
 	this.supname="";
   },
+  // Function invokes while selecting the payment mode
   FnModeSelected:function(e){
 	if(e.target.selectedItem.textContent.trim()!="-----Select-----")
       this.mode = e.target.selectedItem.textContent.trim();
   },
+  // Function invokes while submitting payment info page of the customer
   FnAddPaymentInfoSubmit:function(){
-
-	 document.querySelector('#droppaymentmode').validate();
-	 document.querySelector('#bankname').validate();
-	 document.querySelector('#accno').validate();
-	 document.querySelector('#address').validate();
+    // Function whic validates the input fields
+    document.querySelector('#droppaymentmode').validate();
+    document.querySelector('#bankname').validate();
+    document.querySelector('#accountno').validate();
+    document.querySelector('#accountname').validate();
+    document.querySelector('#accounttype').validate();
+    document.querySelector('#branch').validate();
+    document.querySelector('#ifsccode').validate();
+    document.querySelector('#micrcode').validate();
+    document.querySelector('#swiftcode').validate();
 	 var paymentterm=this.querySelector('#radio').selected;
-	 if(this.mode==""||this.address==null||this.address==""||this.bankname==null||this.bankname==""||this.accountno==null||this.accountno==""){
+	 if(this.accountno==null||this.accountno==""){
 	 }
 	 else{
-		 if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-	 this.$.customerservice.addpaymentService(this.accountno,this.bankname,this.address,this.mode,paymentterm);
-	 document.querySelector('customer-page').setPage('Show Item');
-	 document.querySelector('customeritem-card').FnFetchItemInfo(this.supid,this.supname);
- 		}
+   if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+   //Function which calls service to add payment info of the customer 
+	 this.$.customerservice.addpaymentService(this.accountname,this.accountno,this.accounttype,this.paymenttype,this.bankname,this.branch,this.ifsccode,this.micrcode,this.swiftcode,paymentterm);
+	 document.querySelector("customer-page").setPage("Add Contact");
+ 	 }
+    //Function which calls service to update payment info of the customer while searching customer 
  		else if(localStorage.getItem("curr_sess_addcustomereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
- 		this.$.customerservice.updatepaymentService(this.accountno,this.bankname,this.address,this.mode,paymentterm);
- 		document.querySelector('customer-page').setPage('Show Item');
-		document.querySelector('customeritem-card').FnFetchItemInfo(this.supid,this.supname);
+ 		this.$.customerservice.updatepaymentService(this.accountname,this.accountno,this.accounttype,this.paymenttype,this.bankname,this.branch,this.ifsccode,this.micrcode,this.swiftcode,paymentterm); 		
+    this.$.customerservice.FncustomerreadcontactService();
+    document.querySelector("customer-page").setPage("Add Contact");
  		}
+    //Function which calls service to search payment info of the customer while searching
  		else
- 		{
-		document.querySelector('customer-page').setPage('Show Item');
-		document.querySelector('customeritem-card').FnFetchItemInfo(this.supid,this.supname);
+ 		{      
+      this.$.customerservice.FncustomerreadcontactService();
+      document.querySelector("customer-page").setPage("Add Contact");
 		}
 	}
   },
-
+  // Function which receives the customer id and calls payment service to fetch the payment info
   FnFetchPaymentInfo:function(supplierid,suppliername){
 	this.supid=supplierid;
 	this.supname=suppliername;
 	localStorage.setItem("curr_sess_suppliername",suppliername);
 	this.$.customerservice.callPaymentService(supplierid,suppliername);
   },
+  // Function which set payment type during search 
   setSelectType:function(mode,term){
 	  if(localStorage.getItem("curr_sess_addcustomereditflag")=="1")
   		this.read=false;
   	  else
   		this.read=true;
 	  this.paymenttype=mode;
-	  this.selected=term;
-	  //this.term=term;
+	  this.selected=term;  
   }
 });
 /**
  * Created by praba on 3/10/2016.
  */
+// JS file for the addcustomer-card
 (function() {
   'use strict';
-
   Polymer({
     is: 'addcustomer-card',
+    // Ready function to set the initial parameters
     ready:function(){
+    	this.country="India";
 		this.Btn_disable_flag=false;
 		this.read=false;
-		 //Initially hiding paperlistbox of itemtype and itemgroup fields
-		    this.isHidden=true;
-    		this.isHiddenid=true;
-    		this.IDread=true;
-    		localStorage.setItem("curr_sess_searchtypeflag", "nothing");
-    		localStorage.setItem("curr_sess_addcustomereditflag","0");
+		//Initially hiding paperlistbox of itemtype and itemgroup fields
+		this.isHidden=true;
+    	this.isHiddenid=true;
+    	this.IDread=true;
+    	localStorage.setItem("curr_sess_searchtypeflag", "nothing");
+    	localStorage.setItem("curr_sess_addcustomereditflag","0");
 	},
+	// Function which invokes selecting/changing the customer category
+    FnCategorySelected:function(e){
+      if(e.target.selectedItem.textContent.trim()!="-----Select-----")
+        this.category = e.target.selectedItem.textContent.trim();        
+    },
+    // Function which invokes while changing the email
 	FnEmailChange:function(){
-	   document.querySelector('#emailid').validate();
+	  document.querySelector('#emailid').validate();
 	},
+	// Function which invokes while enterning customer name and doing substring operation to get the customer id
 	FnInputChange:function(){
-	localStorage.setItem("curr_sess_searchtypeflag","nothing");
-	this.IDread=true;
-	this.supplierid=(this.suppliername).substring(0,4);
+	  localStorage.setItem("curr_sess_searchtypeflag","nothing");
+	  this.IDread=true;
+	  this.supplierid=(this.suppliername).substring(0,4);
 	},
+	// Function which invokes while submitting the customer inforamtion form
    FnSupplierInfoSubmit:function(){
-     document.querySelector('#emailid').validate();   	
-     document.querySelector('#supplierid').validate();
+   	// Method which validate the fields if it is left blank
+     document.querySelector('#address1').validate();     
      document.querySelector('#suppliername').validate();
+     document.querySelector('#doorno').validate();
+     document.querySelector('#streetno').validate();
+     document.querySelector('#streetname').validate();
      document.querySelector('#location').validate();
+     document.querySelector('#city').validate();
      document.querySelector('#district').validate();
      document.querySelector('#state').validate();
      document.querySelector('#country').validate();
      document.querySelector('#pincode').validate();
-     document.querySelector('#city').validate();
      document.querySelector('#mobileno').validate();
-     //document.querySelector('#landmark').validate();
+     document.querySelector('#emailid').validate();
+     // Condition which check for all the fields are entered
      if(this.supplierid==""||this.supplierid==null||this.suppliername==""||this.suppliername==null||this.location==""||this.location==null||this.city==null||this.city==""||this.district==""||this.district==null||this.state==null||this.state==""||this.country==null||this.country==""||this.pincode==""||this.pincode==null||this.mobileno==null||this.mobileno==""){}
+     // Else condition will invoke if all the fileds are entered
      else{
-     	
-		 document.querySelector("customeradditem-card").FnSetValue(this.supplierid,this.suppliername);
+     	// Setting entered customer name in session for later use
+		 document.querySelector("customeradditem-card").FnSetValue(localStorage.getItem('curr_sess_customerloggedid'),this.suppliername);
+		 // Condition will invoke for new customer adding
 		 if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
-         this.$.customerservice.addsupplierService(this.supplierid,this.suppliername,this.landmark,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
-         document.querySelector("customer-page").setPage("Add Payment");
-     	//document.querySelector("payment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
- 		}
- 		else if(localStorage.getItem("curr_sess_addcustomereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
- 			this.$.customerservice.updatesupplierService(this.supplierid,this.suppliername,this.landmark,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
-            
-            document.querySelector("customer-page").setPage("Add Payment");
-
-            document.querySelector("customerpayment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
- 		}
- 		else{
-			document.querySelector("customer-page").setPage("Add Payment");
-			//if(localStorage.getItem("curr_sess_searchtypeflag")=="0")
-			document.querySelector("customerpayment-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
-			//else if(localStorage.getItem("curr_sess_searchtypeflag")=="1")
-			//document.querySelector("supplieradditem-card").FnFetchPaymentInfo(this.supplierid,this.suppliername);
-		}
-	}
+         localStorage.setItem('curr_sess_customerloggedid',this.supplierid);
+         // Calling service to store the customer information
+         this.$.customerservice.addsupplierService(this.category,this.supplierid,this.suppliername,this.aliasname,this.address1,this.address2,this.doorno,this.streetno,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid,this.faxno,this.website);
+         // After submitting customer it would show the tax page to enter
+         document.querySelector("customer-page").setPage("Add Tax");
+ 		 }
+ 		 // Condition will invoke while searching existing customer and updating
+ 		 else if(localStorage.getItem("curr_sess_addcustomereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+ 	     // Caalling service to fetch the customer information
+ 	     this.$.customerservice.updatesupplierService(this.category,localStorage.getItem('curr_sess_customerloggedid'),this.suppliername,this.aliasname,this.address1,this.address2,this.doorno,this.streetno,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid,this.faxno,this.website);
+         // Calling service to fetch the tax information
+         this.$.customerservice.callTaxreadService();
+         // Showing tax page with values while moving from customer page
+         document.querySelector("customer-page").setPage("Add Tax"); 
+         // Calling method to fetch the payment information of the currently searched customer
+         document.querySelector("customerpayment-card").FnFetchPaymentInfo(localStorage.getItem('curr_sess_customerloggedid'),this.suppliername);
+ 		 }
+ 		 // Condition will invoke while searching existing customer
+ 		 else{
+ 		 this.$.customerservice.callTaxreadService();
+ 		 // Showing tax page with values while moving from customer page
+ 		 document.querySelector("customer-page").setPage("Add Tax"); 
+ 		 // Calling method to fetch the payment information of the currently searched customer       
+	     document.querySelector("customerpayment-card").FnFetchPaymentInfo(localStorage.getItem('curr_sess_customerloggedid'),this.suppliername);
+		 }
+	  }
     },
-    FnSearchSupplierId:function(){
-	//The flag is used to ensure the search is performed by using item id
-    localStorage.setItem("curr_sess_searchtypeflag","0");
-    //When performing search using itemid making listbox visible with items
-    this.isHiddenid=false;
-	this.read=true;
-    this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemcustomerread-service";
-	this.$.supplierlistreadajax.generateRequest();
-	},
+    // Method will invoke while searching customer
 	FnSearchSupplierName:function(){
-	//The flag is used to ensure the search is performed by using item name
-    localStorage.setItem("curr_sess_searchtypeflag","1");
-    document.querySelector('viewtype-card').FnEnableEdit(true);
-    //When performing search using itemname making listbox visible with items
-    this.isHidden=false;
-    this.read=true;
-    this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemcustomerread-service";
-    this.$.supplierlistreadajax.generateRequest();
+		//The flag is used to ensure the search is performed by using item name
+    	localStorage.setItem("curr_sess_searchtypeflag","1");
+    	// While searching existing customer which shows the edit button
+    	document.querySelector('viewtype-card').FnEnableEdit(true);
+    	//When performing search using itemname making listbox visible with items
+    	this.isHidden=false;
+    	// While searching customer making all the fields as readonly
+    	this.read=true;
+    	// Making ajax call to fetch the customer names
+    	this.supplierurl=sessionStorage.getItem("curr_sess_url")+"itemcustomerread-service";
+    	this.$.supplierlistreadajax.generateRequest();
 	},
+	// Method will list/load all the customer names in the listbox while search for the customer
 	supplierlistreadResponse:function(e){
-
 		//Fetching items matching with searc items to populate it in listbox
-		    //Condition will invoke if we performed item search using name
-		    if(localStorage.getItem("curr_sess_searchtypeflag")=="1") {
-		      this.querySelector('#searchname').style.visibility = 'visible';
-		      var arr = [];
-		      arr.push({"itemname": "-----Select-----"});
-		      var item = e.detail.response.itemarr;
-		      //alert(item);
-		      //alert(JSON.stringify(item));
-		      if (this.suppliername.length > 0) {
-		        for (var i = 0; i < item.length; i++) {
-		          var subval = ((item[i].itemsuppliername).trim()).substring(0, this.suppliername.length);
-		          if ((subval).toLowerCase() == (this.suppliername).toLowerCase()) {
-		            var obj = {"itemname": ""};
-		            obj.itemname = item[i].itemsuppliername;
-		            arr.push(obj);
-		          }
+		//Condition will invoke if we performed item search using name
+		if(localStorage.getItem("curr_sess_searchtypeflag")=="1") {
+		this.querySelector('#searchname').style.visibility = 'visible';
+		var arr = [];
+		arr.push({"itemname": "-----Select-----"});
+		var item = e.detail.response.itemarr;
+		if (this.suppliername.length > 0) {
+		    for (var i = 0; i < item.length; i++) {
+		        var subval = ((item[i].itemsuppliername).trim()).substring(0, this.suppliername.length);
+		        if ((subval).toLowerCase() == (this.suppliername).toLowerCase()) {
+		        var obj = {"itemname": ""};
+		        obj.itemname = item[i].itemsuppliername;
+		        arr.push(obj);
 		        }
-		        //Binding items to the listbox when it has the matching items otherwise showing no items
-		        if (arr.length > 0)
-		          this.itemArray = arr;
-		        else {
-		          var obj = {"itemname": ""};
-		          obj.itemname = "No items found";
-		          arr.push(obj);
-		          this.itemArray = arr;
-		          		        }
-		      }
 		    }
-		    //Condition will invoke if we performed item search using name
-		    if(localStorage.getItem("curr_sess_searchtypeflag")=="0") {
-		      //Fetching items matching with searc items to populate it in listbox
-		      //Condition will invoke if we performed item search using id
-		      this.querySelector('#searchid').style.visibility = 'visible';
-		      var arr = [];
-		      arr.push({"itemid": "-----Select-----"});
-		      var item = e.detail.response.itemarr;
-		      //alert(JSON.stringify(item));
-		      //alert(this.itemval);
-		      if (this.supplierid.length > 0) {
-		        for (var i = 0; i < item.length; i++) {
-		          var subval = ((item[i].itemsupplierid).trim()).substring(0, this.supplierid.length);
-
-		          if ((subval).toLowerCase() == (this.supplierid).toLowerCase()) {
-		            var obj = {"itemid": ""};
-		            obj.itemid = item[i].itemsupplierid;
-		            arr.push(obj);
-		          }
+		    //Binding items to the listbox when it has the matching items otherwise showing no items
+		    if (arr.length > 0)
+		        this.itemArray = arr;
+		    else{
+		        var obj = {"itemname": ""};
+		        obj.itemname = "No items found";
+		        arr.push(obj);
+		        this.itemArray = arr;
 		        }
-		        //Binding items to the listbox when it has the matching items otherwise showing no items
-		        if (arr.length > 0)
-		          this.itemidArray = arr;
-		        else {
-		          var obj = {"itemid": ""};
-		          obj.itemid = "No items found";
-		          arr.push(obj);
-		          this.itemidArray = arr;
-
-		        }
-		      }
-    }
-	},
-	FnSupplierIdSelected:function(e){
-		//if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
-		if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
-		this.supplierid = e.target.selectedItem.textContent.trim();
-		//Making invisible and deselection in dropdown of item id search list box
-		this.querySelector('#searchid').style.visibility='hidden';
-		this.querySelector('#searchid').selected=-1;
-		this.itemidArray="";
-		//if selected item id is not null invoking service to fetch item info
-		if(this.supplieritemid!=""||this.supplierid!="-----Select-----") {
-		    this.$.customerservice.callSearchService(this.supplierid, "");
 		}
 		}
-		else   {
-		this.read=false;
-		this.itemidArray="";
-		this.querySelector('#searchid').style.visibility='hidden';
-		this.querySelector('#searchid').selected=-1;
+		//Condition will invoke if we performed item search using name
+		if(localStorage.getItem("curr_sess_searchtypeflag")=="0") {
+		  //Fetching items matching with searc items to populate it in listbox
+		  //Condition will invoke if we performed item search using id
+		  this.querySelector('#searchid').style.visibility = 'visible';
+		  var arr = [];
+		  arr.push({"itemid": "-----Select-----"});
+		  var item = e.detail.response.itemarr;
+		  if (this.supplierid.length > 0) {
+		    for (var i = 0; i < item.length; i++) {
+		        var subval = ((item[i].itemsupplierid).trim()).substring(0, this.supplierid.length);
+				if ((subval).toLowerCase() == (this.supplierid).toLowerCase()) {
+		           var obj = {"itemid": ""};
+		           obj.itemid = item[i].itemsupplierid;
+		           arr.push(obj);
+		        }
+		    }
+		  //Binding items to the listbox when it has the matching items otherwise showing no items
+		    if (arr.length > 0)
+		       this.itemidArray = arr;
+		    else {
+		        var obj = {"itemid": ""};
+		        obj.itemid = "No items found";
+		        arr.push(obj);
+		        this.itemidArray = arr;
+		    }
+		    }
     }
 	},
+	// Method will invoke while selecting name in the listbox
 	FnSupplierNameSelected:function(e){
-		//if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
+		    //if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
 		    if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
 		      this.suppliername = e.target.selectedItem.textContent.trim();
 		      //Making invisible and deselection in dropdown of item name search list box
@@ -58229,16 +59422,16 @@ Polymer({
 
 		      }
 		    }
-		    else   {
-		    	//alert("hi")
+		    else{		    	
 		    this.read=false;
 		    this.suppliername="";
 		    this.supplierid="";
 		    this.itemArray="";
 		    this.querySelector('#searchname').style.visibility='hidden';
 		    this.querySelector('#searchname').selected=-1;
-    }
+    		}
 	},
+	// Function to change fields as editable while cicking edit button
 	FnEnableFields:function(){
 		this.read=false;
 	}
@@ -58250,34 +59443,2800 @@ Polymer({
     Polymer({
       is: 'customerattacheditem-card',
       FnDelete:function(){
-        //alert(this.itemid+" "+this.customerid);
+        // Function which calls service to delete the selected customer
         this.$.adminservice.calldeleteitemcustomerService(this.itemid,this.customerid);
       }
     });
   })();
-/**
- * Created by praba on 3/14/2016.
- */
+// JS component for customer item card
 (function() {
   'use strict';
 var supname="";
 var supid="";
   Polymer({
     is: 'customeritem-card',
-
     ready:function(){
 	},
-	FnFetchItemInfo:function(supplierid,suppliername){
+	FnFetchItemInfo:function(supplierid,suppliername){    
 		supname=suppliername;
 		supid=supplierid;
-	
-	this.$.customerservice.callItemService(supplierid);
+		// Function calls service to fetch the item info which attache to the customer
+	    this.$.customerservice.callItemService(supplierid);
 	},
-	FnCreateItemSupplier:function(){	
+	// Function shows the add item page in customer module
+	FnCreateItemSupplier:function(){
 	document.querySelector('customer-page').setPage('Add Item');
 	}
   });
 })();
+(function() {
+    'use strict';
+    Polymer({
+      is: 'contactperson-display-card',
+      properties: {
+        foo: {
+          type: String,
+          value: 'contactperson-display-card',
+          notify: true
+        }
+      }
+    });
+  })();
+/**
+ * Created by praba on 3/14/2016.
+ */
+ // JS component for the card contactperson card
+(function() {
+  'use strict';
+  Polymer({
+    is: 'contactperson-card',
+    ready:function(){
+    },
+    FnCreateContact:function(){
+      document.querySelector('customer-page').setPage('Add Contact Detail');
+    },
+    FnNextContact:function(){
+      // Condition which calls the function to store the customer contact information
+      if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing") {
+        document.querySelector('customer-page').setPage('Show Item');
+        document.querySelector('customeritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_customerloggedid'),this.supname);
+      }
+      // Condition which calls the function to update the customer contact information in serach mode
+      else if(localStorage.getItem("curr_sess_addcustomereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+        document.querySelector('customer-page').setPage('Show Item');
+        document.querySelector('customeritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_customerloggedid'),this.supname);
+      }
+      // Condition which calls the function to fetch the customer contact information in search mode
+      else{
+        document.querySelector('customer-page').setPage('Show Item');
+        document.querySelector('customeritem-card').FnFetchItemInfo(localStorage.getItem('curr_sess_customerloggedid'),this.supname);
+      }
+    }
+  });
+})();
+// JS component for contactperson-item-card
+(function() {
+  Polymer({is:"contactperson-item-card",
+    ready:function(){
+    },
+    // Function which calls while submitting the contact card of the customer
+    FnAddContact:function(){
+      // Function which validates the input fields
+      document.querySelector('#designation').validate();
+      document.querySelector('#mobileno').validate();
+      document.querySelector('#emailid').validate();
+      if(this.designation==""||this.designation==null){}
+      else
+      // Function which calls service to store the contact info of the customer
+      this.$.customerservice.FnAddContactService(this.designation,this.mobileno,this.emailid);
+    }
+  });
+})();
+(function() {
+    'use strict';
+    Polymer({
+      is: 'tax-card',
+      ready:function(){
+        this.read=false;
+      },
+    FnTaxNext:function(){
+      // Function to validate the component fields
+      document.querySelector('#tinno').validate();
+      document.querySelector('#cstno').validate();
+      document.querySelector('#panno').validate();
+      document.querySelector('#tanno').validate();
+      document.querySelector('#cinno').validate();
+      if(this.tinno==""||this.tinno==null){}
+      else {
+        // Condition will invoke to store the customer tax info
+        if (localStorage.getItem("curr_sess_searchtypeflag") == "nothing") {
+          this.$.customerservice.FnCustomerTaxAddService(this.tinno, this.cstno, this.panno, this.tanno, this.cinno);
+        }
+        else if (localStorage.getItem("curr_sess_addcustomereditflag") == "1" && localStorage.getItem("curr_sess_searchtypeflag") == "1") {
+          // Condition will invoke to update the customer tax info
+          this.$.customerservice.updatecustomertaxService(this.tinno, this.cstno, this.panno, this.tanno, this.cinno);
+          // Condition will invoke to fetch the customer exciseinfo
+          this.$.customerservice.callExcisereadService();
+          document.querySelector('customer-page').setPage('Add Excise');
+        }
+        else {
+          // Condition will invoke to fetch the customer exciseinfo
+          this.$.customerservice.callExcisereadService();
+          document.querySelector('customer-page').setPage('Add Excise');
+        }
+      }
+    },
+      FnEnableFields:function(){
+        if(localStorage.getItem("curr_sess_addcustomereditflag")=="1")
+          this.read=false;
+        else
+          this.read=true;
+      }
+    });
+  })();
+(function() {
+    'use strict';
+    Polymer({
+      is: 'excise-card',
+      ready:function(){
+        this.read=false;
+      },
+      // Function which invokes when click on next button
+      FnExciseNext:function(){
+        // Function which validates the input fields while submitting next button
+        document.querySelector('#regno').validate();
+        document.querySelector('#eccno').validate();
+        document.querySelector('#range').validate();
+        document.querySelector('#division').validate();
+        document.querySelector('#commission').validate();
+        document.querySelector('#servicetaxno').validate();
+        if(this.regno==""||this.regno==null){}
+        else {
+          //Function which calls service to add the customer excise information           
+          if (localStorage.getItem("curr_sess_searchtypeflag") == "nothing") {
+            this.$.customerservice.FnCustomerExciseAddService(this.regno, this.eccno, this.range, this.division, this.commission, this.servicetax);
+          }
+          //Function which calls service to update the customer excise information
+          else if (localStorage.getItem("curr_sess_addcustomereditflag") == "1" && localStorage.getItem("curr_sess_searchtypeflag") == "1") {
+            this.$.customerservice.updatecustomerexciseService(this.regno, this.eccno, this.range, this.division, this.commission, this.servicetax);
+            this.$.customerservice.callPaymentService();
+            // Showing payment page while navigating from excise page
+            document.querySelector('customer-page').setPage('Add Payment');
+          }
+          //Function which calls service to search the customer excise information
+          else {
+            this.$.customerservice.callPaymentService();
+            // Showing payment page while navigating from excise page
+            document.querySelector('customer-page').setPage('Add Payment');
+          }
+        }
+      },
+      // Function which toggle the input fields editable feature
+      FnEnableFields:function(){
+        if(localStorage.getItem("curr_sess_addcustomereditflag")=="1")
+          this.read=false;
+        else
+          this.read=true;
+      }
+    });
+  })();
+/**
+ * @license
+ * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+ * This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+ * The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+ * The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+ * Code distributed by Google as part of the polymer project is also
+ * subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+ */
+// @version 0.7.20
+(function() {
+  window.WebComponents = window.WebComponents || {
+    flags: {}
+  };
+  var file = "webcomponents-lite.js";
+  var script = document.querySelector('script[src*="' + file + '"]');
+  var flags = {};
+  if (!flags.noOpts) {
+    location.search.slice(1).split("&").forEach(function(option) {
+      var parts = option.split("=");
+      var match;
+      if (parts[0] && (match = parts[0].match(/wc-(.+)/))) {
+        flags[match[1]] = parts[1] || true;
+      }
+    });
+    if (script) {
+      for (var i = 0, a; a = script.attributes[i]; i++) {
+        if (a.name !== "src") {
+          flags[a.name] = a.value || true;
+        }
+      }
+    }
+    if (flags.log && flags.log.split) {
+      var parts = flags.log.split(",");
+      flags.log = {};
+      parts.forEach(function(f) {
+        flags.log[f] = true;
+      });
+    } else {
+      flags.log = {};
+    }
+  }
+  if (flags.register) {
+    window.CustomElements = window.CustomElements || {
+      flags: {}
+    };
+    window.CustomElements.flags.register = flags.register;
+  }
+  WebComponents.flags = flags;
+})();
+
+(function(scope) {
+  "use strict";
+  var hasWorkingUrl = false;
+  if (!scope.forceJURL) {
+    try {
+      var u = new URL("b", "http://a");
+      u.pathname = "c%20d";
+      hasWorkingUrl = u.href === "http://a/c%20d";
+    } catch (e) {}
+  }
+  if (hasWorkingUrl) return;
+  var relative = Object.create(null);
+  relative["ftp"] = 21;
+  relative["file"] = 0;
+  relative["gopher"] = 70;
+  relative["http"] = 80;
+  relative["https"] = 443;
+  relative["ws"] = 80;
+  relative["wss"] = 443;
+  var relativePathDotMapping = Object.create(null);
+  relativePathDotMapping["%2e"] = ".";
+  relativePathDotMapping[".%2e"] = "..";
+  relativePathDotMapping["%2e."] = "..";
+  relativePathDotMapping["%2e%2e"] = "..";
+  function isRelativeScheme(scheme) {
+    return relative[scheme] !== undefined;
+  }
+  function invalid() {
+    clear.call(this);
+    this._isInvalid = true;
+  }
+  function IDNAToASCII(h) {
+    if ("" == h) {
+      invalid.call(this);
+    }
+    return h.toLowerCase();
+  }
+  function percentEscape(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 63, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  function percentEscapeQuery(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  var EOF = undefined, ALPHA = /[a-zA-Z]/, ALPHANUMERIC = /[a-zA-Z0-9\+\-\.]/;
+  function parse(input, stateOverride, base) {
+    function err(message) {
+      errors.push(message);
+    }
+    var state = stateOverride || "scheme start", cursor = 0, buffer = "", seenAt = false, seenBracket = false, errors = [];
+    loop: while ((input[cursor - 1] != EOF || cursor == 0) && !this._isInvalid) {
+      var c = input[cursor];
+      switch (state) {
+       case "scheme start":
+        if (c && ALPHA.test(c)) {
+          buffer += c.toLowerCase();
+          state = "scheme";
+        } else if (!stateOverride) {
+          buffer = "";
+          state = "no scheme";
+          continue;
+        } else {
+          err("Invalid scheme.");
+          break loop;
+        }
+        break;
+
+       case "scheme":
+        if (c && ALPHANUMERIC.test(c)) {
+          buffer += c.toLowerCase();
+        } else if (":" == c) {
+          this._scheme = buffer;
+          buffer = "";
+          if (stateOverride) {
+            break loop;
+          }
+          if (isRelativeScheme(this._scheme)) {
+            this._isRelative = true;
+          }
+          if ("file" == this._scheme) {
+            state = "relative";
+          } else if (this._isRelative && base && base._scheme == this._scheme) {
+            state = "relative or authority";
+          } else if (this._isRelative) {
+            state = "authority first slash";
+          } else {
+            state = "scheme data";
+          }
+        } else if (!stateOverride) {
+          buffer = "";
+          cursor = 0;
+          state = "no scheme";
+          continue;
+        } else if (EOF == c) {
+          break loop;
+        } else {
+          err("Code point not allowed in scheme: " + c);
+          break loop;
+        }
+        break;
+
+       case "scheme data":
+        if ("?" == c) {
+          this._query = "?";
+          state = "query";
+        } else if ("#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else {
+          if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+            this._schemeData += percentEscape(c);
+          }
+        }
+        break;
+
+       case "no scheme":
+        if (!base || !isRelativeScheme(base._scheme)) {
+          err("Missing scheme.");
+          invalid.call(this);
+        } else {
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative or authority":
+        if ("/" == c && "/" == input[cursor + 1]) {
+          state = "authority ignore slashes";
+        } else {
+          err("Expected /, got: " + c);
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative":
+        this._isRelative = true;
+        if ("file" != this._scheme) this._scheme = base._scheme;
+        if (EOF == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._username = base._username;
+          this._password = base._password;
+          break loop;
+        } else if ("/" == c || "\\" == c) {
+          if ("\\" == c) err("\\ is an invalid code point.");
+          state = "relative slash";
+        } else if ("?" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = "?";
+          this._username = base._username;
+          this._password = base._password;
+          state = "query";
+        } else if ("#" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._fragment = "#";
+          this._username = base._username;
+          this._password = base._password;
+          state = "fragment";
+        } else {
+          var nextC = input[cursor + 1];
+          var nextNextC = input[cursor + 2];
+          if ("file" != this._scheme || !ALPHA.test(c) || nextC != ":" && nextC != "|" || EOF != nextNextC && "/" != nextNextC && "\\" != nextNextC && "?" != nextNextC && "#" != nextNextC) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+            this._path = base._path.slice();
+            this._path.pop();
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "relative slash":
+        if ("/" == c || "\\" == c) {
+          if ("\\" == c) {
+            err("\\ is an invalid code point.");
+          }
+          if ("file" == this._scheme) {
+            state = "file host";
+          } else {
+            state = "authority ignore slashes";
+          }
+        } else {
+          if ("file" != this._scheme) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "authority first slash":
+        if ("/" == c) {
+          state = "authority second slash";
+        } else {
+          err("Expected '/', got: " + c);
+          state = "authority ignore slashes";
+          continue;
+        }
+        break;
+
+       case "authority second slash":
+        state = "authority ignore slashes";
+        if ("/" != c) {
+          err("Expected '/', got: " + c);
+          continue;
+        }
+        break;
+
+       case "authority ignore slashes":
+        if ("/" != c && "\\" != c) {
+          state = "authority";
+          continue;
+        } else {
+          err("Expected authority, got: " + c);
+        }
+        break;
+
+       case "authority":
+        if ("@" == c) {
+          if (seenAt) {
+            err("@ already seen.");
+            buffer += "%40";
+          }
+          seenAt = true;
+          for (var i = 0; i < buffer.length; i++) {
+            var cp = buffer[i];
+            if ("	" == cp || "\n" == cp || "\r" == cp) {
+              err("Invalid whitespace in authority.");
+              continue;
+            }
+            if (":" == cp && null === this._password) {
+              this._password = "";
+              continue;
+            }
+            var tempC = percentEscape(cp);
+            null !== this._password ? this._password += tempC : this._username += tempC;
+          }
+          buffer = "";
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          cursor -= buffer.length;
+          buffer = "";
+          state = "host";
+          continue;
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "file host":
+        if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          if (buffer.length == 2 && ALPHA.test(buffer[0]) && (buffer[1] == ":" || buffer[1] == "|")) {
+            state = "relative path";
+          } else if (buffer.length == 0) {
+            state = "relative path start";
+          } else {
+            this._host = IDNAToASCII.call(this, buffer);
+            buffer = "";
+            state = "relative path start";
+          }
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid whitespace in file host.");
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "host":
+       case "hostname":
+        if (":" == c && !seenBracket) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "port";
+          if ("hostname" == stateOverride) {
+            break loop;
+          }
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "relative path start";
+          if (stateOverride) {
+            break loop;
+          }
+          continue;
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          if ("[" == c) {
+            seenBracket = true;
+          } else if ("]" == c) {
+            seenBracket = false;
+          }
+          buffer += c;
+        } else {
+          err("Invalid code point in host/hostname: " + c);
+        }
+        break;
+
+       case "port":
+        if (/[0-9]/.test(c)) {
+          buffer += c;
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c || stateOverride) {
+          if ("" != buffer) {
+            var temp = parseInt(buffer, 10);
+            if (temp != relative[this._scheme]) {
+              this._port = temp + "";
+            }
+            buffer = "";
+          }
+          if (stateOverride) {
+            break loop;
+          }
+          state = "relative path start";
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid code point in port: " + c);
+        } else {
+          invalid.call(this);
+        }
+        break;
+
+       case "relative path start":
+        if ("\\" == c) err("'\\' not allowed in path.");
+        state = "relative path";
+        if ("/" != c && "\\" != c) {
+          continue;
+        }
+        break;
+
+       case "relative path":
+        if (EOF == c || "/" == c || "\\" == c || !stateOverride && ("?" == c || "#" == c)) {
+          if ("\\" == c) {
+            err("\\ not allowed in relative path.");
+          }
+          var tmp;
+          if (tmp = relativePathDotMapping[buffer.toLowerCase()]) {
+            buffer = tmp;
+          }
+          if (".." == buffer) {
+            this._path.pop();
+            if ("/" != c && "\\" != c) {
+              this._path.push("");
+            }
+          } else if ("." == buffer && "/" != c && "\\" != c) {
+            this._path.push("");
+          } else if ("." != buffer) {
+            if ("file" == this._scheme && this._path.length == 0 && buffer.length == 2 && ALPHA.test(buffer[0]) && buffer[1] == "|") {
+              buffer = buffer[0] + ":";
+            }
+            this._path.push(buffer);
+          }
+          buffer = "";
+          if ("?" == c) {
+            this._query = "?";
+            state = "query";
+          } else if ("#" == c) {
+            this._fragment = "#";
+            state = "fragment";
+          }
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          buffer += percentEscape(c);
+        }
+        break;
+
+       case "query":
+        if (!stateOverride && "#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._query += percentEscapeQuery(c);
+        }
+        break;
+
+       case "fragment":
+        if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._fragment += c;
+        }
+        break;
+      }
+      cursor++;
+    }
+  }
+  function clear() {
+    this._scheme = "";
+    this._schemeData = "";
+    this._username = "";
+    this._password = null;
+    this._host = "";
+    this._port = "";
+    this._path = [];
+    this._query = "";
+    this._fragment = "";
+    this._isInvalid = false;
+    this._isRelative = false;
+  }
+  function jURL(url, base) {
+    if (base !== undefined && !(base instanceof jURL)) base = new jURL(String(base));
+    this._url = url;
+    clear.call(this);
+    var input = url.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
+    parse.call(this, input, null, base);
+  }
+  jURL.prototype = {
+    toString: function() {
+      return this.href;
+    },
+    get href() {
+      if (this._isInvalid) return this._url;
+      var authority = "";
+      if ("" != this._username || null != this._password) {
+        authority = this._username + (null != this._password ? ":" + this._password : "") + "@";
+      }
+      return this.protocol + (this._isRelative ? "//" + authority + this.host : "") + this.pathname + this._query + this._fragment;
+    },
+    set href(href) {
+      clear.call(this);
+      parse.call(this, href);
+    },
+    get protocol() {
+      return this._scheme + ":";
+    },
+    set protocol(protocol) {
+      if (this._isInvalid) return;
+      parse.call(this, protocol + ":", "scheme start");
+    },
+    get host() {
+      return this._isInvalid ? "" : this._port ? this._host + ":" + this._port : this._host;
+    },
+    set host(host) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, host, "host");
+    },
+    get hostname() {
+      return this._host;
+    },
+    set hostname(hostname) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, hostname, "hostname");
+    },
+    get port() {
+      return this._port;
+    },
+    set port(port) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, port, "port");
+    },
+    get pathname() {
+      return this._isInvalid ? "" : this._isRelative ? "/" + this._path.join("/") : this._schemeData;
+    },
+    set pathname(pathname) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._path = [];
+      parse.call(this, pathname, "relative path start");
+    },
+    get search() {
+      return this._isInvalid || !this._query || "?" == this._query ? "" : this._query;
+    },
+    set search(search) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._query = "?";
+      if ("?" == search[0]) search = search.slice(1);
+      parse.call(this, search, "query");
+    },
+    get hash() {
+      return this._isInvalid || !this._fragment || "#" == this._fragment ? "" : this._fragment;
+    },
+    set hash(hash) {
+      if (this._isInvalid) return;
+      this._fragment = "#";
+      if ("#" == hash[0]) hash = hash.slice(1);
+      parse.call(this, hash, "fragment");
+    },
+    get origin() {
+      var host;
+      if (this._isInvalid || !this._scheme) {
+        return "";
+      }
+      switch (this._scheme) {
+       case "data":
+       case "file":
+       case "javascript":
+       case "mailto":
+        return "null";
+      }
+      host = this.host;
+      if (!host) {
+        return "";
+      }
+      return this._scheme + "://" + host;
+    }
+  };
+  var OriginalURL = scope.URL;
+  if (OriginalURL) {
+    jURL.createObjectURL = function(blob) {
+      return OriginalURL.createObjectURL.apply(OriginalURL, arguments);
+    };
+    jURL.revokeObjectURL = function(url) {
+      OriginalURL.revokeObjectURL(url);
+    };
+  }
+  scope.URL = jURL;
+})(self);
+
+if (typeof WeakMap === "undefined") {
+  (function() {
+    var defineProperty = Object.defineProperty;
+    var counter = Date.now() % 1e9;
+    var WeakMap = function() {
+      this.name = "__st" + (Math.random() * 1e9 >>> 0) + (counter++ + "__");
+    };
+    WeakMap.prototype = {
+      set: function(key, value) {
+        var entry = key[this.name];
+        if (entry && entry[0] === key) entry[1] = value; else defineProperty(key, this.name, {
+          value: [ key, value ],
+          writable: true
+        });
+        return this;
+      },
+      get: function(key) {
+        var entry;
+        return (entry = key[this.name]) && entry[0] === key ? entry[1] : undefined;
+      },
+      "delete": function(key) {
+        var entry = key[this.name];
+        if (!entry || entry[0] !== key) return false;
+        entry[0] = entry[1] = undefined;
+        return true;
+      },
+      has: function(key) {
+        var entry = key[this.name];
+        if (!entry) return false;
+        return entry[0] === key;
+      }
+    };
+    window.WeakMap = WeakMap;
+  })();
+}
+
+(function(global) {
+  if (global.JsMutationObserver) {
+    return;
+  }
+  var registrationsTable = new WeakMap();
+  var setImmediate;
+  if (/Trident|Edge/.test(navigator.userAgent)) {
+    setImmediate = setTimeout;
+  } else if (window.setImmediate) {
+    setImmediate = window.setImmediate;
+  } else {
+    var setImmediateQueue = [];
+    var sentinel = String(Math.random());
+    window.addEventListener("message", function(e) {
+      if (e.data === sentinel) {
+        var queue = setImmediateQueue;
+        setImmediateQueue = [];
+        queue.forEach(function(func) {
+          func();
+        });
+      }
+    });
+    setImmediate = function(func) {
+      setImmediateQueue.push(func);
+      window.postMessage(sentinel, "*");
+    };
+  }
+  var isScheduled = false;
+  var scheduledObservers = [];
+  function scheduleCallback(observer) {
+    scheduledObservers.push(observer);
+    if (!isScheduled) {
+      isScheduled = true;
+      setImmediate(dispatchCallbacks);
+    }
+  }
+  function wrapIfNeeded(node) {
+    return window.ShadowDOMPolyfill && window.ShadowDOMPolyfill.wrapIfNeeded(node) || node;
+  }
+  function dispatchCallbacks() {
+    isScheduled = false;
+    var observers = scheduledObservers;
+    scheduledObservers = [];
+    observers.sort(function(o1, o2) {
+      return o1.uid_ - o2.uid_;
+    });
+    var anyNonEmpty = false;
+    observers.forEach(function(observer) {
+      var queue = observer.takeRecords();
+      removeTransientObserversFor(observer);
+      if (queue.length) {
+        observer.callback_(queue, observer);
+        anyNonEmpty = true;
+      }
+    });
+    if (anyNonEmpty) dispatchCallbacks();
+  }
+  function removeTransientObserversFor(observer) {
+    observer.nodes_.forEach(function(node) {
+      var registrations = registrationsTable.get(node);
+      if (!registrations) return;
+      registrations.forEach(function(registration) {
+        if (registration.observer === observer) registration.removeTransientObservers();
+      });
+    });
+  }
+  function forEachAncestorAndObserverEnqueueRecord(target, callback) {
+    for (var node = target; node; node = node.parentNode) {
+      var registrations = registrationsTable.get(node);
+      if (registrations) {
+        for (var j = 0; j < registrations.length; j++) {
+          var registration = registrations[j];
+          var options = registration.options;
+          if (node !== target && !options.subtree) continue;
+          var record = callback(options);
+          if (record) registration.enqueue(record);
+        }
+      }
+    }
+  }
+  var uidCounter = 0;
+  function JsMutationObserver(callback) {
+    this.callback_ = callback;
+    this.nodes_ = [];
+    this.records_ = [];
+    this.uid_ = ++uidCounter;
+  }
+  JsMutationObserver.prototype = {
+    observe: function(target, options) {
+      target = wrapIfNeeded(target);
+      if (!options.childList && !options.attributes && !options.characterData || options.attributeOldValue && !options.attributes || options.attributeFilter && options.attributeFilter.length && !options.attributes || options.characterDataOldValue && !options.characterData) {
+        throw new SyntaxError();
+      }
+      var registrations = registrationsTable.get(target);
+      if (!registrations) registrationsTable.set(target, registrations = []);
+      var registration;
+      for (var i = 0; i < registrations.length; i++) {
+        if (registrations[i].observer === this) {
+          registration = registrations[i];
+          registration.removeListeners();
+          registration.options = options;
+          break;
+        }
+      }
+      if (!registration) {
+        registration = new Registration(this, target, options);
+        registrations.push(registration);
+        this.nodes_.push(target);
+      }
+      registration.addListeners();
+    },
+    disconnect: function() {
+      this.nodes_.forEach(function(node) {
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          var registration = registrations[i];
+          if (registration.observer === this) {
+            registration.removeListeners();
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+      this.records_ = [];
+    },
+    takeRecords: function() {
+      var copyOfRecords = this.records_;
+      this.records_ = [];
+      return copyOfRecords;
+    }
+  };
+  function MutationRecord(type, target) {
+    this.type = type;
+    this.target = target;
+    this.addedNodes = [];
+    this.removedNodes = [];
+    this.previousSibling = null;
+    this.nextSibling = null;
+    this.attributeName = null;
+    this.attributeNamespace = null;
+    this.oldValue = null;
+  }
+  function copyMutationRecord(original) {
+    var record = new MutationRecord(original.type, original.target);
+    record.addedNodes = original.addedNodes.slice();
+    record.removedNodes = original.removedNodes.slice();
+    record.previousSibling = original.previousSibling;
+    record.nextSibling = original.nextSibling;
+    record.attributeName = original.attributeName;
+    record.attributeNamespace = original.attributeNamespace;
+    record.oldValue = original.oldValue;
+    return record;
+  }
+  var currentRecord, recordWithOldValue;
+  function getRecord(type, target) {
+    return currentRecord = new MutationRecord(type, target);
+  }
+  function getRecordWithOldValue(oldValue) {
+    if (recordWithOldValue) return recordWithOldValue;
+    recordWithOldValue = copyMutationRecord(currentRecord);
+    recordWithOldValue.oldValue = oldValue;
+    return recordWithOldValue;
+  }
+  function clearRecords() {
+    currentRecord = recordWithOldValue = undefined;
+  }
+  function recordRepresentsCurrentMutation(record) {
+    return record === recordWithOldValue || record === currentRecord;
+  }
+  function selectRecord(lastRecord, newRecord) {
+    if (lastRecord === newRecord) return lastRecord;
+    if (recordWithOldValue && recordRepresentsCurrentMutation(lastRecord)) return recordWithOldValue;
+    return null;
+  }
+  function Registration(observer, target, options) {
+    this.observer = observer;
+    this.target = target;
+    this.options = options;
+    this.transientObservedNodes = [];
+  }
+  Registration.prototype = {
+    enqueue: function(record) {
+      var records = this.observer.records_;
+      var length = records.length;
+      if (records.length > 0) {
+        var lastRecord = records[length - 1];
+        var recordToReplaceLast = selectRecord(lastRecord, record);
+        if (recordToReplaceLast) {
+          records[length - 1] = recordToReplaceLast;
+          return;
+        }
+      } else {
+        scheduleCallback(this.observer);
+      }
+      records[length] = record;
+    },
+    addListeners: function() {
+      this.addListeners_(this.target);
+    },
+    addListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.addEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.addEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.addEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.addEventListener("DOMNodeRemoved", this, true);
+    },
+    removeListeners: function() {
+      this.removeListeners_(this.target);
+    },
+    removeListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.removeEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.removeEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.removeEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.removeEventListener("DOMNodeRemoved", this, true);
+    },
+    addTransientObserver: function(node) {
+      if (node === this.target) return;
+      this.addListeners_(node);
+      this.transientObservedNodes.push(node);
+      var registrations = registrationsTable.get(node);
+      if (!registrations) registrationsTable.set(node, registrations = []);
+      registrations.push(this);
+    },
+    removeTransientObservers: function() {
+      var transientObservedNodes = this.transientObservedNodes;
+      this.transientObservedNodes = [];
+      transientObservedNodes.forEach(function(node) {
+        this.removeListeners_(node);
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          if (registrations[i] === this) {
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+    },
+    handleEvent: function(e) {
+      e.stopImmediatePropagation();
+      switch (e.type) {
+       case "DOMAttrModified":
+        var name = e.attrName;
+        var namespace = e.relatedNode.namespaceURI;
+        var target = e.target;
+        var record = new getRecord("attributes", target);
+        record.attributeName = name;
+        record.attributeNamespace = namespace;
+        var oldValue = e.attrChange === MutationEvent.ADDITION ? null : e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.attributes) return;
+          if (options.attributeFilter && options.attributeFilter.length && options.attributeFilter.indexOf(name) === -1 && options.attributeFilter.indexOf(namespace) === -1) {
+            return;
+          }
+          if (options.attributeOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMCharacterDataModified":
+        var target = e.target;
+        var record = getRecord("characterData", target);
+        var oldValue = e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.characterData) return;
+          if (options.characterDataOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMNodeRemoved":
+        this.addTransientObserver(e.target);
+
+       case "DOMNodeInserted":
+        var changedNode = e.target;
+        var addedNodes, removedNodes;
+        if (e.type === "DOMNodeInserted") {
+          addedNodes = [ changedNode ];
+          removedNodes = [];
+        } else {
+          addedNodes = [];
+          removedNodes = [ changedNode ];
+        }
+        var previousSibling = changedNode.previousSibling;
+        var nextSibling = changedNode.nextSibling;
+        var record = getRecord("childList", e.target.parentNode);
+        record.addedNodes = addedNodes;
+        record.removedNodes = removedNodes;
+        record.previousSibling = previousSibling;
+        record.nextSibling = nextSibling;
+        forEachAncestorAndObserverEnqueueRecord(e.relatedNode, function(options) {
+          if (!options.childList) return;
+          return record;
+        });
+      }
+      clearRecords();
+    }
+  };
+  global.JsMutationObserver = JsMutationObserver;
+  if (!global.MutationObserver) {
+    global.MutationObserver = JsMutationObserver;
+    JsMutationObserver._isPolyfilled = true;
+  }
+})(self);
+
+if (typeof HTMLTemplateElement === "undefined") {
+  (function() {
+    var TEMPLATE_TAG = "template";
+    var contentDoc = document.implementation.createHTMLDocument("template");
+    var canDecorate = true;
+    HTMLTemplateElement = function() {};
+    HTMLTemplateElement.prototype = Object.create(HTMLElement.prototype);
+    HTMLTemplateElement.decorate = function(template) {
+      if (template.content) {
+        return;
+      }
+      template.content = contentDoc.createDocumentFragment();
+      var child;
+      while (child = template.firstChild) {
+        template.content.appendChild(child);
+      }
+      if (canDecorate) {
+        try {
+          Object.defineProperty(template, "innerHTML", {
+            get: function() {
+              var o = "";
+              for (var e = this.content.firstChild; e; e = e.nextSibling) {
+                o += e.outerHTML || escapeData(e.data);
+              }
+              return o;
+            },
+            set: function(text) {
+              contentDoc.body.innerHTML = text;
+              HTMLTemplateElement.bootstrap(contentDoc);
+              while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+              }
+              while (contentDoc.body.firstChild) {
+                this.content.appendChild(contentDoc.body.firstChild);
+              }
+            },
+            configurable: true
+          });
+        } catch (err) {
+          canDecorate = false;
+        }
+      }
+      HTMLTemplateElement.bootstrap(template.content);
+    };
+    HTMLTemplateElement.bootstrap = function(doc) {
+      var templates = doc.querySelectorAll(TEMPLATE_TAG);
+      for (var i = 0, l = templates.length, t; i < l && (t = templates[i]); i++) {
+        HTMLTemplateElement.decorate(t);
+      }
+    };
+    document.addEventListener("DOMContentLoaded", function() {
+      HTMLTemplateElement.bootstrap(document);
+    });
+    var createElement = document.createElement;
+    document.createElement = function() {
+      "use strict";
+      var el = createElement.apply(document, arguments);
+      if (el.localName == "template") {
+        HTMLTemplateElement.decorate(el);
+      }
+      return el;
+    };
+    var escapeDataRegExp = /[&\u00A0<>]/g;
+    function escapeReplace(c) {
+      switch (c) {
+       case "&":
+        return "&amp;";
+
+       case "<":
+        return "&lt;";
+
+       case ">":
+        return "&gt;";
+
+       case " ":
+        return "&nbsp;";
+      }
+    }
+    function escapeData(s) {
+      return s.replace(escapeDataRegExp, escapeReplace);
+    }
+  })();
+}
+
+(function(scope) {
+  "use strict";
+  if (!window.performance) {
+    var start = Date.now();
+    window.performance = {
+      now: function() {
+        return Date.now() - start;
+      }
+    };
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function() {
+      var nativeRaf = window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+      return nativeRaf ? function(callback) {
+        return nativeRaf(function() {
+          callback(performance.now());
+        });
+      } : function(callback) {
+        return window.setTimeout(callback, 1e3 / 60);
+      };
+    }();
+  }
+  if (!window.cancelAnimationFrame) {
+    window.cancelAnimationFrame = function() {
+      return window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame || function(id) {
+        clearTimeout(id);
+      };
+    }();
+  }
+  var workingDefaultPrevented = function() {
+    var e = document.createEvent("Event");
+    e.initEvent("foo", true, true);
+    e.preventDefault();
+    return e.defaultPrevented;
+  }();
+  if (!workingDefaultPrevented) {
+    var origPreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function() {
+      if (!this.cancelable) {
+        return;
+      }
+      origPreventDefault.call(this);
+      Object.defineProperty(this, "defaultPrevented", {
+        get: function() {
+          return true;
+        },
+        configurable: true
+      });
+    };
+  }
+  var isIE = /Trident/.test(navigator.userAgent);
+  if (!window.CustomEvent || isIE && typeof window.CustomEvent !== "function") {
+    window.CustomEvent = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("CustomEvent");
+      e.initCustomEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable), params.detail);
+      return e;
+    };
+    window.CustomEvent.prototype = window.Event.prototype;
+  }
+  if (!window.Event || isIE && typeof window.Event !== "function") {
+    var origEvent = window.Event;
+    window.Event = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("Event");
+      e.initEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable));
+      return e;
+    };
+    window.Event.prototype = origEvent.prototype;
+  }
+})(window.WebComponents);
+
+window.HTMLImports = window.HTMLImports || {
+  flags: {}
+};
+
+(function(scope) {
+  var IMPORT_LINK_TYPE = "import";
+  var useNative = Boolean(IMPORT_LINK_TYPE in document.createElement("link"));
+  var hasShadowDOMPolyfill = Boolean(window.ShadowDOMPolyfill);
+  var wrap = function(node) {
+    return hasShadowDOMPolyfill ? window.ShadowDOMPolyfill.wrapIfNeeded(node) : node;
+  };
+  var rootDocument = wrap(document);
+  var currentScriptDescriptor = {
+    get: function() {
+      var script = window.HTMLImports.currentScript || document.currentScript || (document.readyState !== "complete" ? document.scripts[document.scripts.length - 1] : null);
+      return wrap(script);
+    },
+    configurable: true
+  };
+  Object.defineProperty(document, "_currentScript", currentScriptDescriptor);
+  Object.defineProperty(rootDocument, "_currentScript", currentScriptDescriptor);
+  var isIE = /Trident/.test(navigator.userAgent);
+  function whenReady(callback, doc) {
+    doc = doc || rootDocument;
+    whenDocumentReady(function() {
+      watchImportsLoad(callback, doc);
+    }, doc);
+  }
+  var requiredReadyState = isIE ? "complete" : "interactive";
+  var READY_EVENT = "readystatechange";
+  function isDocumentReady(doc) {
+    return doc.readyState === "complete" || doc.readyState === requiredReadyState;
+  }
+  function whenDocumentReady(callback, doc) {
+    if (!isDocumentReady(doc)) {
+      var checkReady = function() {
+        if (doc.readyState === "complete" || doc.readyState === requiredReadyState) {
+          doc.removeEventListener(READY_EVENT, checkReady);
+          whenDocumentReady(callback, doc);
+        }
+      };
+      doc.addEventListener(READY_EVENT, checkReady);
+    } else if (callback) {
+      callback();
+    }
+  }
+  function markTargetLoaded(event) {
+    event.target.__loaded = true;
+  }
+  function watchImportsLoad(callback, doc) {
+    var imports = doc.querySelectorAll("link[rel=import]");
+    var parsedCount = 0, importCount = imports.length, newImports = [], errorImports = [];
+    function checkDone() {
+      if (parsedCount == importCount && callback) {
+        callback({
+          allImports: imports,
+          loadedImports: newImports,
+          errorImports: errorImports
+        });
+      }
+    }
+    function loadedImport(e) {
+      markTargetLoaded(e);
+      newImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    function errorLoadingImport(e) {
+      errorImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    if (importCount) {
+      for (var i = 0, imp; i < importCount && (imp = imports[i]); i++) {
+        if (isImportLoaded(imp)) {
+          newImports.push(this);
+          parsedCount++;
+          checkDone();
+        } else {
+          imp.addEventListener("load", loadedImport);
+          imp.addEventListener("error", errorLoadingImport);
+        }
+      }
+    } else {
+      checkDone();
+    }
+  }
+  function isImportLoaded(link) {
+    return useNative ? link.__loaded || link.import && link.import.readyState !== "loading" : link.__importParsed;
+  }
+  if (useNative) {
+    new MutationObserver(function(mxns) {
+      for (var i = 0, l = mxns.length, m; i < l && (m = mxns[i]); i++) {
+        if (m.addedNodes) {
+          handleImports(m.addedNodes);
+        }
+      }
+    }).observe(document.head, {
+      childList: true
+    });
+    function handleImports(nodes) {
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (isImport(n)) {
+          handleImport(n);
+        }
+      }
+    }
+    function isImport(element) {
+      return element.localName === "link" && element.rel === "import";
+    }
+    function handleImport(element) {
+      var loaded = element.import;
+      if (loaded) {
+        markTargetLoaded({
+          target: element
+        });
+      } else {
+        element.addEventListener("load", markTargetLoaded);
+        element.addEventListener("error", markTargetLoaded);
+      }
+    }
+    (function() {
+      if (document.readyState === "loading") {
+        var imports = document.querySelectorAll("link[rel=import]");
+        for (var i = 0, l = imports.length, imp; i < l && (imp = imports[i]); i++) {
+          handleImport(imp);
+        }
+      }
+    })();
+  }
+  whenReady(function(detail) {
+    window.HTMLImports.ready = true;
+    window.HTMLImports.readyTime = new Date().getTime();
+    var evt = rootDocument.createEvent("CustomEvent");
+    evt.initCustomEvent("HTMLImportsLoaded", true, true, detail);
+    rootDocument.dispatchEvent(evt);
+  });
+  scope.IMPORT_LINK_TYPE = IMPORT_LINK_TYPE;
+  scope.useNative = useNative;
+  scope.rootDocument = rootDocument;
+  scope.whenReady = whenReady;
+  scope.isIE = isIE;
+})(window.HTMLImports);
+
+(function(scope) {
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+})(window.HTMLImports);
+
+window.HTMLImports.addModule(function(scope) {
+  var CSS_URL_REGEXP = /(url\()([^)]*)(\))/g;
+  var CSS_IMPORT_REGEXP = /(@import[\s]+(?!url\())([^;]*)(;)/g;
+  var path = {
+    resolveUrlsInStyle: function(style, linkUrl) {
+      var doc = style.ownerDocument;
+      var resolver = doc.createElement("a");
+      style.textContent = this.resolveUrlsInCssText(style.textContent, linkUrl, resolver);
+      return style;
+    },
+    resolveUrlsInCssText: function(cssText, linkUrl, urlObj) {
+      var r = this.replaceUrls(cssText, urlObj, linkUrl, CSS_URL_REGEXP);
+      r = this.replaceUrls(r, urlObj, linkUrl, CSS_IMPORT_REGEXP);
+      return r;
+    },
+    replaceUrls: function(text, urlObj, linkUrl, regexp) {
+      return text.replace(regexp, function(m, pre, url, post) {
+        var urlPath = url.replace(/["']/g, "");
+        if (linkUrl) {
+          urlPath = new URL(urlPath, linkUrl).href;
+        }
+        urlObj.href = urlPath;
+        urlPath = urlObj.href;
+        return pre + "'" + urlPath + "'" + post;
+      });
+    }
+  };
+  scope.path = path;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = {
+    async: true,
+    ok: function(request) {
+      return request.status >= 200 && request.status < 300 || request.status === 304 || request.status === 0;
+    },
+    load: function(url, next, nextContext) {
+      var request = new XMLHttpRequest();
+      if (scope.flags.debug || scope.flags.bust) {
+        url += "?" + Math.random();
+      }
+      request.open("GET", url, xhr.async);
+      request.addEventListener("readystatechange", function(e) {
+        if (request.readyState === 4) {
+          var redirectedUrl = null;
+          try {
+            var locationHeader = request.getResponseHeader("Location");
+            if (locationHeader) {
+              redirectedUrl = locationHeader.substr(0, 1) === "/" ? location.origin + locationHeader : locationHeader;
+            }
+          } catch (e) {
+            console.error(e.message);
+          }
+          next.call(nextContext, !xhr.ok(request) && request, request.response || request.responseText, redirectedUrl);
+        }
+      });
+      request.send();
+      return request;
+    },
+    loadDocument: function(url, next, nextContext) {
+      this.load(url, next, nextContext).responseType = "document";
+    }
+  };
+  scope.xhr = xhr;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = scope.xhr;
+  var flags = scope.flags;
+  var Loader = function(onLoad, onComplete) {
+    this.cache = {};
+    this.onload = onLoad;
+    this.oncomplete = onComplete;
+    this.inflight = 0;
+    this.pending = {};
+  };
+  Loader.prototype = {
+    addNodes: function(nodes) {
+      this.inflight += nodes.length;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        this.require(n);
+      }
+      this.checkDone();
+    },
+    addNode: function(node) {
+      this.inflight++;
+      this.require(node);
+      this.checkDone();
+    },
+    require: function(elt) {
+      var url = elt.src || elt.href;
+      elt.__nodeUrl = url;
+      if (!this.dedupe(url, elt)) {
+        this.fetch(url, elt);
+      }
+    },
+    dedupe: function(url, elt) {
+      if (this.pending[url]) {
+        this.pending[url].push(elt);
+        return true;
+      }
+      var resource;
+      if (this.cache[url]) {
+        this.onload(url, elt, this.cache[url]);
+        this.tail();
+        return true;
+      }
+      this.pending[url] = [ elt ];
+      return false;
+    },
+    fetch: function(url, elt) {
+      flags.load && console.log("fetch", url, elt);
+      if (!url) {
+        setTimeout(function() {
+          this.receive(url, elt, {
+            error: "href must be specified"
+          }, null);
+        }.bind(this), 0);
+      } else if (url.match(/^data:/)) {
+        var pieces = url.split(",");
+        var header = pieces[0];
+        var body = pieces[1];
+        if (header.indexOf(";base64") > -1) {
+          body = atob(body);
+        } else {
+          body = decodeURIComponent(body);
+        }
+        setTimeout(function() {
+          this.receive(url, elt, null, body);
+        }.bind(this), 0);
+      } else {
+        var receiveXhr = function(err, resource, redirectedUrl) {
+          this.receive(url, elt, err, resource, redirectedUrl);
+        }.bind(this);
+        xhr.load(url, receiveXhr);
+      }
+    },
+    receive: function(url, elt, err, resource, redirectedUrl) {
+      this.cache[url] = resource;
+      var $p = this.pending[url];
+      for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+        this.onload(url, p, resource, err, redirectedUrl);
+        this.tail();
+      }
+      this.pending[url] = null;
+    },
+    tail: function() {
+      --this.inflight;
+      this.checkDone();
+    },
+    checkDone: function() {
+      if (!this.inflight) {
+        this.oncomplete();
+      }
+    }
+  };
+  scope.Loader = Loader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var Observer = function(addCallback) {
+    this.addCallback = addCallback;
+    this.mo = new MutationObserver(this.handler.bind(this));
+  };
+  Observer.prototype = {
+    handler: function(mutations) {
+      for (var i = 0, l = mutations.length, m; i < l && (m = mutations[i]); i++) {
+        if (m.type === "childList" && m.addedNodes.length) {
+          this.addedNodes(m.addedNodes);
+        }
+      }
+    },
+    addedNodes: function(nodes) {
+      if (this.addCallback) {
+        this.addCallback(nodes);
+      }
+      for (var i = 0, l = nodes.length, n, loading; i < l && (n = nodes[i]); i++) {
+        if (n.children && n.children.length) {
+          this.addedNodes(n.children);
+        }
+      }
+    },
+    observe: function(root) {
+      this.mo.observe(root, {
+        childList: true,
+        subtree: true
+      });
+    }
+  };
+  scope.Observer = Observer;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var path = scope.path;
+  var rootDocument = scope.rootDocument;
+  var flags = scope.flags;
+  var isIE = scope.isIE;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = "link[rel=" + IMPORT_LINK_TYPE + "]";
+  var importParser = {
+    documentSelectors: IMPORT_SELECTOR,
+    importsSelectors: [ IMPORT_SELECTOR, "link[rel=stylesheet]:not([type])", "style:not([type])", "script:not([type])", 'script[type="application/javascript"]', 'script[type="text/javascript"]' ].join(","),
+    map: {
+      link: "parseLink",
+      script: "parseScript",
+      style: "parseStyle"
+    },
+    dynamicElements: [],
+    parseNext: function() {
+      var next = this.nextToParse();
+      if (next) {
+        this.parse(next);
+      }
+    },
+    parse: function(elt) {
+      if (this.isParsed(elt)) {
+        flags.parse && console.log("[%s] is already parsed", elt.localName);
+        return;
+      }
+      var fn = this[this.map[elt.localName]];
+      if (fn) {
+        this.markParsing(elt);
+        fn.call(this, elt);
+      }
+    },
+    parseDynamic: function(elt, quiet) {
+      this.dynamicElements.push(elt);
+      if (!quiet) {
+        this.parseNext();
+      }
+    },
+    markParsing: function(elt) {
+      flags.parse && console.log("parsing", elt);
+      this.parsingElement = elt;
+    },
+    markParsingComplete: function(elt) {
+      elt.__importParsed = true;
+      this.markDynamicParsingComplete(elt);
+      if (elt.__importElement) {
+        elt.__importElement.__importParsed = true;
+        this.markDynamicParsingComplete(elt.__importElement);
+      }
+      this.parsingElement = null;
+      flags.parse && console.log("completed", elt);
+    },
+    markDynamicParsingComplete: function(elt) {
+      var i = this.dynamicElements.indexOf(elt);
+      if (i >= 0) {
+        this.dynamicElements.splice(i, 1);
+      }
+    },
+    parseImport: function(elt) {
+      elt.import = elt.__doc;
+      if (window.HTMLImports.__importsParsingHook) {
+        window.HTMLImports.__importsParsingHook(elt);
+      }
+      if (elt.import) {
+        elt.import.__importParsed = true;
+      }
+      this.markParsingComplete(elt);
+      if (elt.__resource && !elt.__error) {
+        elt.dispatchEvent(new CustomEvent("load", {
+          bubbles: false
+        }));
+      } else {
+        elt.dispatchEvent(new CustomEvent("error", {
+          bubbles: false
+        }));
+      }
+      if (elt.__pending) {
+        var fn;
+        while (elt.__pending.length) {
+          fn = elt.__pending.shift();
+          if (fn) {
+            fn({
+              target: elt
+            });
+          }
+        }
+      }
+      this.parseNext();
+    },
+    parseLink: function(linkElt) {
+      if (nodeIsImport(linkElt)) {
+        this.parseImport(linkElt);
+      } else {
+        linkElt.href = linkElt.href;
+        this.parseGeneric(linkElt);
+      }
+    },
+    parseStyle: function(elt) {
+      var src = elt;
+      elt = cloneStyle(elt);
+      src.__appliedElement = elt;
+      elt.__importElement = src;
+      this.parseGeneric(elt);
+    },
+    parseGeneric: function(elt) {
+      this.trackElement(elt);
+      this.addElementToDocument(elt);
+    },
+    rootImportForElement: function(elt) {
+      var n = elt;
+      while (n.ownerDocument.__importLink) {
+        n = n.ownerDocument.__importLink;
+      }
+      return n;
+    },
+    addElementToDocument: function(elt) {
+      var port = this.rootImportForElement(elt.__importElement || elt);
+      port.parentNode.insertBefore(elt, port);
+    },
+    trackElement: function(elt, callback) {
+      var self = this;
+      var done = function(e) {
+        elt.removeEventListener("load", done);
+        elt.removeEventListener("error", done);
+        if (callback) {
+          callback(e);
+        }
+        self.markParsingComplete(elt);
+        self.parseNext();
+      };
+      elt.addEventListener("load", done);
+      elt.addEventListener("error", done);
+      if (isIE && elt.localName === "style") {
+        var fakeLoad = false;
+        if (elt.textContent.indexOf("@import") == -1) {
+          fakeLoad = true;
+        } else if (elt.sheet) {
+          fakeLoad = true;
+          var csr = elt.sheet.cssRules;
+          var len = csr ? csr.length : 0;
+          for (var i = 0, r; i < len && (r = csr[i]); i++) {
+            if (r.type === CSSRule.IMPORT_RULE) {
+              fakeLoad = fakeLoad && Boolean(r.styleSheet);
+            }
+          }
+        }
+        if (fakeLoad) {
+          setTimeout(function() {
+            elt.dispatchEvent(new CustomEvent("load", {
+              bubbles: false
+            }));
+          });
+        }
+      }
+    },
+    parseScript: function(scriptElt) {
+      var script = document.createElement("script");
+      script.__importElement = scriptElt;
+      script.src = scriptElt.src ? scriptElt.src : generateScriptDataUrl(scriptElt);
+      scope.currentScript = scriptElt;
+      this.trackElement(script, function(e) {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        scope.currentScript = null;
+      });
+      this.addElementToDocument(script);
+    },
+    nextToParse: function() {
+      this._mayParse = [];
+      return !this.parsingElement && (this.nextToParseInDoc(rootDocument) || this.nextToParseDynamic());
+    },
+    nextToParseInDoc: function(doc, link) {
+      if (doc && this._mayParse.indexOf(doc) < 0) {
+        this._mayParse.push(doc);
+        var nodes = doc.querySelectorAll(this.parseSelectorsForNode(doc));
+        for (var i = 0, l = nodes.length, p = 0, n; i < l && (n = nodes[i]); i++) {
+          if (!this.isParsed(n)) {
+            if (this.hasResource(n)) {
+              return nodeIsImport(n) ? this.nextToParseInDoc(n.__doc, n) : n;
+            } else {
+              return;
+            }
+          }
+        }
+      }
+      return link;
+    },
+    nextToParseDynamic: function() {
+      return this.dynamicElements[0];
+    },
+    parseSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentSelectors : this.importsSelectors;
+    },
+    isParsed: function(node) {
+      return node.__importParsed;
+    },
+    needsDynamicParsing: function(elt) {
+      return this.dynamicElements.indexOf(elt) >= 0;
+    },
+    hasResource: function(node) {
+      if (nodeIsImport(node) && node.__doc === undefined) {
+        return false;
+      }
+      return true;
+    }
+  };
+  function nodeIsImport(elt) {
+    return elt.localName === "link" && elt.rel === IMPORT_LINK_TYPE;
+  }
+  function generateScriptDataUrl(script) {
+    var scriptContent = generateScriptContent(script);
+    return "data:text/javascript;charset=utf-8," + encodeURIComponent(scriptContent);
+  }
+  function generateScriptContent(script) {
+    return script.textContent + generateSourceMapHint(script);
+  }
+  function generateSourceMapHint(script) {
+    var owner = script.ownerDocument;
+    owner.__importedScripts = owner.__importedScripts || 0;
+    var moniker = script.ownerDocument.baseURI;
+    var num = owner.__importedScripts ? "-" + owner.__importedScripts : "";
+    owner.__importedScripts++;
+    return "\n//# sourceURL=" + moniker + num + ".js\n";
+  }
+  function cloneStyle(style) {
+    var clone = style.ownerDocument.createElement("style");
+    clone.textContent = style.textContent;
+    path.resolveUrlsInStyle(clone);
+    return clone;
+  }
+  scope.parser = importParser;
+  scope.IMPORT_SELECTOR = IMPORT_SELECTOR;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var flags = scope.flags;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = scope.IMPORT_SELECTOR;
+  var rootDocument = scope.rootDocument;
+  var Loader = scope.Loader;
+  var Observer = scope.Observer;
+  var parser = scope.parser;
+  var importer = {
+    documents: {},
+    documentPreloadSelectors: IMPORT_SELECTOR,
+    importsPreloadSelectors: [ IMPORT_SELECTOR ].join(","),
+    loadNode: function(node) {
+      importLoader.addNode(node);
+    },
+    loadSubtree: function(parent) {
+      var nodes = this.marshalNodes(parent);
+      importLoader.addNodes(nodes);
+    },
+    marshalNodes: function(parent) {
+      return parent.querySelectorAll(this.loadSelectorsForNode(parent));
+    },
+    loadSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentPreloadSelectors : this.importsPreloadSelectors;
+    },
+    loaded: function(url, elt, resource, err, redirectedUrl) {
+      flags.load && console.log("loaded", url, elt);
+      elt.__resource = resource;
+      elt.__error = err;
+      if (isImportLink(elt)) {
+        var doc = this.documents[url];
+        if (doc === undefined) {
+          doc = err ? null : makeDocument(resource, redirectedUrl || url);
+          if (doc) {
+            doc.__importLink = elt;
+            this.bootDocument(doc);
+          }
+          this.documents[url] = doc;
+        }
+        elt.__doc = doc;
+      }
+      parser.parseNext();
+    },
+    bootDocument: function(doc) {
+      this.loadSubtree(doc);
+      this.observer.observe(doc);
+      parser.parseNext();
+    },
+    loadedAll: function() {
+      parser.parseNext();
+    }
+  };
+  var importLoader = new Loader(importer.loaded.bind(importer), importer.loadedAll.bind(importer));
+  importer.observer = new Observer();
+  function isImportLink(elt) {
+    return isLinkRel(elt, IMPORT_LINK_TYPE);
+  }
+  function isLinkRel(elt, rel) {
+    return elt.localName === "link" && elt.getAttribute("rel") === rel;
+  }
+  function hasBaseURIAccessor(doc) {
+    return !!Object.getOwnPropertyDescriptor(doc, "baseURI");
+  }
+  function makeDocument(resource, url) {
+    var doc = document.implementation.createHTMLDocument(IMPORT_LINK_TYPE);
+    doc._URL = url;
+    var base = doc.createElement("base");
+    base.setAttribute("href", url);
+    if (!doc.baseURI && !hasBaseURIAccessor(doc)) {
+      Object.defineProperty(doc, "baseURI", {
+        value: url
+      });
+    }
+    var meta = doc.createElement("meta");
+    meta.setAttribute("charset", "utf-8");
+    doc.head.appendChild(meta);
+    doc.head.appendChild(base);
+    doc.body.innerHTML = resource;
+    if (window.HTMLTemplateElement && HTMLTemplateElement.bootstrap) {
+      HTMLTemplateElement.bootstrap(doc);
+    }
+    return doc;
+  }
+  if (!document.baseURI) {
+    var baseURIDescriptor = {
+      get: function() {
+        var base = document.querySelector("base");
+        return base ? base.href : window.location.href;
+      },
+      configurable: true
+    };
+    Object.defineProperty(document, "baseURI", baseURIDescriptor);
+    Object.defineProperty(rootDocument, "baseURI", baseURIDescriptor);
+  }
+  scope.importer = importer;
+  scope.importLoader = importLoader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var parser = scope.parser;
+  var importer = scope.importer;
+  var dynamic = {
+    added: function(nodes) {
+      var owner, parsed, loading;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (!owner) {
+          owner = n.ownerDocument;
+          parsed = parser.isParsed(owner);
+        }
+        loading = this.shouldLoadNode(n);
+        if (loading) {
+          importer.loadNode(n);
+        }
+        if (this.shouldParseNode(n) && parsed) {
+          parser.parseDynamic(n, loading);
+        }
+      }
+    },
+    shouldLoadNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, importer.loadSelectorsForNode(node));
+    },
+    shouldParseNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, parser.parseSelectorsForNode(node));
+    }
+  };
+  importer.observer.addCallback = dynamic.added.bind(dynamic);
+  var matches = HTMLElement.prototype.matches || HTMLElement.prototype.matchesSelector || HTMLElement.prototype.webkitMatchesSelector || HTMLElement.prototype.mozMatchesSelector || HTMLElement.prototype.msMatchesSelector;
+});
+
+(function(scope) {
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (scope.useNative) {
+    return;
+  }
+  initializeModules();
+  var rootDocument = scope.rootDocument;
+  function bootstrap() {
+    window.HTMLImports.importer.bootDocument(rootDocument);
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive" && !window.attachEvent) {
+    bootstrap();
+  } else {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  }
+})(window.HTMLImports);
+
+window.CustomElements = window.CustomElements || {
+  flags: {}
+};
+
+(function(scope) {
+  var flags = scope.flags;
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+  scope.hasNative = Boolean(document.registerElement);
+  scope.isIE = /Trident/.test(navigator.userAgent);
+  scope.useNative = !flags.register && scope.hasNative && !window.ShadowDOMPolyfill && (!window.HTMLImports || window.HTMLImports.useNative);
+})(window.CustomElements);
+
+window.CustomElements.addModule(function(scope) {
+  var IMPORT_LINK_TYPE = window.HTMLImports ? window.HTMLImports.IMPORT_LINK_TYPE : "none";
+  function forSubtree(node, cb) {
+    findAllElements(node, function(e) {
+      if (cb(e)) {
+        return true;
+      }
+      forRoots(e, cb);
+    });
+    forRoots(node, cb);
+  }
+  function findAllElements(node, find, data) {
+    var e = node.firstElementChild;
+    if (!e) {
+      e = node.firstChild;
+      while (e && e.nodeType !== Node.ELEMENT_NODE) {
+        e = e.nextSibling;
+      }
+    }
+    while (e) {
+      if (find(e, data) !== true) {
+        findAllElements(e, find, data);
+      }
+      e = e.nextElementSibling;
+    }
+    return null;
+  }
+  function forRoots(node, cb) {
+    var root = node.shadowRoot;
+    while (root) {
+      forSubtree(root, cb);
+      root = root.olderShadowRoot;
+    }
+  }
+  function forDocumentTree(doc, cb) {
+    _forDocumentTree(doc, cb, []);
+  }
+  function _forDocumentTree(doc, cb, processingDocuments) {
+    doc = window.wrap(doc);
+    if (processingDocuments.indexOf(doc) >= 0) {
+      return;
+    }
+    processingDocuments.push(doc);
+    var imports = doc.querySelectorAll("link[rel=" + IMPORT_LINK_TYPE + "]");
+    for (var i = 0, l = imports.length, n; i < l && (n = imports[i]); i++) {
+      if (n.import) {
+        _forDocumentTree(n.import, cb, processingDocuments);
+      }
+    }
+    cb(doc);
+  }
+  scope.forDocumentTree = forDocumentTree;
+  scope.forSubtree = forSubtree;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  var forSubtree = scope.forSubtree;
+  var forDocumentTree = scope.forDocumentTree;
+  function addedNode(node, isAttached) {
+    return added(node, isAttached) || addedSubtree(node, isAttached);
+  }
+  function added(node, isAttached) {
+    if (scope.upgrade(node, isAttached)) {
+      return true;
+    }
+    if (isAttached) {
+      attached(node);
+    }
+  }
+  function addedSubtree(node, isAttached) {
+    forSubtree(node, function(e) {
+      if (added(e, isAttached)) {
+        return true;
+      }
+    });
+  }
+  var hasThrottledAttached = window.MutationObserver._isPolyfilled && flags["throttle-attached"];
+  scope.hasPolyfillMutations = hasThrottledAttached;
+  scope.hasThrottledAttached = hasThrottledAttached;
+  var isPendingMutations = false;
+  var pendingMutations = [];
+  function deferMutation(fn) {
+    pendingMutations.push(fn);
+    if (!isPendingMutations) {
+      isPendingMutations = true;
+      setTimeout(takeMutations);
+    }
+  }
+  function takeMutations() {
+    isPendingMutations = false;
+    var $p = pendingMutations;
+    for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+      p();
+    }
+    pendingMutations = [];
+  }
+  function attached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _attached(element);
+      });
+    } else {
+      _attached(element);
+    }
+  }
+  function _attached(element) {
+    if (element.__upgraded__ && !element.__attached) {
+      element.__attached = true;
+      if (element.attachedCallback) {
+        element.attachedCallback();
+      }
+    }
+  }
+  function detachedNode(node) {
+    detached(node);
+    forSubtree(node, function(e) {
+      detached(e);
+    });
+  }
+  function detached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _detached(element);
+      });
+    } else {
+      _detached(element);
+    }
+  }
+  function _detached(element) {
+    if (element.__upgraded__ && element.__attached) {
+      element.__attached = false;
+      if (element.detachedCallback) {
+        element.detachedCallback();
+      }
+    }
+  }
+  function inDocument(element) {
+    var p = element;
+    var doc = window.wrap(document);
+    while (p) {
+      if (p == doc) {
+        return true;
+      }
+      p = p.parentNode || p.nodeType === Node.DOCUMENT_FRAGMENT_NODE && p.host;
+    }
+  }
+  function watchShadow(node) {
+    if (node.shadowRoot && !node.shadowRoot.__watched) {
+      flags.dom && console.log("watching shadow-root for: ", node.localName);
+      var root = node.shadowRoot;
+      while (root) {
+        observe(root);
+        root = root.olderShadowRoot;
+      }
+    }
+  }
+  function handler(root, mutations) {
+    if (flags.dom) {
+      var mx = mutations[0];
+      if (mx && mx.type === "childList" && mx.addedNodes) {
+        if (mx.addedNodes) {
+          var d = mx.addedNodes[0];
+          while (d && d !== document && !d.host) {
+            d = d.parentNode;
+          }
+          var u = d && (d.URL || d._URL || d.host && d.host.localName) || "";
+          u = u.split("/?").shift().split("/").pop();
+        }
+      }
+      console.group("mutations (%d) [%s]", mutations.length, u || "");
+    }
+    var isAttached = inDocument(root);
+    mutations.forEach(function(mx) {
+      if (mx.type === "childList") {
+        forEach(mx.addedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          addedNode(n, isAttached);
+        });
+        forEach(mx.removedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          detachedNode(n);
+        });
+      }
+    });
+    flags.dom && console.groupEnd();
+  }
+  function takeRecords(node) {
+    node = window.wrap(node);
+    if (!node) {
+      node = window.wrap(document);
+    }
+    while (node.parentNode) {
+      node = node.parentNode;
+    }
+    var observer = node.__observer;
+    if (observer) {
+      handler(node, observer.takeRecords());
+      takeMutations();
+    }
+  }
+  var forEach = Array.prototype.forEach.call.bind(Array.prototype.forEach);
+  function observe(inRoot) {
+    if (inRoot.__observer) {
+      return;
+    }
+    var observer = new MutationObserver(handler.bind(this, inRoot));
+    observer.observe(inRoot, {
+      childList: true,
+      subtree: true
+    });
+    inRoot.__observer = observer;
+  }
+  function upgradeDocument(doc) {
+    doc = window.wrap(doc);
+    flags.dom && console.group("upgradeDocument: ", doc.baseURI.split("/").pop());
+    var isMainDocument = doc === window.wrap(document);
+    addedNode(doc, isMainDocument);
+    observe(doc);
+    flags.dom && console.groupEnd();
+  }
+  function upgradeDocumentTree(doc) {
+    forDocumentTree(doc, upgradeDocument);
+  }
+  var originalCreateShadowRoot = Element.prototype.createShadowRoot;
+  if (originalCreateShadowRoot) {
+    Element.prototype.createShadowRoot = function() {
+      var root = originalCreateShadowRoot.call(this);
+      window.CustomElements.watchShadow(this);
+      return root;
+    };
+  }
+  scope.watchShadow = watchShadow;
+  scope.upgradeDocumentTree = upgradeDocumentTree;
+  scope.upgradeDocument = upgradeDocument;
+  scope.upgradeSubtree = addedSubtree;
+  scope.upgradeAll = addedNode;
+  scope.attached = attached;
+  scope.takeRecords = takeRecords;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  function upgrade(node, isAttached) {
+    if (node.localName === "template") {
+      if (window.HTMLTemplateElement && HTMLTemplateElement.decorate) {
+        HTMLTemplateElement.decorate(node);
+      }
+    }
+    if (!node.__upgraded__ && node.nodeType === Node.ELEMENT_NODE) {
+      var is = node.getAttribute("is");
+      var definition = scope.getRegisteredDefinition(node.localName) || scope.getRegisteredDefinition(is);
+      if (definition) {
+        if (is && definition.tag == node.localName || !is && !definition.extends) {
+          return upgradeWithDefinition(node, definition, isAttached);
+        }
+      }
+    }
+  }
+  function upgradeWithDefinition(element, definition, isAttached) {
+    flags.upgrade && console.group("upgrade:", element.localName);
+    if (definition.is) {
+      element.setAttribute("is", definition.is);
+    }
+    implementPrototype(element, definition);
+    element.__upgraded__ = true;
+    created(element);
+    if (isAttached) {
+      scope.attached(element);
+    }
+    scope.upgradeSubtree(element, isAttached);
+    flags.upgrade && console.groupEnd();
+    return element;
+  }
+  function implementPrototype(element, definition) {
+    if (Object.__proto__) {
+      element.__proto__ = definition.prototype;
+    } else {
+      customMixin(element, definition.prototype, definition.native);
+      element.__proto__ = definition.prototype;
+    }
+  }
+  function customMixin(inTarget, inSrc, inNative) {
+    var used = {};
+    var p = inSrc;
+    while (p !== inNative && p !== HTMLElement.prototype) {
+      var keys = Object.getOwnPropertyNames(p);
+      for (var i = 0, k; k = keys[i]; i++) {
+        if (!used[k]) {
+          Object.defineProperty(inTarget, k, Object.getOwnPropertyDescriptor(p, k));
+          used[k] = 1;
+        }
+      }
+      p = Object.getPrototypeOf(p);
+    }
+  }
+  function created(element) {
+    if (element.createdCallback) {
+      element.createdCallback();
+    }
+  }
+  scope.upgrade = upgrade;
+  scope.upgradeWithDefinition = upgradeWithDefinition;
+  scope.implementPrototype = implementPrototype;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var isIE = scope.isIE;
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeAll = scope.upgradeAll;
+  var upgradeWithDefinition = scope.upgradeWithDefinition;
+  var implementPrototype = scope.implementPrototype;
+  var useNative = scope.useNative;
+  function register(name, options) {
+    var definition = options || {};
+    if (!name) {
+      throw new Error("document.registerElement: first argument `name` must not be empty");
+    }
+    if (name.indexOf("-") < 0) {
+      throw new Error("document.registerElement: first argument ('name') must contain a dash ('-'). Argument provided was '" + String(name) + "'.");
+    }
+    if (isReservedTag(name)) {
+      throw new Error("Failed to execute 'registerElement' on 'Document': Registration failed for type '" + String(name) + "'. The type name is invalid.");
+    }
+    if (getRegisteredDefinition(name)) {
+      throw new Error("DuplicateDefinitionError: a type with name '" + String(name) + "' is already registered");
+    }
+    if (!definition.prototype) {
+      definition.prototype = Object.create(HTMLElement.prototype);
+    }
+    definition.__name = name.toLowerCase();
+    definition.lifecycle = definition.lifecycle || {};
+    definition.ancestry = ancestry(definition.extends);
+    resolveTagName(definition);
+    resolvePrototypeChain(definition);
+    overrideAttributeApi(definition.prototype);
+    registerDefinition(definition.__name, definition);
+    definition.ctor = generateConstructor(definition);
+    definition.ctor.prototype = definition.prototype;
+    definition.prototype.constructor = definition.ctor;
+    if (scope.ready) {
+      upgradeDocumentTree(document);
+    }
+    return definition.ctor;
+  }
+  function overrideAttributeApi(prototype) {
+    if (prototype.setAttribute._polyfilled) {
+      return;
+    }
+    var setAttribute = prototype.setAttribute;
+    prototype.setAttribute = function(name, value) {
+      changeAttribute.call(this, name, value, setAttribute);
+    };
+    var removeAttribute = prototype.removeAttribute;
+    prototype.removeAttribute = function(name) {
+      changeAttribute.call(this, name, null, removeAttribute);
+    };
+    prototype.setAttribute._polyfilled = true;
+  }
+  function changeAttribute(name, value, operation) {
+    name = name.toLowerCase();
+    var oldValue = this.getAttribute(name);
+    operation.apply(this, arguments);
+    var newValue = this.getAttribute(name);
+    if (this.attributeChangedCallback && newValue !== oldValue) {
+      this.attributeChangedCallback(name, oldValue, newValue);
+    }
+  }
+  function isReservedTag(name) {
+    for (var i = 0; i < reservedTagList.length; i++) {
+      if (name === reservedTagList[i]) {
+        return true;
+      }
+    }
+  }
+  var reservedTagList = [ "annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph" ];
+  function ancestry(extnds) {
+    var extendee = getRegisteredDefinition(extnds);
+    if (extendee) {
+      return ancestry(extendee.extends).concat([ extendee ]);
+    }
+    return [];
+  }
+  function resolveTagName(definition) {
+    var baseTag = definition.extends;
+    for (var i = 0, a; a = definition.ancestry[i]; i++) {
+      baseTag = a.is && a.tag;
+    }
+    definition.tag = baseTag || definition.__name;
+    if (baseTag) {
+      definition.is = definition.__name;
+    }
+  }
+  function resolvePrototypeChain(definition) {
+    if (!Object.__proto__) {
+      var nativePrototype = HTMLElement.prototype;
+      if (definition.is) {
+        var inst = document.createElement(definition.tag);
+        nativePrototype = Object.getPrototypeOf(inst);
+      }
+      var proto = definition.prototype, ancestor;
+      var foundPrototype = false;
+      while (proto) {
+        if (proto == nativePrototype) {
+          foundPrototype = true;
+        }
+        ancestor = Object.getPrototypeOf(proto);
+        if (ancestor) {
+          proto.__proto__ = ancestor;
+        }
+        proto = ancestor;
+      }
+      if (!foundPrototype) {
+        console.warn(definition.tag + " prototype not found in prototype chain for " + definition.is);
+      }
+      definition.native = nativePrototype;
+    }
+  }
+  function instantiate(definition) {
+    return upgradeWithDefinition(domCreateElement(definition.tag), definition);
+  }
+  var registry = {};
+  function getRegisteredDefinition(name) {
+    if (name) {
+      return registry[name.toLowerCase()];
+    }
+  }
+  function registerDefinition(name, definition) {
+    registry[name] = definition;
+  }
+  function generateConstructor(definition) {
+    return function() {
+      return instantiate(definition);
+    };
+  }
+  var HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+  function createElementNS(namespace, tag, typeExtension) {
+    if (namespace === HTML_NAMESPACE) {
+      return createElement(tag, typeExtension);
+    } else {
+      return domCreateElementNS(namespace, tag);
+    }
+  }
+  function createElement(tag, typeExtension) {
+    if (tag) {
+      tag = tag.toLowerCase();
+    }
+    if (typeExtension) {
+      typeExtension = typeExtension.toLowerCase();
+    }
+    var definition = getRegisteredDefinition(typeExtension || tag);
+    if (definition) {
+      if (tag == definition.tag && typeExtension == definition.is) {
+        return new definition.ctor();
+      }
+      if (!typeExtension && !definition.is) {
+        return new definition.ctor();
+      }
+    }
+    var element;
+    if (typeExtension) {
+      element = createElement(tag);
+      element.setAttribute("is", typeExtension);
+      return element;
+    }
+    element = domCreateElement(tag);
+    if (tag.indexOf("-") >= 0) {
+      implementPrototype(element, HTMLElement);
+    }
+    return element;
+  }
+  var domCreateElement = document.createElement.bind(document);
+  var domCreateElementNS = document.createElementNS.bind(document);
+  var isInstance;
+  if (!Object.__proto__ && !useNative) {
+    isInstance = function(obj, ctor) {
+      if (obj instanceof ctor) {
+        return true;
+      }
+      var p = obj;
+      while (p) {
+        if (p === ctor.prototype) {
+          return true;
+        }
+        p = p.__proto__;
+      }
+      return false;
+    };
+  } else {
+    isInstance = function(obj, base) {
+      return obj instanceof base;
+    };
+  }
+  function wrapDomMethodToForceUpgrade(obj, methodName) {
+    var orig = obj[methodName];
+    obj[methodName] = function() {
+      var n = orig.apply(this, arguments);
+      upgradeAll(n);
+      return n;
+    };
+  }
+  wrapDomMethodToForceUpgrade(Node.prototype, "cloneNode");
+  wrapDomMethodToForceUpgrade(document, "importNode");
+  if (isIE) {
+    (function() {
+      var importNode = document.importNode;
+      document.importNode = function() {
+        var n = importNode.apply(document, arguments);
+        if (n.nodeType == n.DOCUMENT_FRAGMENT_NODE) {
+          var f = document.createDocumentFragment();
+          f.appendChild(n);
+          return f;
+        } else {
+          return n;
+        }
+      };
+    })();
+  }
+  document.registerElement = register;
+  document.createElement = createElement;
+  document.createElementNS = createElementNS;
+  scope.registry = registry;
+  scope.instanceof = isInstance;
+  scope.reservedTagList = reservedTagList;
+  scope.getRegisteredDefinition = getRegisteredDefinition;
+  document.register = document.registerElement;
+});
+
+(function(scope) {
+  var useNative = scope.useNative;
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (useNative) {
+    var nop = function() {};
+    scope.watchShadow = nop;
+    scope.upgrade = nop;
+    scope.upgradeAll = nop;
+    scope.upgradeDocumentTree = nop;
+    scope.upgradeSubtree = nop;
+    scope.takeRecords = nop;
+    scope.instanceof = function(obj, base) {
+      return obj instanceof base;
+    };
+  } else {
+    initializeModules();
+  }
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeDocument = scope.upgradeDocument;
+  if (!window.wrap) {
+    if (window.ShadowDOMPolyfill) {
+      window.wrap = window.ShadowDOMPolyfill.wrapIfNeeded;
+      window.unwrap = window.ShadowDOMPolyfill.unwrapIfNeeded;
+    } else {
+      window.wrap = window.unwrap = function(node) {
+        return node;
+      };
+    }
+  }
+  if (window.HTMLImports) {
+    window.HTMLImports.__importsParsingHook = function(elt) {
+      if (elt.import) {
+        upgradeDocument(wrap(elt.import));
+      }
+    };
+  }
+  function bootstrap() {
+    upgradeDocumentTree(window.wrap(document));
+    window.CustomElements.ready = true;
+    var requestAnimationFrame = window.requestAnimationFrame || function(f) {
+      setTimeout(f, 16);
+    };
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        window.CustomElements.readyTime = Date.now();
+        if (window.HTMLImports) {
+          window.CustomElements.elapsed = window.CustomElements.readyTime - window.HTMLImports.readyTime;
+        }
+        document.dispatchEvent(new CustomEvent("WebComponentsReady", {
+          bubbles: true
+        }));
+      });
+    });
+  }
+  if (document.readyState === "complete" || scope.flags.eager) {
+    bootstrap();
+  } else if (document.readyState === "interactive" && !window.attachEvent && (!window.HTMLImports || window.HTMLImports.ready)) {
+    bootstrap();
+  } else {
+    var loadEvent = window.HTMLImports && !window.HTMLImports.ready ? "HTMLImportsLoaded" : "DOMContentLoaded";
+    window.addEventListener(loadEvent, bootstrap);
+  }
+})(window.CustomElements);
+
+(function(scope) {
+  var style = document.createElement("style");
+  style.textContent = "" + "body {" + "transition: opacity ease-in 0.2s;" + " } \n" + "body[unresolved] {" + "opacity: 0; display: block; overflow: hidden; position: relative;" + " } \n";
+  var head = document.querySelector("head");
+  head.insertBefore(style, head.firstChild);
+})(window.WebComponents);
+//JS file for the supplier-page
+Polymer({
+  is: "customer-page",
+  ready:function()
+  {
+    localStorage.setItem("curr_sess_showpage","Add Customer");    
+    this.page="Add Customer";
+  },
+  //Method to change the page view in base page ie home page
+  setPage:function(page)
+  {
+    //Setting current page in local storage to fetch the labels dynamically
+    localStorage.setItem("curr_sess_showpage",page);
+    //Calling web component service to fetch label and errro label info from config file
+    document.querySelector("webcomponent-service").callWebcomponentService();
+    this.page = page;
+  }
+});
+(function() {
+    'use strict';
+    var poarray;
+    Polymer({
+      is: 'promotebutton-card',
+    // Function which receives item for PO 
+    FnPOArrayInfo:function(poarr){
+    poarray=poarr;
+    },
+    // Function which calls service to create the PO for the item in intent view
+    FnPromoteState:function(){
+    this.$.intentservice.FnIntentViewPoCreateService(poarray);
+    }
+    });
+  })();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'purchaseorder-home',
+      ready:function(){        
+        this.$.service.FnPurchaseorderService();
+      }
+    });
+  })();
+(function() {
+    'use strict';
+    var approvearr=[];
+    var clr="true";
+    Polymer({
+      is: 'approvesupplier-detailcard',
+      // Function which fetch the supplier to approve
+      FnFetchInfo:function(){              
+        if(clr=="true") {
+          this.suppliername=(this.suppliername).replace(" ","");
+          document.querySelector('#btn'+this.suppliername).style.color = '#ff6789';
+          clr=this.suppliername;
+        }
+        else if(clr!=this.suppliername){
+          this.suppliername=(this.suppliername).replace(" ","");
+          document.querySelector('#btn'+clr).style.color = '#000000';
+          document.querySelector('#btn'+this.suppliername).style.color = '#ff6789';
+          clr=this.suppliername;
+        }
+        sessionStorage.setItem("sess_curr_supplierid",this.supplierid);
+        sessionStorage.setItem("sess_curr_suppliername",this.suppliername);
+        this.$.adminsupplierservice.FnSupplierinforeadService();
+      }
+    });
+  })();
+/** @polymerBehavior */
+  Polymer.PaperSpinnerBehavior = {
+
+    listeners: {
+      'animationend': '__reset',
+      'webkitAnimationEnd': '__reset'
+    },
+
+    properties: {
+      /**
+       * Displays the spinner.
+       */
+      active: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+        observer: '__activeChanged'
+      },
+
+      /**
+       * Alternative text content for accessibility support.
+       * If alt is present, it will add an aria-label whose content matches alt when active.
+       * If alt is not present, it will default to 'loading' as the alt value.
+       */
+      alt: {
+        type: String,
+        value: 'loading',
+        observer: '__altChanged'
+      },
+
+      __coolingDown: {
+        type: Boolean,
+        value: false
+      }
+    },
+
+    __computeContainerClasses: function(active, coolingDown) {
+      return [
+        active || coolingDown ? 'active' : '',
+        coolingDown ? 'cooldown' : ''
+      ].join(' ');
+    },
+
+    __activeChanged: function(active, old) {
+      this.__setAriaHidden(!active);
+      this.__coolingDown = !active && old;
+    },
+
+    __altChanged: function(alt) {
+      // user-provided `aria-label` takes precedence over prototype default
+      if (alt === this.getPropertyInfo('alt').value) {
+        this.alt = this.getAttribute('aria-label') || alt;
+      } else {
+        this.__setAriaHidden(alt==='');
+        this.setAttribute('aria-label', alt);
+      }
+    },
+
+    __setAriaHidden: function(hidden) {
+      var attr = 'aria-hidden';
+      if (hidden) {
+        this.setAttribute(attr, 'true');
+      } else {
+        this.removeAttribute(attr);
+      }
+    },
+
+    __reset: function() {
+      this.active = false;
+      this.__coolingDown = false;
+    }
+  };
+Polymer({
+      is: 'paper-spinner',
+
+      behaviors: [
+        Polymer.PaperSpinnerBehavior
+      ]
+    });
+//JS file for the supplier-detail-read
+Polymer({
+  is: "supplier-detail-read",
+  ready:function()
+  {
+  	this.read=true;
+    localStorage.setItem("curr_sess_showpage","Supplier Detail");
+  }
+});
+(function() {
+      'use strict';
+      Polymer({
+        is: 'customer-tax-read',
+        ready:function(){
+          this.read=true;
+          localStorage.setItem("curr_sess_showpage","Tax Detail");
+        }
+      });
+    })();
+(function() {
+      'use strict';
+      Polymer({
+        is: 'customer-excise-read',
+        ready:function(){
+          this.read=true;
+          localStorage.setItem("curr_sess_showpage","Excise Detail");
+        }
+      });
+    })();
+//JS file for the supplier-page
+Polymer({
+  is: "customer-payment-read",
+  ready:function()
+  {
+  	this.read=true;
+    localStorage.setItem("curr_sess_showpage","Payment Detail");
+    //calling webcomponent service to fetch labels for current page
+    this.$.ID_Webcomponent_Service.callWebcomponentService();
+  }
+});
 /**
  * @license
  * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
@@ -60714,15 +64673,8654 @@ window.CustomElements.addModule(function(scope) {
 
 //JS file for the supplier-page
 Polymer({
-  is: "customer-page",
+  is: "supplier-read-page",
   ready:function()
   {
+    localStorage.setItem("curr_sess_showpage","Supplier Detail");
+    this.page="Supplier Detail";
+  },
+  //Method to change the page view in base page ie home page
+  setPage:function(page)
+  {
+    this.page = page;
+  }
+});
+/**
+ * Created by praba on 5/9/2016.
+ */
+ // JS component for approve supplier card
+(function() {
+  Polymer({
+    is: "approvesupplier-card",
+    ready:function(){	
+    	  localStorage.setItem("curr_sess_showpage","approvesupplier-card");
+        // Calling service to fetch the label for the component
+      	this.$.ID_Webcomponent_Service.callWebcomponentService();
+        // Calling service to fetch the supplier name s who have to approve
+    	  this.$.adminsupplierservice.readsuppliertoapproveService();    
+    }
+  });
+})();
+(function() {
+    'use strict';
 
-    localStorage.setItem("curr_sess_showpage","Add Customer");
-    //if(localStorage.getItem("curr_sess_showpage")=="additem-card")
-    this.page="Add Customer";
-    //if(localStorage.getItem("curr_sess_showpage")=="addsupplier-card")
-    //this.page="addsupplier-card";
+    Polymer({
+      is: 'user-service',
+      callreaddepartment:function(){
+      this.readdepartmenturl=sessionStorage.getItem("curr_sess_url")+"readdepartment-service";
+      // this.readdepartmentparam=obj;
+      this.$.readdepartmentajax.generateRequest();
+      },
+      readdepartmentResponse:function(e){
+        var deparray=e.detail.response;
+        // alert(JSON.stringify(deparray));
+        document.querySelector('userrole-info-card').departmentarr=deparray;
+        document.querySelector('rolecreation-card').departmentarr=deparray;
+      },
+      callreadrole:function(){
+      this.readroleurl=sessionStorage.getItem("curr_sess_url")+"readrole-service";
+      // this.readroleparam=obj;
+      this.$.readroleajax.generateRequest();
+      },
+      readroleResponse:function(e){
+        var rolearray=e.detail.response;
+        // alert(JSON.stringify(rolearray));
+        document.querySelector('userrole-info-card').rolearr=rolearray;
+      },
+      callPasswordchangeservice:function(empid,oldpassword,newpassword){
+      var obj={"empid":"","oldpassword":"","newpassword":""};
+      obj.empid=empid;
+      obj.oldpassword=oldpassword;
+      obj.newpassword=newpassword;
+      this.passwordchangeurl=sessionStorage.getItem("curr_sess_url")+"passwordchange-service";
+      this.passwordchangeparam=obj;
+      this.$.passwordchangeajax.generateRequest();
+      },
+      passwordchangeResponse:function(e){
+        // alert(JSON.stringify(e.detail.response));
+        if(e.detail.response=="succ")
+          alert("Password changed successfully!");
+        else
+          alert("Please try again!");
+      },
+      callResetpasswordservice:function(empid,newpassword){
+      var obj={"empid":"","newpassword":""};
+      obj.empid=empid;
+      obj.newpassword=newpassword;
+      this.resetpasswordurl=sessionStorage.getItem("curr_sess_url")+"resetpassword-service";
+      this.resetpasswordparam=obj;
+      this.$.resetpasswordajax.generateRequest();
+      },
+      resetpasswordResponse:function(e){
+        if(e.detail.response=="succ")
+          alert("Password changed successfully!");
+        else
+          alert("Please try again!");
+      },
+      callMailService:function(empid,code){        
+      var obj={"empid":"","code":""};
+      obj.empid=empid;
+      obj.code=code;
+      this.verifymailurl=sessionStorage.getItem("curr_sess_url")+"verifymail-service";
+      this.verifymailparam=obj;
+      this.$.verifymailajax.generateRequest();
+      },
+      verifymailResponse:function(e){
+      alert(JSON.stringify(e.detail.response));
+      },
+      addemployeeService:function(employeename,dob,sex,age,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid){        
+      var obj={"employeename":"","dob":"","sex":"","age":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""};
+      obj.employeename=employeename;
+      obj.dob=dob;
+      obj.sex=sex;
+      obj.age=age;
+      obj.streetname=streetname;
+      obj.location=location;
+      obj.city=city;
+      obj.district=district;
+      obj.state=state;
+      obj.country=country;
+      obj.pincode=pincode;
+      obj.phoneno=phoneno;
+      obj.mobileno=mobileno;
+      obj.emailid=emailid;
+      this.userinfourl=sessionStorage.getItem("curr_sess_url")+"userinfo-service";
+      this.userinfoparam=obj;
+      this.$.userinfoajax.generateRequest();
+      },
+      userinfoResponse:function(e){
+      // alert(JSON.stringify(e.detail.response.val));
+      localStorage.setItem("curr_sess_employeeloggedid",e.detail.response.val);
+      },
+      addpaymentService:function(accountname,accountno,accounttype,bankname,branch,ifsccode){
+         var obj1={
+            "employeeid":"","accountname":"","accountno":"","accounttype":"","bankname":"",
+            "branch":"","ifsccode":""
+          };
+          obj1.employeeid=localStorage.getItem('curr_sess_employeeloggedid');
+          obj1.accountname=accountname;
+          obj1.accountno=accountno;
+          obj1.accounttype=accounttype;          
+          obj1.bankname=bankname;
+          obj1.branch=branch;
+          obj1.ifsccode=ifsccode;
+          // alert(bankname);
+      this.useraccounturl=sessionStorage.getItem("curr_sess_url")+"useraccount-service";
+      this.useraccountparam=obj1;
+      this.$.useraccountajax.generateRequest();
+      },
+      useraccountResponse:function(e){
+      // alert(JSON.stringify(e.detail.response));
+      },
+      calluserroleService:function(departmentname,rolename){        
+      var obj={"employeeid":"","departmentname":"","rolename":""};
+      obj.employeeid=localStorage.getItem('curr_sess_employeeloggedid');
+      obj.departmentname=departmentname;
+      obj.rolename=rolename;
+      this.userroleurl=sessionStorage.getItem("curr_sess_url")+"userrole-service";
+      this.userroleparam=obj;
+      this.$.userroleajax.generateRequest();
+      },
+      userroleResponse:function(e){
+      // alert(JSON.stringify(e.detail.response));
+      alert("Employee Code & Password: "+localStorage.getItem('curr_sess_employeeloggedid')+" Your password:  "+"password");
+      },
+      readusertoapproveService:function(){
+       this.readusertoapproveurl=sessionStorage.getItem("curr_sess_url")+"readusertoapprove-service";
+       this.$.readusertoapproveajax.generateRequest();
+      },
+      readusertoapproveResponse:function(e){      
+       document.querySelector('approveuser-card').itemArray=e.detail.response.itemarr;
+      },
+ // Function which make request to read the supplier info
+    FnUserinforeadService:function(){
+      var obj={"employeeid":""};
+      obj.employeeid=sessionStorage.getItem("sess_curr_employeeid");      
+      this.userinforeadparam=obj;
+      this.userinforeadurl=sessionStorage.getItem("curr_sess_url")+"userinforead-service";
+      this.$.userinforeadajax.generateRequest();
+    },
+    userinforeadResponse:function(e){
+      var arr=e.detail.response;
+      // Binding supplier info to the card in approve supplier page
+      document.querySelector("userinfo-read-card").employeename=arr[0].Employee_Name;
+      document.querySelector("userinfo-read-card").dob=arr[0].Date_Of_Birth;
+      document.querySelector("userinfo-read-card").age=arr[0].Age;
+      document.querySelector("userinfo-read-card").sex=arr[0].Sex;      
+      document.querySelector("userinfo-read-card").streetname=arr[0].Street_Name;
+      document.querySelector("userinfo-read-card").location=arr[0].Location;
+      document.querySelector("userinfo-read-card").city=arr[0].City;
+      document.querySelector("userinfo-read-card").district=arr[0].District;
+      document.querySelector("userinfo-read-card").state=arr[0].State;
+      document.querySelector("userinfo-read-card").country=arr[0].Country;      
+      document.querySelector("userinfo-read-card").phoneno=arr[0].Phone;
+      document.querySelector("userinfo-read-card").mobileno=arr[0].Mobile;
+      document.querySelector("userinfo-read-card").emailid=arr[0].Email;
+      document.querySelector("useraccount-read-card").accountname=arr[0].Account_Name;
+      document.querySelector("useraccount-read-card").accountno=arr[0].Account_No;
+      document.querySelector("useraccount-read-card").accounttype=arr[0].Account_Type;      
+      document.querySelector("useraccount-read-card").bankname=arr[0].Bank_Name;
+      document.querySelector("useraccount-read-card").branch=arr[0].Branch;
+      document.querySelector("useraccount-read-card").ifsccode=arr[0].IFSC_Code;
+      document.querySelector("userrole-read-card").departmentname=arr[0].Department_Name;
+      document.querySelector("userrole-read-card").rolename=arr[0].Role_ID;
+    },
+     // Function which receive all customer who have accepted for approve
+    approveuserService:function(status){
+        var obj={"employeeid":"","status":""};
+        obj.status=status;
+        obj.employeeid=sessionStorage.getItem("sess_curr_employeeid");        
+        this.approveuserparam=obj;
+        this.approveuserurl=sessionStorage.getItem("curr_sess_url")+"approveuser-service";
+        this.$.approveuserajax.generateRequest();      
+    },
+    approveuserResponse:function(e){      
+      if(e.detail.response.itemarr=="succ"){  
+      alert("Approved Successfully!!")   
+        window.location.href="../elements/indexhome.html";
+      }
+      else
+        alert("Failed to approve the user!!");
+    },
+    updateemployeeService:function(employeename,dob,sex,age,streetname,location,city,district,state,country,pincode,phoneno,mobileno,emailid){        
+      var obj={"employeename":"","dob":"","sex":"","age":"","streetname":"","location":"","city":"","district":"","state":"","country":"","pincode":"","phoneno":"","mobileno":"","emailid":""};
+      obj.employeename=employeename;
+      obj.dob=dob;
+      obj.sex=sex;
+      obj.age=age;
+      obj.streetname=streetname;
+      obj.location=location;
+      obj.city=city;
+      obj.district=district;
+      obj.state=state;
+      obj.country=country;
+      obj.pincode=pincode;
+      obj.phoneno=phoneno;
+      obj.mobileno=mobileno;
+      obj.emailid=emailid;
+      this.updateuserinfourl=sessionStorage.getItem("curr_sess_url")+"updateuserinfo-service";
+      this.updateuserinfoparam=obj;
+      this.$.updateuserinfoajax.generateRequest();
+      },
+      updateuserinfoResponse:function(e){
+      alert(JSON.stringify(e.detail.response.val));      
+      },
+      updatepaymentService:function(accountname,accountno,accounttype,bankname,branch,ifsccode){
+      var obj1={
+            "employeeid":"","accountname":"","accountno":"","accounttype":"","bankname":"",
+            "branch":"","ifsccode":""
+      };
+          obj1.employeeid=localStorage.getItem('curr_sess_employeeloggedid');
+          obj1.accountname=accountname;
+          obj1.accountno=accountno;
+          obj1.accounttype=accounttype;          
+          obj1.bankname=bankname;
+          obj1.branch=branch;
+          obj1.ifsccode=ifsccode;
+          
+      this.updateuseraccounturl=sessionStorage.getItem("curr_sess_url")+"updateuseraccount-service";
+      this.updateuseraccountparam=obj1;
+      this.$.updateuseraccountajax.generateRequest();
+      },
+      updateuseraccountResponse:function(e){
+      alert(JSON.stringify(e.detail.response));
+      },
+      updateuserroleService:function(departmentname,rolename){        
+      var obj={"employeeid":"","departmentname":"","rolename":""};
+      obj.employeeid=localStorage.getItem('curr_sess_employeeloggedid');
+      obj.departmentname=departmentname;
+      obj.rolename=rolename;
+      this.updateuserroleurl=sessionStorage.getItem("curr_sess_url")+"updateuserrole-service";
+      this.updateuserroleparam=obj;
+      this.$.updateuserroleajax.generateRequest();
+      },
+      updateuserroleResponse:function(e){
+      alert(JSON.stringify(e.detail.response));      
+      },
+      callAccountService:function(){
+      var obj={"employeeid":""};
+      obj.employeeid=localStorage.getItem('curr_sess_employeeloggedid');      
+      this.accounturl=sessionStorage.getItem("curr_sess_url")+"useraccount1-service";
+      this.accountparam=obj;
+      this.$.accountajax.generateRequest();
+      },
+      accountResponse:function(e){
+        var arr=e.detail.response;
+      document.querySelector("useraccount-info-card").accountname=arr[0].Account_Name;
+      document.querySelector("useraccount-info-card").accountno=arr[0].Account_Number;
+      document.querySelector("useraccount-info-card").accounttype=arr[0].Account_Type;      
+      document.querySelector("useraccount-info-card").bankname=arr[0].Bank_Name;
+      document.querySelector("useraccount-info-card").branch=arr[0].Branch;
+      document.querySelector("useraccount-info-card").ifsccode=arr[0].IFSC_Code;
+      },
+      FnRoleService:function(){
+      var obj={"employeeid":""};
+      obj.employeeid=localStorage.getItem('curr_sess_employeeloggedid');
+      this.roleurl=sessionStorage.getItem("curr_sess_url")+"role-service";
+      this.roleparam=obj;
+      this.$.roleajax.generateRequest();
+      },
+      roleResponse:function(e){
+      var arr=e.detail.response;        
+      document.querySelector("userrole-info-card").department=arr[0].Department_Name;
+      document.querySelector("userrole-info-card").role=arr[0].Role_ID;
+      },
+      callUsersearchService:function(empid,employeename){
+      var obj={"employeename":""};
+      obj.employeename=employeename;
+      this.usersearchurl=sessionStorage.getItem("curr_sess_url")+"usersearch-service";
+      this.usersearchparam=obj;
+      this.$.usersearchajax.generateRequest();
+      },
+      usersearchResponse:function(e){
+      var arr=e.detail.response;        
+      localStorage.setItem('curr_sess_employeeloggedid',arr[0].Employee_ID);
+      document.querySelector("user-info-card").employeename=arr[0].Employee_Name;
+      document.querySelector("user-info-card").dob=arr[0].Date_Of_Birth;
+      document.querySelector("user-info-card").age=arr[0].Age;
+      document.querySelector("user-info-card").sex=arr[0].Sex;      
+      document.querySelector("user-info-card").streetname=arr[0].Street_Name;
+      document.querySelector("user-info-card").location=arr[0].Location;
+      document.querySelector("user-info-card").city=arr[0].City;
+      document.querySelector("user-info-card").district=arr[0].District;
+      document.querySelector("user-info-card").state=arr[0].State;
+      document.querySelector("user-info-card").country=arr[0].Country;
+      // document.querySelector("userinfo-read-card").pincode=arr[0].Pincode;
+      document.querySelector("user-info-card").phoneno=arr[0].Phone;
+      document.querySelector("user-info-card").mobileno=arr[0].Mobile;
+      document.querySelector("user-info-card").emailid=arr[0].Email;
+
+
+      document.querySelector("dobpicker-card").setDate(arr[0].Date_Of_Birth);
+      },
+      callcreateDepartmentService:function(departmentid,departmentname){
+      var obj={"departmentid":"","departmentname":""};
+      obj.departmentname=departmentname;
+      obj.departmentid=departmentid;
+      this.createdepartmenturl=sessionStorage.getItem("curr_sess_url")+"createdepartment-service";
+      this.createdepartmentparam=obj;
+      this.$.createdepartmentajax.generateRequest();
+      },
+      createdepartmentResponse:function(e){
+        if(e.detail.response=="succ")
+          alert("Department created successfully!");
+        else
+          alert("Unable to create department!");
+      },
+      callcreateroleService:function(roleid,rolename){
+      var obj={"roleid":"","rolename":""};
+      obj.roleid=roleid;
+      obj.rolename=rolename;      
+      this.createroleurl=sessionStorage.getItem("curr_sess_url")+"createrole-service";
+      this.createroleparam=obj;
+      this.$.createroleajax.generateRequest();
+      },
+      createroleResponse:function(e){
+        if(e.detail.response=="succ")
+          alert("Role created successfully!");
+        else
+          alert("Unable to create role!");
+      }
+      
+    });
+  })();
+(function() {
+    'use strict';
+    Polymer({
+      is: 'dynamicbutton-card',
+      ready:function(){
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
+          this.label1="Approve";
+          this.label2="Resend";
+          this.viewresend=false;
+          this.label3="Reject";
+          this.viewreject=false;
+        }
+        else {
+          this.viewresend = true;
+          this.viewreject=false;
+        }
+      },
+      // Function which invoke to approve supplier/customer service
+      FnApprove:function(){ 
+        //Function which calls service to approve the supplier       
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"){
+        this.$.adminsupplierservice.approvesupplierforpurchaseService("Approved");
+        }
+        //Function which calls service to approve the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"){
+        this.$.customerservice.approvecustomerforsalesService("Approved");
+        }
+        //Function which calls service to approve the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"){
+        this.$.userservice.approveuserService("Approved");
+        }
+      },
+      // Function which invoke to resend supplier/customer service
+      FnResend:function(){  
+        //Function which calls service to resend the supplier      
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"){
+          this.$.adminsupplierservice.approvesupplierforpurchaseService("Resend");
+        }
+        //Function which calls service to resend the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"){
+          this.$.customerservice.approvecustomerforsalesService("Resend");
+        }
+        //Function which calls service to approve the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"){
+        this.$.userservice.approveuserService("Resend");
+        }
+      },
+      // Function which invoke to reject supplier/customer service
+      FnReject:function(){ 
+        //Function which calls service to reject the supplier       
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="7"){
+          this.$.adminsupplierservice.approvesupplierforpurchaseService("Reject");
+        }
+        //Function which calls service to reject the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="8"){
+          this.$.customerservice.approvecustomerforsalesService("Reject");
+        }
+        //Function which calls service to approve the customer
+        if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"){
+        this.$.userservice.approveuserService("Reject");
+        }
+      },
+      // Function which is used to change the label
+      FnSetLabel:function(label){
+        this.label1=label;
+      }
+    });
+  })();
+(function() {
+    'use strict';
+    Polymer({
+      is: 'production-recheck-card',
+      ready:function(){
+        localStorage.setItem("curr_sess_retestflag","0");
+      },
+      // Function which shows the cards who came for quality recheck
+      FnRecheck:function(){
+        localStorage.setItem("curr_sess_retestflag","1");
+        document.querySelector('retest-card').FnCallPage();
+        // Showing recheck cards
+        document.querySelector('app-homepage').setPage('retest-card');
+        document.querySelector('specification-card').ready();
+      }
+    });
+  })();
+/**
+ * Created by praba on 2/12/2016.
+ */
+(function() {
+
+  Polymer({
+    is: "retestqualify-item-card",
+    ready: function () {
+      this.updateflag = "false";
+      this.read=true;
+      //this.hideradio=true;
+      this.url = sessionStorage.getItem("curr_sess_url") + "physicqualifyitem-card";
+      //if(sessionStorage.getItem("curr_sess_roleflag") == "3")
+      //  this.hideradio=false;
+    },
+
+    FnSaveItem: function () {
+
+      document.querySelector("#cont" + this.inwardno).validate();
+      document.querySelector("#heat" + this.inwardno).validate();
+      document.querySelector("#qty" + this.inwardno).validate();
+      if ((this.ponumber == null || this.ponumber == "") && (localStorage.getItem("curr_sess_POchangeflag") != 1)) {
+        alert("PO number should be filled out!");
+      }
+      else {
+        this.inspectionstatus = "1";
+        this.podate = localStorage.getItem("localsess_curr_inwarddate");
+        this.ponumber = localStorage.getItem("curr_sess_PONumber");
+        //alert("session:"+localStorage.getItem("curr_sess_PONumber"));
+        //alert(this.ponumber);
+        switch (parseInt(sessionStorage.getItem("curr_sess_roleflag"))) {
+          case 1:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 2:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 3:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 4:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+        }
+        //alert(this.status+"  "+this.newstatus);
+        this.$.form.submit();
+      }
+      //}
+    },
+    FnRejectItem: function () {
+      if ((this.ponumber == null || this.ponumber == "") && (localStorage.getItem("curr_sess_POchangeflag") != 1)) {
+        alert("PO number should be filled out!");
+      }
+      else {
+        //alert(this.containerid);
+        this.inspectionstatus = "0";
+        this.podate = localStorage.getItem("localsess_curr_inwarddate");
+        this.ponumber = localStorage.getItem("curr_sess_PONumber");
+        switch (parseInt(sessionStorage.getItem("curr_sess_roleflag"))) {
+          case 1:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 2:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 3:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+          case 4:
+            this.status = localStorage.getItem("curr_sess_currflowstatus");
+            this.updatestatus = localStorage.getItem("curr_sess_currflowupdatestatus");
+            break;
+
+        }
+        this.$.form.submit();
+      }
+    },
+    FnResponse: function (e) {
+      this.$.ID_Show_Dialog.FnShowDialog(e.detail.response.flag, "");
+    },
+    FnExpandInnerCard: function () {
+      //alert(this.containerid);
+      if (document.querySelector('#radio' + this.containerid).checked == true && sessionStorage.getItem("curr_sess_roleflag") == "2") {
+        localStorage.setItem("curr_sess_expandedcontainer", this.containerid);
+        this.$.specificationcard.FnspecificationitemreadService();
+        this.$.qualityparameterdisplay.FnparameterdisplayService();
+        document.querySelector("#inner" + this.containerid).toggle();
+      }
+      if (document.querySelector('#radio' + this.containerid).checked == false && sessionStorage.getItem("curr_sess_roleflag") == "2") {
+        document.querySelector("#inner" + this.containerid).toggle();
+        //this.$.specificationcard.FnHideSpeccard();
+      }
+    },
+    FnToggle:function(){
+      this.$.specificationcard.FnspecificationitemreadService();
+      this.$.qualityparameterdisplay.FnparameterdisplayService();
+      document.querySelector("#inner" + id).toggle();
+    },
+    FnReferesh:function(){
+      var id=localStorage.getItem("curr_sess_expandedcontainer");
+      this.$.specificationcard.FnspecificationitemreadService();
+      this.$.qualityparameterdisplay.FnparameterdisplayService();
+      document.querySelector("#inner" + id).toggle();
+      document.querySelector('#radio' + id).checked = false;
+    },
+    Fnhidequality:function(flag){
+      if(flag=="true")
+        this.hidequality=true;
+      if(flag=="false")
+        this.hidequality=false;
+    }
+  });
+})();
+/**
+ * Created by praba on 2/12/2016.
+ */
+(function(){
+  var inwardno;
+  var ponumber;
+  var podate;
+  var supname;
+  var containerreceived;
+  var containermeasure;
+  Polymer({is:"retestqualify-card",
+    ready:function(){
+      //Flag is setting to make PO read only and writable
+      if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+        //localStorage.setItem("curr_sess_PONumber",this.pono);
+        this.read = false;
+      }
+      if(sessionStorage.getItem("curr_sess_roleflag")!="1"){
+        this.read = true;
+      }
+      this.url=sessionStorage.getItem("curr_sess_url")+"physicqualify-card";
+    },
+    FnInputChanged:function(e){
+      //alert(this.ponumber);
+      //When PO changes changing flag
+      localStorage.setItem("curr_sess_POchangeflag","1");
+      localStorage.setItem("curr_sess_PONumber",this.ponumber);
+    },
+    setPodate:function(){
+      //setting PO selection date
+      this.podate=localStorage.getItem("localsess_curr_inwarddate");
+    },
+    FnexpandcardreadService:function(){
+      //alert("calling");
+      var arg={"inwardregno":"","status":""};
+      arg.inwardregno=sessionStorage.getItem("sess_curr_inwardregno");
+      if(sessionStorage.getItem("curr_sess_roleflag")=="1"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="3"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="4"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      else if(sessionStorage.getItem("curr_sess_roleflag")=="5"){
+
+        arg.status=localStorage.getItem("curr_sess_currflowstatus");
+      }
+      this.physicqualifyexpanditemreadparam=arg;
+      //alert(JSON.stringify(arg));
+      this.physicqualifyexpanditemreadurl=sessionStorage.getItem("curr_sess_url")+"physicqualifyexpanditemread-service";
+      //alert(this.expanditemreadurl);
+      this.$.physicqualifyexpanditemreadajax.generateRequest();
+    },
+    FnphysicqualifyexpanditemreadResponse:function(e){
+      //alert(JSON.stringify(e.detail.response));
+      if(e.detail.response=="no items")
+      {
+        //alert('yeas');
+        this.speccardlength=contreceived;
+        this.specarr=[];
+        if(contmeasure=='Coil'){
+          localStorage.setItem("curr_sess_repeatitementry","1");
+          for(var i=0;i<parseInt(this.speccardlength);i++){
+            var obj={"id":"","number":""};
+            this.specarr.push(obj);
+          }
+        }
+        else{
+          localStorage.setItem("curr_sess_repeatitementry","0");
+          var obj={"id":"","number":""};
+          this.specarr.push(obj);
+        }
+        this.specificationArray1=this.specarr;
+        document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray1);
+      }
+      else{
+        var arr=e.detail.response;
+        for(var i=0;i<arr.length;i++) {
+          if(arr[i].Inspection_Status=="Approved")
+            arr[i].readflag=false;
+          else
+            arr[i].readflag=true;
+        }
+        //alert(JSON.stringify(arr));
+        this.specificationArray1 = arr;
+        localStorage.setItem("curr_sess_PONumber",this.specificationArray1[0].PO_Number);
+        document.querySelector('physicqualified-service').FnSetOldContainerArray(this.specificationArray1);
+      }
+    },
+    physicqualifyitemService:function(contreceived,contmeasure){
+      containerreceived=contreceived;
+      containermeasure=contmeasure;
+      this.speccardlength=contreceived;
+      this.specarr=[];
+      if(contmeasure=='Coil'){
+        localStorage.setItem("curr_sess_repeatitementry","1");
+        for(var i=0;i<parseInt(this.speccardlength);i++){
+          var obj={"id":"","number":""};
+          this.specarr.push(obj);
+        }
+      }
+      else{
+        localStorage.setItem("curr_sess_repeatitementry","0");
+        var obj={"id":"","number":""};
+        this.specarr.push(obj);
+      }
+      this.specificationArray1=this.specarr;
+    },
+    callWebcomponentService:function(){
+      this.$.webcomponentreadajax.generateRequest();
+    },
+    FnWebcomponentreadResponse:function(e) {
+      this.current_page="retestqualify-card";
+      var arr = e.detail.response;
+      //alert(JSON.stringify(arr));
+      var labelvalue=[];
+      var errorlabelvalue=[];
+      //Binding labels to card
+      for(var i=1;i<arr.length;i++) {
+        if ((arr[i].Page[0].page[0]) == this.current_page) {
+          //alert('coming...');
+          labelvalue = arr[i].Page[1].Label;
+          /*Binding Labels and error message to the respective card*/
+          this.label = labelvalue;
+        }
+      }
+    }
+  });
+})();
+/**
+ * Created by praba on 2/12/2016.
+ */
+//JS file for physicinsitem-card
+(function() {
+  var arr=[];
+  var id="true";
+  var clrid="true";
+  var regno="";
+  var n=1;
+  Polymer({is:"retest-items-card",
+    ready:function(){
+      this.icons="icons:arrow-drop-down";
+    },
+    FnExpandItemcard:function(){
+      var n=1;
+      var x=-4;
+      //Storing expanded card IRN number in sessionstorage
+      sessionStorage.setItem("sess_curr_inwardregno",this.inwardregno);
+      //calling service to call fetch coil info
+      this.$.ps.FnexpandcardreadService();
+      //Sending IRN number to service component to fetch the expanded card info
+      this.$.ps.physicqualifyitemService(this.contreceived,this.contmeasure);
+      //document.querySelector('specification-card').FnspecificationitemreadService();
+      //Calling webcomponent service to fetch labels dynamically for this card from config file
+      this.$.ps.callWebcomponentService();
+      var all=document.querySelectorAll('.expandcard');
+      //Expand card toggle logic
+      if(id=="true")
+      {
+        //document.querySelector('app-homepage').setVisible("true");
+        id= document.querySelector("#"+this.inwardregno);
+        id.toggle();
+      }
+      else
+      {
+        if(id!=document.querySelector("#"+this.inwardregno))
+        {
+          id.opened=false;
+        }
+        //document.querySelector('app-homepage').setVisible("false");
+        id= document.querySelector("#"+this.inwardregno);
+        id.toggle();
+        //localStorage.setItem('curr_sess_forwarddisablestate',"1");
+        //document.querySelector('grnflow-card').forwardDisableBackState();
+      }
+      //Logic for closing all cards and showing the currently expand card
+      if(clrid=="true")
+      {
+        //localStorage.setItem("curr_sess_POchangeflag","0");
+        for(var i=0;i<all.length;i++){
+          //document.querySelector('app-homepage').setVisible("true");
+          if(all[i].id==document.querySelector("#card"+this.inwardregno).id){
+            if(i!=0){
+              all[i].style.marginTop=((i*(x))-i)+"%";
+            }
+            if(i>10){
+              all[i].style.marginTop=((i*(x+(-.5)))-i)+"%";
+            }
+            //alert("yes");
+            all[i].style.visibility='visible';
+            //localStorage.setItem('curr_sess_forwarddisablestate',"0");
+            //document.querySelector('grnflow-card').forwardDisableBackState();
+          }
+          else
+            all[i].style.visibility='hidden';
+        }
+        clrid= document.querySelector("#card"+this.inwardregno);
+      }
+      else
+      {
+        if(clrid!=document.querySelector("#card"+this.inwardregno))
+        {
+          //localStorage.setItem("curr_sess_POchangeflag","0");
+          //document.querySelector('app-homepage').setVisible("true");
+          for(var i=0;i<all.length;i++){
+            if(all[i].id==document.querySelector("#card"+this.inwardregno).id){
+              //alert("yes yes");
+              all[i].style.visibility='visible';
+            }
+            else
+              all[i].style.visibility='hidden';
+          }
+          clrid= document.querySelector("#card"+this.inwardregno);
+        }
+        else
+        {
+          //document.querySelector('app-homepage').setVisible("flase");
+          for(var i=0;i<all.length;i++){
+            if(i!=0)
+              all[i].style.marginTop=(n)+"%";
+            all[i].style.visibility='visible';
+          }
+          clrid="true";
+        }
+      }
+    },
+    setToggle:function()
+    {
+      //Method to toggle card
+      var toggleid=sessionStorage.getItem("sess_curr_inwardregno");
+      id= document.querySelector("#"+toggleid);
+      id.opened=false;
+    }
+  });
+})();
+/**
+ * Created by praba on 2/12/2016.
+ */
+//JS file for the supplierlist page
+//The same card is reused in inwardslip page and the additem card
+(function() {
+  var retestarr=[];
+  Polymer({is:"retest-card",
+    ready:function() {
+      if(sessionStorage.getItem("curr_sess_roleflag")=="2"){
+      //Setting current page in session for fetching labels dynamically
+      localStorage.setItem("curr_sess_showpage","retest-card");
+      //calling webcomponent service to fetch labels for current page
+      this.$.ID_Webcomponent_Service.callWebcomponentService();
+      //To initially show current logged role state items requesting service component to make req to the server
+      this.$.gs.retestitemreadService();
+      }
+    },
+    FnCallPage:function(){
+      //Setting current page in session for fetching labels dynamically
+      localStorage.setItem("curr_sess_showpage","retest-card");
+      //calling webcomponent service to fetch labels for current page
+      this.$.ID_Webcomponent_Service.callWebcomponentService();
+      //To initially show current logged role state items requesting service component to make req to the server
+      this.$.gs.retestitemreadService();
+    },
+    Fngetresendvalue:function(retestirn){
+      retestarr.push(retestirn);
+    },
+    FnSendtoretest:function(e){
+      this.$.gs.resenditemtoqualityService(sessionStorage.getItem("sess_curr_inwardregno"));
+    }
+  });
+})();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'quality-parameter-displayitem-card',
+
+      properties: {
+        foo: {
+          type: String,
+          value: 'quality-parameter-displayitem-card',
+          notify: true
+        }
+      }
+    });
+  })();
+//JS file for the customer-detail-read
+Polymer({
+  is: "customer-detail-read",
+  ready:function()
+  {
+  	this.read=true;
+    localStorage.setItem("curr_sess_showpage","Customer Detail");
+  }
+});
+/**
+ * @license
+ * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+ * This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+ * The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+ * The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+ * Code distributed by Google as part of the polymer project is also
+ * subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+ */
+// @version 0.7.20
+(function() {
+  window.WebComponents = window.WebComponents || {
+    flags: {}
+  };
+  var file = "webcomponents-lite.js";
+  var script = document.querySelector('script[src*="' + file + '"]');
+  var flags = {};
+  if (!flags.noOpts) {
+    location.search.slice(1).split("&").forEach(function(option) {
+      var parts = option.split("=");
+      var match;
+      if (parts[0] && (match = parts[0].match(/wc-(.+)/))) {
+        flags[match[1]] = parts[1] || true;
+      }
+    });
+    if (script) {
+      for (var i = 0, a; a = script.attributes[i]; i++) {
+        if (a.name !== "src") {
+          flags[a.name] = a.value || true;
+        }
+      }
+    }
+    if (flags.log && flags.log.split) {
+      var parts = flags.log.split(",");
+      flags.log = {};
+      parts.forEach(function(f) {
+        flags.log[f] = true;
+      });
+    } else {
+      flags.log = {};
+    }
+  }
+  if (flags.register) {
+    window.CustomElements = window.CustomElements || {
+      flags: {}
+    };
+    window.CustomElements.flags.register = flags.register;
+  }
+  WebComponents.flags = flags;
+})();
+
+(function(scope) {
+  "use strict";
+  var hasWorkingUrl = false;
+  if (!scope.forceJURL) {
+    try {
+      var u = new URL("b", "http://a");
+      u.pathname = "c%20d";
+      hasWorkingUrl = u.href === "http://a/c%20d";
+    } catch (e) {}
+  }
+  if (hasWorkingUrl) return;
+  var relative = Object.create(null);
+  relative["ftp"] = 21;
+  relative["file"] = 0;
+  relative["gopher"] = 70;
+  relative["http"] = 80;
+  relative["https"] = 443;
+  relative["ws"] = 80;
+  relative["wss"] = 443;
+  var relativePathDotMapping = Object.create(null);
+  relativePathDotMapping["%2e"] = ".";
+  relativePathDotMapping[".%2e"] = "..";
+  relativePathDotMapping["%2e."] = "..";
+  relativePathDotMapping["%2e%2e"] = "..";
+  function isRelativeScheme(scheme) {
+    return relative[scheme] !== undefined;
+  }
+  function invalid() {
+    clear.call(this);
+    this._isInvalid = true;
+  }
+  function IDNAToASCII(h) {
+    if ("" == h) {
+      invalid.call(this);
+    }
+    return h.toLowerCase();
+  }
+  function percentEscape(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 63, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  function percentEscapeQuery(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  var EOF = undefined, ALPHA = /[a-zA-Z]/, ALPHANUMERIC = /[a-zA-Z0-9\+\-\.]/;
+  function parse(input, stateOverride, base) {
+    function err(message) {
+      errors.push(message);
+    }
+    var state = stateOverride || "scheme start", cursor = 0, buffer = "", seenAt = false, seenBracket = false, errors = [];
+    loop: while ((input[cursor - 1] != EOF || cursor == 0) && !this._isInvalid) {
+      var c = input[cursor];
+      switch (state) {
+       case "scheme start":
+        if (c && ALPHA.test(c)) {
+          buffer += c.toLowerCase();
+          state = "scheme";
+        } else if (!stateOverride) {
+          buffer = "";
+          state = "no scheme";
+          continue;
+        } else {
+          err("Invalid scheme.");
+          break loop;
+        }
+        break;
+
+       case "scheme":
+        if (c && ALPHANUMERIC.test(c)) {
+          buffer += c.toLowerCase();
+        } else if (":" == c) {
+          this._scheme = buffer;
+          buffer = "";
+          if (stateOverride) {
+            break loop;
+          }
+          if (isRelativeScheme(this._scheme)) {
+            this._isRelative = true;
+          }
+          if ("file" == this._scheme) {
+            state = "relative";
+          } else if (this._isRelative && base && base._scheme == this._scheme) {
+            state = "relative or authority";
+          } else if (this._isRelative) {
+            state = "authority first slash";
+          } else {
+            state = "scheme data";
+          }
+        } else if (!stateOverride) {
+          buffer = "";
+          cursor = 0;
+          state = "no scheme";
+          continue;
+        } else if (EOF == c) {
+          break loop;
+        } else {
+          err("Code point not allowed in scheme: " + c);
+          break loop;
+        }
+        break;
+
+       case "scheme data":
+        if ("?" == c) {
+          this._query = "?";
+          state = "query";
+        } else if ("#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else {
+          if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+            this._schemeData += percentEscape(c);
+          }
+        }
+        break;
+
+       case "no scheme":
+        if (!base || !isRelativeScheme(base._scheme)) {
+          err("Missing scheme.");
+          invalid.call(this);
+        } else {
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative or authority":
+        if ("/" == c && "/" == input[cursor + 1]) {
+          state = "authority ignore slashes";
+        } else {
+          err("Expected /, got: " + c);
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative":
+        this._isRelative = true;
+        if ("file" != this._scheme) this._scheme = base._scheme;
+        if (EOF == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._username = base._username;
+          this._password = base._password;
+          break loop;
+        } else if ("/" == c || "\\" == c) {
+          if ("\\" == c) err("\\ is an invalid code point.");
+          state = "relative slash";
+        } else if ("?" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = "?";
+          this._username = base._username;
+          this._password = base._password;
+          state = "query";
+        } else if ("#" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._fragment = "#";
+          this._username = base._username;
+          this._password = base._password;
+          state = "fragment";
+        } else {
+          var nextC = input[cursor + 1];
+          var nextNextC = input[cursor + 2];
+          if ("file" != this._scheme || !ALPHA.test(c) || nextC != ":" && nextC != "|" || EOF != nextNextC && "/" != nextNextC && "\\" != nextNextC && "?" != nextNextC && "#" != nextNextC) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+            this._path = base._path.slice();
+            this._path.pop();
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "relative slash":
+        if ("/" == c || "\\" == c) {
+          if ("\\" == c) {
+            err("\\ is an invalid code point.");
+          }
+          if ("file" == this._scheme) {
+            state = "file host";
+          } else {
+            state = "authority ignore slashes";
+          }
+        } else {
+          if ("file" != this._scheme) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "authority first slash":
+        if ("/" == c) {
+          state = "authority second slash";
+        } else {
+          err("Expected '/', got: " + c);
+          state = "authority ignore slashes";
+          continue;
+        }
+        break;
+
+       case "authority second slash":
+        state = "authority ignore slashes";
+        if ("/" != c) {
+          err("Expected '/', got: " + c);
+          continue;
+        }
+        break;
+
+       case "authority ignore slashes":
+        if ("/" != c && "\\" != c) {
+          state = "authority";
+          continue;
+        } else {
+          err("Expected authority, got: " + c);
+        }
+        break;
+
+       case "authority":
+        if ("@" == c) {
+          if (seenAt) {
+            err("@ already seen.");
+            buffer += "%40";
+          }
+          seenAt = true;
+          for (var i = 0; i < buffer.length; i++) {
+            var cp = buffer[i];
+            if ("	" == cp || "\n" == cp || "\r" == cp) {
+              err("Invalid whitespace in authority.");
+              continue;
+            }
+            if (":" == cp && null === this._password) {
+              this._password = "";
+              continue;
+            }
+            var tempC = percentEscape(cp);
+            null !== this._password ? this._password += tempC : this._username += tempC;
+          }
+          buffer = "";
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          cursor -= buffer.length;
+          buffer = "";
+          state = "host";
+          continue;
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "file host":
+        if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          if (buffer.length == 2 && ALPHA.test(buffer[0]) && (buffer[1] == ":" || buffer[1] == "|")) {
+            state = "relative path";
+          } else if (buffer.length == 0) {
+            state = "relative path start";
+          } else {
+            this._host = IDNAToASCII.call(this, buffer);
+            buffer = "";
+            state = "relative path start";
+          }
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid whitespace in file host.");
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "host":
+       case "hostname":
+        if (":" == c && !seenBracket) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "port";
+          if ("hostname" == stateOverride) {
+            break loop;
+          }
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "relative path start";
+          if (stateOverride) {
+            break loop;
+          }
+          continue;
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          if ("[" == c) {
+            seenBracket = true;
+          } else if ("]" == c) {
+            seenBracket = false;
+          }
+          buffer += c;
+        } else {
+          err("Invalid code point in host/hostname: " + c);
+        }
+        break;
+
+       case "port":
+        if (/[0-9]/.test(c)) {
+          buffer += c;
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c || stateOverride) {
+          if ("" != buffer) {
+            var temp = parseInt(buffer, 10);
+            if (temp != relative[this._scheme]) {
+              this._port = temp + "";
+            }
+            buffer = "";
+          }
+          if (stateOverride) {
+            break loop;
+          }
+          state = "relative path start";
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid code point in port: " + c);
+        } else {
+          invalid.call(this);
+        }
+        break;
+
+       case "relative path start":
+        if ("\\" == c) err("'\\' not allowed in path.");
+        state = "relative path";
+        if ("/" != c && "\\" != c) {
+          continue;
+        }
+        break;
+
+       case "relative path":
+        if (EOF == c || "/" == c || "\\" == c || !stateOverride && ("?" == c || "#" == c)) {
+          if ("\\" == c) {
+            err("\\ not allowed in relative path.");
+          }
+          var tmp;
+          if (tmp = relativePathDotMapping[buffer.toLowerCase()]) {
+            buffer = tmp;
+          }
+          if (".." == buffer) {
+            this._path.pop();
+            if ("/" != c && "\\" != c) {
+              this._path.push("");
+            }
+          } else if ("." == buffer && "/" != c && "\\" != c) {
+            this._path.push("");
+          } else if ("." != buffer) {
+            if ("file" == this._scheme && this._path.length == 0 && buffer.length == 2 && ALPHA.test(buffer[0]) && buffer[1] == "|") {
+              buffer = buffer[0] + ":";
+            }
+            this._path.push(buffer);
+          }
+          buffer = "";
+          if ("?" == c) {
+            this._query = "?";
+            state = "query";
+          } else if ("#" == c) {
+            this._fragment = "#";
+            state = "fragment";
+          }
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          buffer += percentEscape(c);
+        }
+        break;
+
+       case "query":
+        if (!stateOverride && "#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._query += percentEscapeQuery(c);
+        }
+        break;
+
+       case "fragment":
+        if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._fragment += c;
+        }
+        break;
+      }
+      cursor++;
+    }
+  }
+  function clear() {
+    this._scheme = "";
+    this._schemeData = "";
+    this._username = "";
+    this._password = null;
+    this._host = "";
+    this._port = "";
+    this._path = [];
+    this._query = "";
+    this._fragment = "";
+    this._isInvalid = false;
+    this._isRelative = false;
+  }
+  function jURL(url, base) {
+    if (base !== undefined && !(base instanceof jURL)) base = new jURL(String(base));
+    this._url = url;
+    clear.call(this);
+    var input = url.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
+    parse.call(this, input, null, base);
+  }
+  jURL.prototype = {
+    toString: function() {
+      return this.href;
+    },
+    get href() {
+      if (this._isInvalid) return this._url;
+      var authority = "";
+      if ("" != this._username || null != this._password) {
+        authority = this._username + (null != this._password ? ":" + this._password : "") + "@";
+      }
+      return this.protocol + (this._isRelative ? "//" + authority + this.host : "") + this.pathname + this._query + this._fragment;
+    },
+    set href(href) {
+      clear.call(this);
+      parse.call(this, href);
+    },
+    get protocol() {
+      return this._scheme + ":";
+    },
+    set protocol(protocol) {
+      if (this._isInvalid) return;
+      parse.call(this, protocol + ":", "scheme start");
+    },
+    get host() {
+      return this._isInvalid ? "" : this._port ? this._host + ":" + this._port : this._host;
+    },
+    set host(host) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, host, "host");
+    },
+    get hostname() {
+      return this._host;
+    },
+    set hostname(hostname) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, hostname, "hostname");
+    },
+    get port() {
+      return this._port;
+    },
+    set port(port) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, port, "port");
+    },
+    get pathname() {
+      return this._isInvalid ? "" : this._isRelative ? "/" + this._path.join("/") : this._schemeData;
+    },
+    set pathname(pathname) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._path = [];
+      parse.call(this, pathname, "relative path start");
+    },
+    get search() {
+      return this._isInvalid || !this._query || "?" == this._query ? "" : this._query;
+    },
+    set search(search) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._query = "?";
+      if ("?" == search[0]) search = search.slice(1);
+      parse.call(this, search, "query");
+    },
+    get hash() {
+      return this._isInvalid || !this._fragment || "#" == this._fragment ? "" : this._fragment;
+    },
+    set hash(hash) {
+      if (this._isInvalid) return;
+      this._fragment = "#";
+      if ("#" == hash[0]) hash = hash.slice(1);
+      parse.call(this, hash, "fragment");
+    },
+    get origin() {
+      var host;
+      if (this._isInvalid || !this._scheme) {
+        return "";
+      }
+      switch (this._scheme) {
+       case "data":
+       case "file":
+       case "javascript":
+       case "mailto":
+        return "null";
+      }
+      host = this.host;
+      if (!host) {
+        return "";
+      }
+      return this._scheme + "://" + host;
+    }
+  };
+  var OriginalURL = scope.URL;
+  if (OriginalURL) {
+    jURL.createObjectURL = function(blob) {
+      return OriginalURL.createObjectURL.apply(OriginalURL, arguments);
+    };
+    jURL.revokeObjectURL = function(url) {
+      OriginalURL.revokeObjectURL(url);
+    };
+  }
+  scope.URL = jURL;
+})(self);
+
+if (typeof WeakMap === "undefined") {
+  (function() {
+    var defineProperty = Object.defineProperty;
+    var counter = Date.now() % 1e9;
+    var WeakMap = function() {
+      this.name = "__st" + (Math.random() * 1e9 >>> 0) + (counter++ + "__");
+    };
+    WeakMap.prototype = {
+      set: function(key, value) {
+        var entry = key[this.name];
+        if (entry && entry[0] === key) entry[1] = value; else defineProperty(key, this.name, {
+          value: [ key, value ],
+          writable: true
+        });
+        return this;
+      },
+      get: function(key) {
+        var entry;
+        return (entry = key[this.name]) && entry[0] === key ? entry[1] : undefined;
+      },
+      "delete": function(key) {
+        var entry = key[this.name];
+        if (!entry || entry[0] !== key) return false;
+        entry[0] = entry[1] = undefined;
+        return true;
+      },
+      has: function(key) {
+        var entry = key[this.name];
+        if (!entry) return false;
+        return entry[0] === key;
+      }
+    };
+    window.WeakMap = WeakMap;
+  })();
+}
+
+(function(global) {
+  if (global.JsMutationObserver) {
+    return;
+  }
+  var registrationsTable = new WeakMap();
+  var setImmediate;
+  if (/Trident|Edge/.test(navigator.userAgent)) {
+    setImmediate = setTimeout;
+  } else if (window.setImmediate) {
+    setImmediate = window.setImmediate;
+  } else {
+    var setImmediateQueue = [];
+    var sentinel = String(Math.random());
+    window.addEventListener("message", function(e) {
+      if (e.data === sentinel) {
+        var queue = setImmediateQueue;
+        setImmediateQueue = [];
+        queue.forEach(function(func) {
+          func();
+        });
+      }
+    });
+    setImmediate = function(func) {
+      setImmediateQueue.push(func);
+      window.postMessage(sentinel, "*");
+    };
+  }
+  var isScheduled = false;
+  var scheduledObservers = [];
+  function scheduleCallback(observer) {
+    scheduledObservers.push(observer);
+    if (!isScheduled) {
+      isScheduled = true;
+      setImmediate(dispatchCallbacks);
+    }
+  }
+  function wrapIfNeeded(node) {
+    return window.ShadowDOMPolyfill && window.ShadowDOMPolyfill.wrapIfNeeded(node) || node;
+  }
+  function dispatchCallbacks() {
+    isScheduled = false;
+    var observers = scheduledObservers;
+    scheduledObservers = [];
+    observers.sort(function(o1, o2) {
+      return o1.uid_ - o2.uid_;
+    });
+    var anyNonEmpty = false;
+    observers.forEach(function(observer) {
+      var queue = observer.takeRecords();
+      removeTransientObserversFor(observer);
+      if (queue.length) {
+        observer.callback_(queue, observer);
+        anyNonEmpty = true;
+      }
+    });
+    if (anyNonEmpty) dispatchCallbacks();
+  }
+  function removeTransientObserversFor(observer) {
+    observer.nodes_.forEach(function(node) {
+      var registrations = registrationsTable.get(node);
+      if (!registrations) return;
+      registrations.forEach(function(registration) {
+        if (registration.observer === observer) registration.removeTransientObservers();
+      });
+    });
+  }
+  function forEachAncestorAndObserverEnqueueRecord(target, callback) {
+    for (var node = target; node; node = node.parentNode) {
+      var registrations = registrationsTable.get(node);
+      if (registrations) {
+        for (var j = 0; j < registrations.length; j++) {
+          var registration = registrations[j];
+          var options = registration.options;
+          if (node !== target && !options.subtree) continue;
+          var record = callback(options);
+          if (record) registration.enqueue(record);
+        }
+      }
+    }
+  }
+  var uidCounter = 0;
+  function JsMutationObserver(callback) {
+    this.callback_ = callback;
+    this.nodes_ = [];
+    this.records_ = [];
+    this.uid_ = ++uidCounter;
+  }
+  JsMutationObserver.prototype = {
+    observe: function(target, options) {
+      target = wrapIfNeeded(target);
+      if (!options.childList && !options.attributes && !options.characterData || options.attributeOldValue && !options.attributes || options.attributeFilter && options.attributeFilter.length && !options.attributes || options.characterDataOldValue && !options.characterData) {
+        throw new SyntaxError();
+      }
+      var registrations = registrationsTable.get(target);
+      if (!registrations) registrationsTable.set(target, registrations = []);
+      var registration;
+      for (var i = 0; i < registrations.length; i++) {
+        if (registrations[i].observer === this) {
+          registration = registrations[i];
+          registration.removeListeners();
+          registration.options = options;
+          break;
+        }
+      }
+      if (!registration) {
+        registration = new Registration(this, target, options);
+        registrations.push(registration);
+        this.nodes_.push(target);
+      }
+      registration.addListeners();
+    },
+    disconnect: function() {
+      this.nodes_.forEach(function(node) {
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          var registration = registrations[i];
+          if (registration.observer === this) {
+            registration.removeListeners();
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+      this.records_ = [];
+    },
+    takeRecords: function() {
+      var copyOfRecords = this.records_;
+      this.records_ = [];
+      return copyOfRecords;
+    }
+  };
+  function MutationRecord(type, target) {
+    this.type = type;
+    this.target = target;
+    this.addedNodes = [];
+    this.removedNodes = [];
+    this.previousSibling = null;
+    this.nextSibling = null;
+    this.attributeName = null;
+    this.attributeNamespace = null;
+    this.oldValue = null;
+  }
+  function copyMutationRecord(original) {
+    var record = new MutationRecord(original.type, original.target);
+    record.addedNodes = original.addedNodes.slice();
+    record.removedNodes = original.removedNodes.slice();
+    record.previousSibling = original.previousSibling;
+    record.nextSibling = original.nextSibling;
+    record.attributeName = original.attributeName;
+    record.attributeNamespace = original.attributeNamespace;
+    record.oldValue = original.oldValue;
+    return record;
+  }
+  var currentRecord, recordWithOldValue;
+  function getRecord(type, target) {
+    return currentRecord = new MutationRecord(type, target);
+  }
+  function getRecordWithOldValue(oldValue) {
+    if (recordWithOldValue) return recordWithOldValue;
+    recordWithOldValue = copyMutationRecord(currentRecord);
+    recordWithOldValue.oldValue = oldValue;
+    return recordWithOldValue;
+  }
+  function clearRecords() {
+    currentRecord = recordWithOldValue = undefined;
+  }
+  function recordRepresentsCurrentMutation(record) {
+    return record === recordWithOldValue || record === currentRecord;
+  }
+  function selectRecord(lastRecord, newRecord) {
+    if (lastRecord === newRecord) return lastRecord;
+    if (recordWithOldValue && recordRepresentsCurrentMutation(lastRecord)) return recordWithOldValue;
+    return null;
+  }
+  function Registration(observer, target, options) {
+    this.observer = observer;
+    this.target = target;
+    this.options = options;
+    this.transientObservedNodes = [];
+  }
+  Registration.prototype = {
+    enqueue: function(record) {
+      var records = this.observer.records_;
+      var length = records.length;
+      if (records.length > 0) {
+        var lastRecord = records[length - 1];
+        var recordToReplaceLast = selectRecord(lastRecord, record);
+        if (recordToReplaceLast) {
+          records[length - 1] = recordToReplaceLast;
+          return;
+        }
+      } else {
+        scheduleCallback(this.observer);
+      }
+      records[length] = record;
+    },
+    addListeners: function() {
+      this.addListeners_(this.target);
+    },
+    addListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.addEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.addEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.addEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.addEventListener("DOMNodeRemoved", this, true);
+    },
+    removeListeners: function() {
+      this.removeListeners_(this.target);
+    },
+    removeListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.removeEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.removeEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.removeEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.removeEventListener("DOMNodeRemoved", this, true);
+    },
+    addTransientObserver: function(node) {
+      if (node === this.target) return;
+      this.addListeners_(node);
+      this.transientObservedNodes.push(node);
+      var registrations = registrationsTable.get(node);
+      if (!registrations) registrationsTable.set(node, registrations = []);
+      registrations.push(this);
+    },
+    removeTransientObservers: function() {
+      var transientObservedNodes = this.transientObservedNodes;
+      this.transientObservedNodes = [];
+      transientObservedNodes.forEach(function(node) {
+        this.removeListeners_(node);
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          if (registrations[i] === this) {
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+    },
+    handleEvent: function(e) {
+      e.stopImmediatePropagation();
+      switch (e.type) {
+       case "DOMAttrModified":
+        var name = e.attrName;
+        var namespace = e.relatedNode.namespaceURI;
+        var target = e.target;
+        var record = new getRecord("attributes", target);
+        record.attributeName = name;
+        record.attributeNamespace = namespace;
+        var oldValue = e.attrChange === MutationEvent.ADDITION ? null : e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.attributes) return;
+          if (options.attributeFilter && options.attributeFilter.length && options.attributeFilter.indexOf(name) === -1 && options.attributeFilter.indexOf(namespace) === -1) {
+            return;
+          }
+          if (options.attributeOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMCharacterDataModified":
+        var target = e.target;
+        var record = getRecord("characterData", target);
+        var oldValue = e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.characterData) return;
+          if (options.characterDataOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMNodeRemoved":
+        this.addTransientObserver(e.target);
+
+       case "DOMNodeInserted":
+        var changedNode = e.target;
+        var addedNodes, removedNodes;
+        if (e.type === "DOMNodeInserted") {
+          addedNodes = [ changedNode ];
+          removedNodes = [];
+        } else {
+          addedNodes = [];
+          removedNodes = [ changedNode ];
+        }
+        var previousSibling = changedNode.previousSibling;
+        var nextSibling = changedNode.nextSibling;
+        var record = getRecord("childList", e.target.parentNode);
+        record.addedNodes = addedNodes;
+        record.removedNodes = removedNodes;
+        record.previousSibling = previousSibling;
+        record.nextSibling = nextSibling;
+        forEachAncestorAndObserverEnqueueRecord(e.relatedNode, function(options) {
+          if (!options.childList) return;
+          return record;
+        });
+      }
+      clearRecords();
+    }
+  };
+  global.JsMutationObserver = JsMutationObserver;
+  if (!global.MutationObserver) {
+    global.MutationObserver = JsMutationObserver;
+    JsMutationObserver._isPolyfilled = true;
+  }
+})(self);
+
+if (typeof HTMLTemplateElement === "undefined") {
+  (function() {
+    var TEMPLATE_TAG = "template";
+    var contentDoc = document.implementation.createHTMLDocument("template");
+    var canDecorate = true;
+    HTMLTemplateElement = function() {};
+    HTMLTemplateElement.prototype = Object.create(HTMLElement.prototype);
+    HTMLTemplateElement.decorate = function(template) {
+      if (template.content) {
+        return;
+      }
+      template.content = contentDoc.createDocumentFragment();
+      var child;
+      while (child = template.firstChild) {
+        template.content.appendChild(child);
+      }
+      if (canDecorate) {
+        try {
+          Object.defineProperty(template, "innerHTML", {
+            get: function() {
+              var o = "";
+              for (var e = this.content.firstChild; e; e = e.nextSibling) {
+                o += e.outerHTML || escapeData(e.data);
+              }
+              return o;
+            },
+            set: function(text) {
+              contentDoc.body.innerHTML = text;
+              HTMLTemplateElement.bootstrap(contentDoc);
+              while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+              }
+              while (contentDoc.body.firstChild) {
+                this.content.appendChild(contentDoc.body.firstChild);
+              }
+            },
+            configurable: true
+          });
+        } catch (err) {
+          canDecorate = false;
+        }
+      }
+      HTMLTemplateElement.bootstrap(template.content);
+    };
+    HTMLTemplateElement.bootstrap = function(doc) {
+      var templates = doc.querySelectorAll(TEMPLATE_TAG);
+      for (var i = 0, l = templates.length, t; i < l && (t = templates[i]); i++) {
+        HTMLTemplateElement.decorate(t);
+      }
+    };
+    document.addEventListener("DOMContentLoaded", function() {
+      HTMLTemplateElement.bootstrap(document);
+    });
+    var createElement = document.createElement;
+    document.createElement = function() {
+      "use strict";
+      var el = createElement.apply(document, arguments);
+      if (el.localName == "template") {
+        HTMLTemplateElement.decorate(el);
+      }
+      return el;
+    };
+    var escapeDataRegExp = /[&\u00A0<>]/g;
+    function escapeReplace(c) {
+      switch (c) {
+       case "&":
+        return "&amp;";
+
+       case "<":
+        return "&lt;";
+
+       case ">":
+        return "&gt;";
+
+       case " ":
+        return "&nbsp;";
+      }
+    }
+    function escapeData(s) {
+      return s.replace(escapeDataRegExp, escapeReplace);
+    }
+  })();
+}
+
+(function(scope) {
+  "use strict";
+  if (!window.performance) {
+    var start = Date.now();
+    window.performance = {
+      now: function() {
+        return Date.now() - start;
+      }
+    };
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function() {
+      var nativeRaf = window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+      return nativeRaf ? function(callback) {
+        return nativeRaf(function() {
+          callback(performance.now());
+        });
+      } : function(callback) {
+        return window.setTimeout(callback, 1e3 / 60);
+      };
+    }();
+  }
+  if (!window.cancelAnimationFrame) {
+    window.cancelAnimationFrame = function() {
+      return window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame || function(id) {
+        clearTimeout(id);
+      };
+    }();
+  }
+  var workingDefaultPrevented = function() {
+    var e = document.createEvent("Event");
+    e.initEvent("foo", true, true);
+    e.preventDefault();
+    return e.defaultPrevented;
+  }();
+  if (!workingDefaultPrevented) {
+    var origPreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function() {
+      if (!this.cancelable) {
+        return;
+      }
+      origPreventDefault.call(this);
+      Object.defineProperty(this, "defaultPrevented", {
+        get: function() {
+          return true;
+        },
+        configurable: true
+      });
+    };
+  }
+  var isIE = /Trident/.test(navigator.userAgent);
+  if (!window.CustomEvent || isIE && typeof window.CustomEvent !== "function") {
+    window.CustomEvent = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("CustomEvent");
+      e.initCustomEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable), params.detail);
+      return e;
+    };
+    window.CustomEvent.prototype = window.Event.prototype;
+  }
+  if (!window.Event || isIE && typeof window.Event !== "function") {
+    var origEvent = window.Event;
+    window.Event = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("Event");
+      e.initEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable));
+      return e;
+    };
+    window.Event.prototype = origEvent.prototype;
+  }
+})(window.WebComponents);
+
+window.HTMLImports = window.HTMLImports || {
+  flags: {}
+};
+
+(function(scope) {
+  var IMPORT_LINK_TYPE = "import";
+  var useNative = Boolean(IMPORT_LINK_TYPE in document.createElement("link"));
+  var hasShadowDOMPolyfill = Boolean(window.ShadowDOMPolyfill);
+  var wrap = function(node) {
+    return hasShadowDOMPolyfill ? window.ShadowDOMPolyfill.wrapIfNeeded(node) : node;
+  };
+  var rootDocument = wrap(document);
+  var currentScriptDescriptor = {
+    get: function() {
+      var script = window.HTMLImports.currentScript || document.currentScript || (document.readyState !== "complete" ? document.scripts[document.scripts.length - 1] : null);
+      return wrap(script);
+    },
+    configurable: true
+  };
+  Object.defineProperty(document, "_currentScript", currentScriptDescriptor);
+  Object.defineProperty(rootDocument, "_currentScript", currentScriptDescriptor);
+  var isIE = /Trident/.test(navigator.userAgent);
+  function whenReady(callback, doc) {
+    doc = doc || rootDocument;
+    whenDocumentReady(function() {
+      watchImportsLoad(callback, doc);
+    }, doc);
+  }
+  var requiredReadyState = isIE ? "complete" : "interactive";
+  var READY_EVENT = "readystatechange";
+  function isDocumentReady(doc) {
+    return doc.readyState === "complete" || doc.readyState === requiredReadyState;
+  }
+  function whenDocumentReady(callback, doc) {
+    if (!isDocumentReady(doc)) {
+      var checkReady = function() {
+        if (doc.readyState === "complete" || doc.readyState === requiredReadyState) {
+          doc.removeEventListener(READY_EVENT, checkReady);
+          whenDocumentReady(callback, doc);
+        }
+      };
+      doc.addEventListener(READY_EVENT, checkReady);
+    } else if (callback) {
+      callback();
+    }
+  }
+  function markTargetLoaded(event) {
+    event.target.__loaded = true;
+  }
+  function watchImportsLoad(callback, doc) {
+    var imports = doc.querySelectorAll("link[rel=import]");
+    var parsedCount = 0, importCount = imports.length, newImports = [], errorImports = [];
+    function checkDone() {
+      if (parsedCount == importCount && callback) {
+        callback({
+          allImports: imports,
+          loadedImports: newImports,
+          errorImports: errorImports
+        });
+      }
+    }
+    function loadedImport(e) {
+      markTargetLoaded(e);
+      newImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    function errorLoadingImport(e) {
+      errorImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    if (importCount) {
+      for (var i = 0, imp; i < importCount && (imp = imports[i]); i++) {
+        if (isImportLoaded(imp)) {
+          newImports.push(this);
+          parsedCount++;
+          checkDone();
+        } else {
+          imp.addEventListener("load", loadedImport);
+          imp.addEventListener("error", errorLoadingImport);
+        }
+      }
+    } else {
+      checkDone();
+    }
+  }
+  function isImportLoaded(link) {
+    return useNative ? link.__loaded || link.import && link.import.readyState !== "loading" : link.__importParsed;
+  }
+  if (useNative) {
+    new MutationObserver(function(mxns) {
+      for (var i = 0, l = mxns.length, m; i < l && (m = mxns[i]); i++) {
+        if (m.addedNodes) {
+          handleImports(m.addedNodes);
+        }
+      }
+    }).observe(document.head, {
+      childList: true
+    });
+    function handleImports(nodes) {
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (isImport(n)) {
+          handleImport(n);
+        }
+      }
+    }
+    function isImport(element) {
+      return element.localName === "link" && element.rel === "import";
+    }
+    function handleImport(element) {
+      var loaded = element.import;
+      if (loaded) {
+        markTargetLoaded({
+          target: element
+        });
+      } else {
+        element.addEventListener("load", markTargetLoaded);
+        element.addEventListener("error", markTargetLoaded);
+      }
+    }
+    (function() {
+      if (document.readyState === "loading") {
+        var imports = document.querySelectorAll("link[rel=import]");
+        for (var i = 0, l = imports.length, imp; i < l && (imp = imports[i]); i++) {
+          handleImport(imp);
+        }
+      }
+    })();
+  }
+  whenReady(function(detail) {
+    window.HTMLImports.ready = true;
+    window.HTMLImports.readyTime = new Date().getTime();
+    var evt = rootDocument.createEvent("CustomEvent");
+    evt.initCustomEvent("HTMLImportsLoaded", true, true, detail);
+    rootDocument.dispatchEvent(evt);
+  });
+  scope.IMPORT_LINK_TYPE = IMPORT_LINK_TYPE;
+  scope.useNative = useNative;
+  scope.rootDocument = rootDocument;
+  scope.whenReady = whenReady;
+  scope.isIE = isIE;
+})(window.HTMLImports);
+
+(function(scope) {
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+})(window.HTMLImports);
+
+window.HTMLImports.addModule(function(scope) {
+  var CSS_URL_REGEXP = /(url\()([^)]*)(\))/g;
+  var CSS_IMPORT_REGEXP = /(@import[\s]+(?!url\())([^;]*)(;)/g;
+  var path = {
+    resolveUrlsInStyle: function(style, linkUrl) {
+      var doc = style.ownerDocument;
+      var resolver = doc.createElement("a");
+      style.textContent = this.resolveUrlsInCssText(style.textContent, linkUrl, resolver);
+      return style;
+    },
+    resolveUrlsInCssText: function(cssText, linkUrl, urlObj) {
+      var r = this.replaceUrls(cssText, urlObj, linkUrl, CSS_URL_REGEXP);
+      r = this.replaceUrls(r, urlObj, linkUrl, CSS_IMPORT_REGEXP);
+      return r;
+    },
+    replaceUrls: function(text, urlObj, linkUrl, regexp) {
+      return text.replace(regexp, function(m, pre, url, post) {
+        var urlPath = url.replace(/["']/g, "");
+        if (linkUrl) {
+          urlPath = new URL(urlPath, linkUrl).href;
+        }
+        urlObj.href = urlPath;
+        urlPath = urlObj.href;
+        return pre + "'" + urlPath + "'" + post;
+      });
+    }
+  };
+  scope.path = path;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = {
+    async: true,
+    ok: function(request) {
+      return request.status >= 200 && request.status < 300 || request.status === 304 || request.status === 0;
+    },
+    load: function(url, next, nextContext) {
+      var request = new XMLHttpRequest();
+      if (scope.flags.debug || scope.flags.bust) {
+        url += "?" + Math.random();
+      }
+      request.open("GET", url, xhr.async);
+      request.addEventListener("readystatechange", function(e) {
+        if (request.readyState === 4) {
+          var redirectedUrl = null;
+          try {
+            var locationHeader = request.getResponseHeader("Location");
+            if (locationHeader) {
+              redirectedUrl = locationHeader.substr(0, 1) === "/" ? location.origin + locationHeader : locationHeader;
+            }
+          } catch (e) {
+            console.error(e.message);
+          }
+          next.call(nextContext, !xhr.ok(request) && request, request.response || request.responseText, redirectedUrl);
+        }
+      });
+      request.send();
+      return request;
+    },
+    loadDocument: function(url, next, nextContext) {
+      this.load(url, next, nextContext).responseType = "document";
+    }
+  };
+  scope.xhr = xhr;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = scope.xhr;
+  var flags = scope.flags;
+  var Loader = function(onLoad, onComplete) {
+    this.cache = {};
+    this.onload = onLoad;
+    this.oncomplete = onComplete;
+    this.inflight = 0;
+    this.pending = {};
+  };
+  Loader.prototype = {
+    addNodes: function(nodes) {
+      this.inflight += nodes.length;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        this.require(n);
+      }
+      this.checkDone();
+    },
+    addNode: function(node) {
+      this.inflight++;
+      this.require(node);
+      this.checkDone();
+    },
+    require: function(elt) {
+      var url = elt.src || elt.href;
+      elt.__nodeUrl = url;
+      if (!this.dedupe(url, elt)) {
+        this.fetch(url, elt);
+      }
+    },
+    dedupe: function(url, elt) {
+      if (this.pending[url]) {
+        this.pending[url].push(elt);
+        return true;
+      }
+      var resource;
+      if (this.cache[url]) {
+        this.onload(url, elt, this.cache[url]);
+        this.tail();
+        return true;
+      }
+      this.pending[url] = [ elt ];
+      return false;
+    },
+    fetch: function(url, elt) {
+      flags.load && console.log("fetch", url, elt);
+      if (!url) {
+        setTimeout(function() {
+          this.receive(url, elt, {
+            error: "href must be specified"
+          }, null);
+        }.bind(this), 0);
+      } else if (url.match(/^data:/)) {
+        var pieces = url.split(",");
+        var header = pieces[0];
+        var body = pieces[1];
+        if (header.indexOf(";base64") > -1) {
+          body = atob(body);
+        } else {
+          body = decodeURIComponent(body);
+        }
+        setTimeout(function() {
+          this.receive(url, elt, null, body);
+        }.bind(this), 0);
+      } else {
+        var receiveXhr = function(err, resource, redirectedUrl) {
+          this.receive(url, elt, err, resource, redirectedUrl);
+        }.bind(this);
+        xhr.load(url, receiveXhr);
+      }
+    },
+    receive: function(url, elt, err, resource, redirectedUrl) {
+      this.cache[url] = resource;
+      var $p = this.pending[url];
+      for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+        this.onload(url, p, resource, err, redirectedUrl);
+        this.tail();
+      }
+      this.pending[url] = null;
+    },
+    tail: function() {
+      --this.inflight;
+      this.checkDone();
+    },
+    checkDone: function() {
+      if (!this.inflight) {
+        this.oncomplete();
+      }
+    }
+  };
+  scope.Loader = Loader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var Observer = function(addCallback) {
+    this.addCallback = addCallback;
+    this.mo = new MutationObserver(this.handler.bind(this));
+  };
+  Observer.prototype = {
+    handler: function(mutations) {
+      for (var i = 0, l = mutations.length, m; i < l && (m = mutations[i]); i++) {
+        if (m.type === "childList" && m.addedNodes.length) {
+          this.addedNodes(m.addedNodes);
+        }
+      }
+    },
+    addedNodes: function(nodes) {
+      if (this.addCallback) {
+        this.addCallback(nodes);
+      }
+      for (var i = 0, l = nodes.length, n, loading; i < l && (n = nodes[i]); i++) {
+        if (n.children && n.children.length) {
+          this.addedNodes(n.children);
+        }
+      }
+    },
+    observe: function(root) {
+      this.mo.observe(root, {
+        childList: true,
+        subtree: true
+      });
+    }
+  };
+  scope.Observer = Observer;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var path = scope.path;
+  var rootDocument = scope.rootDocument;
+  var flags = scope.flags;
+  var isIE = scope.isIE;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = "link[rel=" + IMPORT_LINK_TYPE + "]";
+  var importParser = {
+    documentSelectors: IMPORT_SELECTOR,
+    importsSelectors: [ IMPORT_SELECTOR, "link[rel=stylesheet]:not([type])", "style:not([type])", "script:not([type])", 'script[type="application/javascript"]', 'script[type="text/javascript"]' ].join(","),
+    map: {
+      link: "parseLink",
+      script: "parseScript",
+      style: "parseStyle"
+    },
+    dynamicElements: [],
+    parseNext: function() {
+      var next = this.nextToParse();
+      if (next) {
+        this.parse(next);
+      }
+    },
+    parse: function(elt) {
+      if (this.isParsed(elt)) {
+        flags.parse && console.log("[%s] is already parsed", elt.localName);
+        return;
+      }
+      var fn = this[this.map[elt.localName]];
+      if (fn) {
+        this.markParsing(elt);
+        fn.call(this, elt);
+      }
+    },
+    parseDynamic: function(elt, quiet) {
+      this.dynamicElements.push(elt);
+      if (!quiet) {
+        this.parseNext();
+      }
+    },
+    markParsing: function(elt) {
+      flags.parse && console.log("parsing", elt);
+      this.parsingElement = elt;
+    },
+    markParsingComplete: function(elt) {
+      elt.__importParsed = true;
+      this.markDynamicParsingComplete(elt);
+      if (elt.__importElement) {
+        elt.__importElement.__importParsed = true;
+        this.markDynamicParsingComplete(elt.__importElement);
+      }
+      this.parsingElement = null;
+      flags.parse && console.log("completed", elt);
+    },
+    markDynamicParsingComplete: function(elt) {
+      var i = this.dynamicElements.indexOf(elt);
+      if (i >= 0) {
+        this.dynamicElements.splice(i, 1);
+      }
+    },
+    parseImport: function(elt) {
+      elt.import = elt.__doc;
+      if (window.HTMLImports.__importsParsingHook) {
+        window.HTMLImports.__importsParsingHook(elt);
+      }
+      if (elt.import) {
+        elt.import.__importParsed = true;
+      }
+      this.markParsingComplete(elt);
+      if (elt.__resource && !elt.__error) {
+        elt.dispatchEvent(new CustomEvent("load", {
+          bubbles: false
+        }));
+      } else {
+        elt.dispatchEvent(new CustomEvent("error", {
+          bubbles: false
+        }));
+      }
+      if (elt.__pending) {
+        var fn;
+        while (elt.__pending.length) {
+          fn = elt.__pending.shift();
+          if (fn) {
+            fn({
+              target: elt
+            });
+          }
+        }
+      }
+      this.parseNext();
+    },
+    parseLink: function(linkElt) {
+      if (nodeIsImport(linkElt)) {
+        this.parseImport(linkElt);
+      } else {
+        linkElt.href = linkElt.href;
+        this.parseGeneric(linkElt);
+      }
+    },
+    parseStyle: function(elt) {
+      var src = elt;
+      elt = cloneStyle(elt);
+      src.__appliedElement = elt;
+      elt.__importElement = src;
+      this.parseGeneric(elt);
+    },
+    parseGeneric: function(elt) {
+      this.trackElement(elt);
+      this.addElementToDocument(elt);
+    },
+    rootImportForElement: function(elt) {
+      var n = elt;
+      while (n.ownerDocument.__importLink) {
+        n = n.ownerDocument.__importLink;
+      }
+      return n;
+    },
+    addElementToDocument: function(elt) {
+      var port = this.rootImportForElement(elt.__importElement || elt);
+      port.parentNode.insertBefore(elt, port);
+    },
+    trackElement: function(elt, callback) {
+      var self = this;
+      var done = function(e) {
+        elt.removeEventListener("load", done);
+        elt.removeEventListener("error", done);
+        if (callback) {
+          callback(e);
+        }
+        self.markParsingComplete(elt);
+        self.parseNext();
+      };
+      elt.addEventListener("load", done);
+      elt.addEventListener("error", done);
+      if (isIE && elt.localName === "style") {
+        var fakeLoad = false;
+        if (elt.textContent.indexOf("@import") == -1) {
+          fakeLoad = true;
+        } else if (elt.sheet) {
+          fakeLoad = true;
+          var csr = elt.sheet.cssRules;
+          var len = csr ? csr.length : 0;
+          for (var i = 0, r; i < len && (r = csr[i]); i++) {
+            if (r.type === CSSRule.IMPORT_RULE) {
+              fakeLoad = fakeLoad && Boolean(r.styleSheet);
+            }
+          }
+        }
+        if (fakeLoad) {
+          setTimeout(function() {
+            elt.dispatchEvent(new CustomEvent("load", {
+              bubbles: false
+            }));
+          });
+        }
+      }
+    },
+    parseScript: function(scriptElt) {
+      var script = document.createElement("script");
+      script.__importElement = scriptElt;
+      script.src = scriptElt.src ? scriptElt.src : generateScriptDataUrl(scriptElt);
+      scope.currentScript = scriptElt;
+      this.trackElement(script, function(e) {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        scope.currentScript = null;
+      });
+      this.addElementToDocument(script);
+    },
+    nextToParse: function() {
+      this._mayParse = [];
+      return !this.parsingElement && (this.nextToParseInDoc(rootDocument) || this.nextToParseDynamic());
+    },
+    nextToParseInDoc: function(doc, link) {
+      if (doc && this._mayParse.indexOf(doc) < 0) {
+        this._mayParse.push(doc);
+        var nodes = doc.querySelectorAll(this.parseSelectorsForNode(doc));
+        for (var i = 0, l = nodes.length, p = 0, n; i < l && (n = nodes[i]); i++) {
+          if (!this.isParsed(n)) {
+            if (this.hasResource(n)) {
+              return nodeIsImport(n) ? this.nextToParseInDoc(n.__doc, n) : n;
+            } else {
+              return;
+            }
+          }
+        }
+      }
+      return link;
+    },
+    nextToParseDynamic: function() {
+      return this.dynamicElements[0];
+    },
+    parseSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentSelectors : this.importsSelectors;
+    },
+    isParsed: function(node) {
+      return node.__importParsed;
+    },
+    needsDynamicParsing: function(elt) {
+      return this.dynamicElements.indexOf(elt) >= 0;
+    },
+    hasResource: function(node) {
+      if (nodeIsImport(node) && node.__doc === undefined) {
+        return false;
+      }
+      return true;
+    }
+  };
+  function nodeIsImport(elt) {
+    return elt.localName === "link" && elt.rel === IMPORT_LINK_TYPE;
+  }
+  function generateScriptDataUrl(script) {
+    var scriptContent = generateScriptContent(script);
+    return "data:text/javascript;charset=utf-8," + encodeURIComponent(scriptContent);
+  }
+  function generateScriptContent(script) {
+    return script.textContent + generateSourceMapHint(script);
+  }
+  function generateSourceMapHint(script) {
+    var owner = script.ownerDocument;
+    owner.__importedScripts = owner.__importedScripts || 0;
+    var moniker = script.ownerDocument.baseURI;
+    var num = owner.__importedScripts ? "-" + owner.__importedScripts : "";
+    owner.__importedScripts++;
+    return "\n//# sourceURL=" + moniker + num + ".js\n";
+  }
+  function cloneStyle(style) {
+    var clone = style.ownerDocument.createElement("style");
+    clone.textContent = style.textContent;
+    path.resolveUrlsInStyle(clone);
+    return clone;
+  }
+  scope.parser = importParser;
+  scope.IMPORT_SELECTOR = IMPORT_SELECTOR;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var flags = scope.flags;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = scope.IMPORT_SELECTOR;
+  var rootDocument = scope.rootDocument;
+  var Loader = scope.Loader;
+  var Observer = scope.Observer;
+  var parser = scope.parser;
+  var importer = {
+    documents: {},
+    documentPreloadSelectors: IMPORT_SELECTOR,
+    importsPreloadSelectors: [ IMPORT_SELECTOR ].join(","),
+    loadNode: function(node) {
+      importLoader.addNode(node);
+    },
+    loadSubtree: function(parent) {
+      var nodes = this.marshalNodes(parent);
+      importLoader.addNodes(nodes);
+    },
+    marshalNodes: function(parent) {
+      return parent.querySelectorAll(this.loadSelectorsForNode(parent));
+    },
+    loadSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentPreloadSelectors : this.importsPreloadSelectors;
+    },
+    loaded: function(url, elt, resource, err, redirectedUrl) {
+      flags.load && console.log("loaded", url, elt);
+      elt.__resource = resource;
+      elt.__error = err;
+      if (isImportLink(elt)) {
+        var doc = this.documents[url];
+        if (doc === undefined) {
+          doc = err ? null : makeDocument(resource, redirectedUrl || url);
+          if (doc) {
+            doc.__importLink = elt;
+            this.bootDocument(doc);
+          }
+          this.documents[url] = doc;
+        }
+        elt.__doc = doc;
+      }
+      parser.parseNext();
+    },
+    bootDocument: function(doc) {
+      this.loadSubtree(doc);
+      this.observer.observe(doc);
+      parser.parseNext();
+    },
+    loadedAll: function() {
+      parser.parseNext();
+    }
+  };
+  var importLoader = new Loader(importer.loaded.bind(importer), importer.loadedAll.bind(importer));
+  importer.observer = new Observer();
+  function isImportLink(elt) {
+    return isLinkRel(elt, IMPORT_LINK_TYPE);
+  }
+  function isLinkRel(elt, rel) {
+    return elt.localName === "link" && elt.getAttribute("rel") === rel;
+  }
+  function hasBaseURIAccessor(doc) {
+    return !!Object.getOwnPropertyDescriptor(doc, "baseURI");
+  }
+  function makeDocument(resource, url) {
+    var doc = document.implementation.createHTMLDocument(IMPORT_LINK_TYPE);
+    doc._URL = url;
+    var base = doc.createElement("base");
+    base.setAttribute("href", url);
+    if (!doc.baseURI && !hasBaseURIAccessor(doc)) {
+      Object.defineProperty(doc, "baseURI", {
+        value: url
+      });
+    }
+    var meta = doc.createElement("meta");
+    meta.setAttribute("charset", "utf-8");
+    doc.head.appendChild(meta);
+    doc.head.appendChild(base);
+    doc.body.innerHTML = resource;
+    if (window.HTMLTemplateElement && HTMLTemplateElement.bootstrap) {
+      HTMLTemplateElement.bootstrap(doc);
+    }
+    return doc;
+  }
+  if (!document.baseURI) {
+    var baseURIDescriptor = {
+      get: function() {
+        var base = document.querySelector("base");
+        return base ? base.href : window.location.href;
+      },
+      configurable: true
+    };
+    Object.defineProperty(document, "baseURI", baseURIDescriptor);
+    Object.defineProperty(rootDocument, "baseURI", baseURIDescriptor);
+  }
+  scope.importer = importer;
+  scope.importLoader = importLoader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var parser = scope.parser;
+  var importer = scope.importer;
+  var dynamic = {
+    added: function(nodes) {
+      var owner, parsed, loading;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (!owner) {
+          owner = n.ownerDocument;
+          parsed = parser.isParsed(owner);
+        }
+        loading = this.shouldLoadNode(n);
+        if (loading) {
+          importer.loadNode(n);
+        }
+        if (this.shouldParseNode(n) && parsed) {
+          parser.parseDynamic(n, loading);
+        }
+      }
+    },
+    shouldLoadNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, importer.loadSelectorsForNode(node));
+    },
+    shouldParseNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, parser.parseSelectorsForNode(node));
+    }
+  };
+  importer.observer.addCallback = dynamic.added.bind(dynamic);
+  var matches = HTMLElement.prototype.matches || HTMLElement.prototype.matchesSelector || HTMLElement.prototype.webkitMatchesSelector || HTMLElement.prototype.mozMatchesSelector || HTMLElement.prototype.msMatchesSelector;
+});
+
+(function(scope) {
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (scope.useNative) {
+    return;
+  }
+  initializeModules();
+  var rootDocument = scope.rootDocument;
+  function bootstrap() {
+    window.HTMLImports.importer.bootDocument(rootDocument);
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive" && !window.attachEvent) {
+    bootstrap();
+  } else {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  }
+})(window.HTMLImports);
+
+window.CustomElements = window.CustomElements || {
+  flags: {}
+};
+
+(function(scope) {
+  var flags = scope.flags;
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+  scope.hasNative = Boolean(document.registerElement);
+  scope.isIE = /Trident/.test(navigator.userAgent);
+  scope.useNative = !flags.register && scope.hasNative && !window.ShadowDOMPolyfill && (!window.HTMLImports || window.HTMLImports.useNative);
+})(window.CustomElements);
+
+window.CustomElements.addModule(function(scope) {
+  var IMPORT_LINK_TYPE = window.HTMLImports ? window.HTMLImports.IMPORT_LINK_TYPE : "none";
+  function forSubtree(node, cb) {
+    findAllElements(node, function(e) {
+      if (cb(e)) {
+        return true;
+      }
+      forRoots(e, cb);
+    });
+    forRoots(node, cb);
+  }
+  function findAllElements(node, find, data) {
+    var e = node.firstElementChild;
+    if (!e) {
+      e = node.firstChild;
+      while (e && e.nodeType !== Node.ELEMENT_NODE) {
+        e = e.nextSibling;
+      }
+    }
+    while (e) {
+      if (find(e, data) !== true) {
+        findAllElements(e, find, data);
+      }
+      e = e.nextElementSibling;
+    }
+    return null;
+  }
+  function forRoots(node, cb) {
+    var root = node.shadowRoot;
+    while (root) {
+      forSubtree(root, cb);
+      root = root.olderShadowRoot;
+    }
+  }
+  function forDocumentTree(doc, cb) {
+    _forDocumentTree(doc, cb, []);
+  }
+  function _forDocumentTree(doc, cb, processingDocuments) {
+    doc = window.wrap(doc);
+    if (processingDocuments.indexOf(doc) >= 0) {
+      return;
+    }
+    processingDocuments.push(doc);
+    var imports = doc.querySelectorAll("link[rel=" + IMPORT_LINK_TYPE + "]");
+    for (var i = 0, l = imports.length, n; i < l && (n = imports[i]); i++) {
+      if (n.import) {
+        _forDocumentTree(n.import, cb, processingDocuments);
+      }
+    }
+    cb(doc);
+  }
+  scope.forDocumentTree = forDocumentTree;
+  scope.forSubtree = forSubtree;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  var forSubtree = scope.forSubtree;
+  var forDocumentTree = scope.forDocumentTree;
+  function addedNode(node, isAttached) {
+    return added(node, isAttached) || addedSubtree(node, isAttached);
+  }
+  function added(node, isAttached) {
+    if (scope.upgrade(node, isAttached)) {
+      return true;
+    }
+    if (isAttached) {
+      attached(node);
+    }
+  }
+  function addedSubtree(node, isAttached) {
+    forSubtree(node, function(e) {
+      if (added(e, isAttached)) {
+        return true;
+      }
+    });
+  }
+  var hasThrottledAttached = window.MutationObserver._isPolyfilled && flags["throttle-attached"];
+  scope.hasPolyfillMutations = hasThrottledAttached;
+  scope.hasThrottledAttached = hasThrottledAttached;
+  var isPendingMutations = false;
+  var pendingMutations = [];
+  function deferMutation(fn) {
+    pendingMutations.push(fn);
+    if (!isPendingMutations) {
+      isPendingMutations = true;
+      setTimeout(takeMutations);
+    }
+  }
+  function takeMutations() {
+    isPendingMutations = false;
+    var $p = pendingMutations;
+    for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+      p();
+    }
+    pendingMutations = [];
+  }
+  function attached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _attached(element);
+      });
+    } else {
+      _attached(element);
+    }
+  }
+  function _attached(element) {
+    if (element.__upgraded__ && !element.__attached) {
+      element.__attached = true;
+      if (element.attachedCallback) {
+        element.attachedCallback();
+      }
+    }
+  }
+  function detachedNode(node) {
+    detached(node);
+    forSubtree(node, function(e) {
+      detached(e);
+    });
+  }
+  function detached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _detached(element);
+      });
+    } else {
+      _detached(element);
+    }
+  }
+  function _detached(element) {
+    if (element.__upgraded__ && element.__attached) {
+      element.__attached = false;
+      if (element.detachedCallback) {
+        element.detachedCallback();
+      }
+    }
+  }
+  function inDocument(element) {
+    var p = element;
+    var doc = window.wrap(document);
+    while (p) {
+      if (p == doc) {
+        return true;
+      }
+      p = p.parentNode || p.nodeType === Node.DOCUMENT_FRAGMENT_NODE && p.host;
+    }
+  }
+  function watchShadow(node) {
+    if (node.shadowRoot && !node.shadowRoot.__watched) {
+      flags.dom && console.log("watching shadow-root for: ", node.localName);
+      var root = node.shadowRoot;
+      while (root) {
+        observe(root);
+        root = root.olderShadowRoot;
+      }
+    }
+  }
+  function handler(root, mutations) {
+    if (flags.dom) {
+      var mx = mutations[0];
+      if (mx && mx.type === "childList" && mx.addedNodes) {
+        if (mx.addedNodes) {
+          var d = mx.addedNodes[0];
+          while (d && d !== document && !d.host) {
+            d = d.parentNode;
+          }
+          var u = d && (d.URL || d._URL || d.host && d.host.localName) || "";
+          u = u.split("/?").shift().split("/").pop();
+        }
+      }
+      console.group("mutations (%d) [%s]", mutations.length, u || "");
+    }
+    var isAttached = inDocument(root);
+    mutations.forEach(function(mx) {
+      if (mx.type === "childList") {
+        forEach(mx.addedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          addedNode(n, isAttached);
+        });
+        forEach(mx.removedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          detachedNode(n);
+        });
+      }
+    });
+    flags.dom && console.groupEnd();
+  }
+  function takeRecords(node) {
+    node = window.wrap(node);
+    if (!node) {
+      node = window.wrap(document);
+    }
+    while (node.parentNode) {
+      node = node.parentNode;
+    }
+    var observer = node.__observer;
+    if (observer) {
+      handler(node, observer.takeRecords());
+      takeMutations();
+    }
+  }
+  var forEach = Array.prototype.forEach.call.bind(Array.prototype.forEach);
+  function observe(inRoot) {
+    if (inRoot.__observer) {
+      return;
+    }
+    var observer = new MutationObserver(handler.bind(this, inRoot));
+    observer.observe(inRoot, {
+      childList: true,
+      subtree: true
+    });
+    inRoot.__observer = observer;
+  }
+  function upgradeDocument(doc) {
+    doc = window.wrap(doc);
+    flags.dom && console.group("upgradeDocument: ", doc.baseURI.split("/").pop());
+    var isMainDocument = doc === window.wrap(document);
+    addedNode(doc, isMainDocument);
+    observe(doc);
+    flags.dom && console.groupEnd();
+  }
+  function upgradeDocumentTree(doc) {
+    forDocumentTree(doc, upgradeDocument);
+  }
+  var originalCreateShadowRoot = Element.prototype.createShadowRoot;
+  if (originalCreateShadowRoot) {
+    Element.prototype.createShadowRoot = function() {
+      var root = originalCreateShadowRoot.call(this);
+      window.CustomElements.watchShadow(this);
+      return root;
+    };
+  }
+  scope.watchShadow = watchShadow;
+  scope.upgradeDocumentTree = upgradeDocumentTree;
+  scope.upgradeDocument = upgradeDocument;
+  scope.upgradeSubtree = addedSubtree;
+  scope.upgradeAll = addedNode;
+  scope.attached = attached;
+  scope.takeRecords = takeRecords;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  function upgrade(node, isAttached) {
+    if (node.localName === "template") {
+      if (window.HTMLTemplateElement && HTMLTemplateElement.decorate) {
+        HTMLTemplateElement.decorate(node);
+      }
+    }
+    if (!node.__upgraded__ && node.nodeType === Node.ELEMENT_NODE) {
+      var is = node.getAttribute("is");
+      var definition = scope.getRegisteredDefinition(node.localName) || scope.getRegisteredDefinition(is);
+      if (definition) {
+        if (is && definition.tag == node.localName || !is && !definition.extends) {
+          return upgradeWithDefinition(node, definition, isAttached);
+        }
+      }
+    }
+  }
+  function upgradeWithDefinition(element, definition, isAttached) {
+    flags.upgrade && console.group("upgrade:", element.localName);
+    if (definition.is) {
+      element.setAttribute("is", definition.is);
+    }
+    implementPrototype(element, definition);
+    element.__upgraded__ = true;
+    created(element);
+    if (isAttached) {
+      scope.attached(element);
+    }
+    scope.upgradeSubtree(element, isAttached);
+    flags.upgrade && console.groupEnd();
+    return element;
+  }
+  function implementPrototype(element, definition) {
+    if (Object.__proto__) {
+      element.__proto__ = definition.prototype;
+    } else {
+      customMixin(element, definition.prototype, definition.native);
+      element.__proto__ = definition.prototype;
+    }
+  }
+  function customMixin(inTarget, inSrc, inNative) {
+    var used = {};
+    var p = inSrc;
+    while (p !== inNative && p !== HTMLElement.prototype) {
+      var keys = Object.getOwnPropertyNames(p);
+      for (var i = 0, k; k = keys[i]; i++) {
+        if (!used[k]) {
+          Object.defineProperty(inTarget, k, Object.getOwnPropertyDescriptor(p, k));
+          used[k] = 1;
+        }
+      }
+      p = Object.getPrototypeOf(p);
+    }
+  }
+  function created(element) {
+    if (element.createdCallback) {
+      element.createdCallback();
+    }
+  }
+  scope.upgrade = upgrade;
+  scope.upgradeWithDefinition = upgradeWithDefinition;
+  scope.implementPrototype = implementPrototype;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var isIE = scope.isIE;
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeAll = scope.upgradeAll;
+  var upgradeWithDefinition = scope.upgradeWithDefinition;
+  var implementPrototype = scope.implementPrototype;
+  var useNative = scope.useNative;
+  function register(name, options) {
+    var definition = options || {};
+    if (!name) {
+      throw new Error("document.registerElement: first argument `name` must not be empty");
+    }
+    if (name.indexOf("-") < 0) {
+      throw new Error("document.registerElement: first argument ('name') must contain a dash ('-'). Argument provided was '" + String(name) + "'.");
+    }
+    if (isReservedTag(name)) {
+      throw new Error("Failed to execute 'registerElement' on 'Document': Registration failed for type '" + String(name) + "'. The type name is invalid.");
+    }
+    if (getRegisteredDefinition(name)) {
+      throw new Error("DuplicateDefinitionError: a type with name '" + String(name) + "' is already registered");
+    }
+    if (!definition.prototype) {
+      definition.prototype = Object.create(HTMLElement.prototype);
+    }
+    definition.__name = name.toLowerCase();
+    definition.lifecycle = definition.lifecycle || {};
+    definition.ancestry = ancestry(definition.extends);
+    resolveTagName(definition);
+    resolvePrototypeChain(definition);
+    overrideAttributeApi(definition.prototype);
+    registerDefinition(definition.__name, definition);
+    definition.ctor = generateConstructor(definition);
+    definition.ctor.prototype = definition.prototype;
+    definition.prototype.constructor = definition.ctor;
+    if (scope.ready) {
+      upgradeDocumentTree(document);
+    }
+    return definition.ctor;
+  }
+  function overrideAttributeApi(prototype) {
+    if (prototype.setAttribute._polyfilled) {
+      return;
+    }
+    var setAttribute = prototype.setAttribute;
+    prototype.setAttribute = function(name, value) {
+      changeAttribute.call(this, name, value, setAttribute);
+    };
+    var removeAttribute = prototype.removeAttribute;
+    prototype.removeAttribute = function(name) {
+      changeAttribute.call(this, name, null, removeAttribute);
+    };
+    prototype.setAttribute._polyfilled = true;
+  }
+  function changeAttribute(name, value, operation) {
+    name = name.toLowerCase();
+    var oldValue = this.getAttribute(name);
+    operation.apply(this, arguments);
+    var newValue = this.getAttribute(name);
+    if (this.attributeChangedCallback && newValue !== oldValue) {
+      this.attributeChangedCallback(name, oldValue, newValue);
+    }
+  }
+  function isReservedTag(name) {
+    for (var i = 0; i < reservedTagList.length; i++) {
+      if (name === reservedTagList[i]) {
+        return true;
+      }
+    }
+  }
+  var reservedTagList = [ "annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph" ];
+  function ancestry(extnds) {
+    var extendee = getRegisteredDefinition(extnds);
+    if (extendee) {
+      return ancestry(extendee.extends).concat([ extendee ]);
+    }
+    return [];
+  }
+  function resolveTagName(definition) {
+    var baseTag = definition.extends;
+    for (var i = 0, a; a = definition.ancestry[i]; i++) {
+      baseTag = a.is && a.tag;
+    }
+    definition.tag = baseTag || definition.__name;
+    if (baseTag) {
+      definition.is = definition.__name;
+    }
+  }
+  function resolvePrototypeChain(definition) {
+    if (!Object.__proto__) {
+      var nativePrototype = HTMLElement.prototype;
+      if (definition.is) {
+        var inst = document.createElement(definition.tag);
+        nativePrototype = Object.getPrototypeOf(inst);
+      }
+      var proto = definition.prototype, ancestor;
+      var foundPrototype = false;
+      while (proto) {
+        if (proto == nativePrototype) {
+          foundPrototype = true;
+        }
+        ancestor = Object.getPrototypeOf(proto);
+        if (ancestor) {
+          proto.__proto__ = ancestor;
+        }
+        proto = ancestor;
+      }
+      if (!foundPrototype) {
+        console.warn(definition.tag + " prototype not found in prototype chain for " + definition.is);
+      }
+      definition.native = nativePrototype;
+    }
+  }
+  function instantiate(definition) {
+    return upgradeWithDefinition(domCreateElement(definition.tag), definition);
+  }
+  var registry = {};
+  function getRegisteredDefinition(name) {
+    if (name) {
+      return registry[name.toLowerCase()];
+    }
+  }
+  function registerDefinition(name, definition) {
+    registry[name] = definition;
+  }
+  function generateConstructor(definition) {
+    return function() {
+      return instantiate(definition);
+    };
+  }
+  var HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+  function createElementNS(namespace, tag, typeExtension) {
+    if (namespace === HTML_NAMESPACE) {
+      return createElement(tag, typeExtension);
+    } else {
+      return domCreateElementNS(namespace, tag);
+    }
+  }
+  function createElement(tag, typeExtension) {
+    if (tag) {
+      tag = tag.toLowerCase();
+    }
+    if (typeExtension) {
+      typeExtension = typeExtension.toLowerCase();
+    }
+    var definition = getRegisteredDefinition(typeExtension || tag);
+    if (definition) {
+      if (tag == definition.tag && typeExtension == definition.is) {
+        return new definition.ctor();
+      }
+      if (!typeExtension && !definition.is) {
+        return new definition.ctor();
+      }
+    }
+    var element;
+    if (typeExtension) {
+      element = createElement(tag);
+      element.setAttribute("is", typeExtension);
+      return element;
+    }
+    element = domCreateElement(tag);
+    if (tag.indexOf("-") >= 0) {
+      implementPrototype(element, HTMLElement);
+    }
+    return element;
+  }
+  var domCreateElement = document.createElement.bind(document);
+  var domCreateElementNS = document.createElementNS.bind(document);
+  var isInstance;
+  if (!Object.__proto__ && !useNative) {
+    isInstance = function(obj, ctor) {
+      if (obj instanceof ctor) {
+        return true;
+      }
+      var p = obj;
+      while (p) {
+        if (p === ctor.prototype) {
+          return true;
+        }
+        p = p.__proto__;
+      }
+      return false;
+    };
+  } else {
+    isInstance = function(obj, base) {
+      return obj instanceof base;
+    };
+  }
+  function wrapDomMethodToForceUpgrade(obj, methodName) {
+    var orig = obj[methodName];
+    obj[methodName] = function() {
+      var n = orig.apply(this, arguments);
+      upgradeAll(n);
+      return n;
+    };
+  }
+  wrapDomMethodToForceUpgrade(Node.prototype, "cloneNode");
+  wrapDomMethodToForceUpgrade(document, "importNode");
+  if (isIE) {
+    (function() {
+      var importNode = document.importNode;
+      document.importNode = function() {
+        var n = importNode.apply(document, arguments);
+        if (n.nodeType == n.DOCUMENT_FRAGMENT_NODE) {
+          var f = document.createDocumentFragment();
+          f.appendChild(n);
+          return f;
+        } else {
+          return n;
+        }
+      };
+    })();
+  }
+  document.registerElement = register;
+  document.createElement = createElement;
+  document.createElementNS = createElementNS;
+  scope.registry = registry;
+  scope.instanceof = isInstance;
+  scope.reservedTagList = reservedTagList;
+  scope.getRegisteredDefinition = getRegisteredDefinition;
+  document.register = document.registerElement;
+});
+
+(function(scope) {
+  var useNative = scope.useNative;
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (useNative) {
+    var nop = function() {};
+    scope.watchShadow = nop;
+    scope.upgrade = nop;
+    scope.upgradeAll = nop;
+    scope.upgradeDocumentTree = nop;
+    scope.upgradeSubtree = nop;
+    scope.takeRecords = nop;
+    scope.instanceof = function(obj, base) {
+      return obj instanceof base;
+    };
+  } else {
+    initializeModules();
+  }
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeDocument = scope.upgradeDocument;
+  if (!window.wrap) {
+    if (window.ShadowDOMPolyfill) {
+      window.wrap = window.ShadowDOMPolyfill.wrapIfNeeded;
+      window.unwrap = window.ShadowDOMPolyfill.unwrapIfNeeded;
+    } else {
+      window.wrap = window.unwrap = function(node) {
+        return node;
+      };
+    }
+  }
+  if (window.HTMLImports) {
+    window.HTMLImports.__importsParsingHook = function(elt) {
+      if (elt.import) {
+        upgradeDocument(wrap(elt.import));
+      }
+    };
+  }
+  function bootstrap() {
+    upgradeDocumentTree(window.wrap(document));
+    window.CustomElements.ready = true;
+    var requestAnimationFrame = window.requestAnimationFrame || function(f) {
+      setTimeout(f, 16);
+    };
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        window.CustomElements.readyTime = Date.now();
+        if (window.HTMLImports) {
+          window.CustomElements.elapsed = window.CustomElements.readyTime - window.HTMLImports.readyTime;
+        }
+        document.dispatchEvent(new CustomEvent("WebComponentsReady", {
+          bubbles: true
+        }));
+      });
+    });
+  }
+  if (document.readyState === "complete" || scope.flags.eager) {
+    bootstrap();
+  } else if (document.readyState === "interactive" && !window.attachEvent && (!window.HTMLImports || window.HTMLImports.ready)) {
+    bootstrap();
+  } else {
+    var loadEvent = window.HTMLImports && !window.HTMLImports.ready ? "HTMLImportsLoaded" : "DOMContentLoaded";
+    window.addEventListener(loadEvent, bootstrap);
+  }
+})(window.CustomElements);
+
+(function(scope) {
+  var style = document.createElement("style");
+  style.textContent = "" + "body {" + "transition: opacity ease-in 0.2s;" + " } \n" + "body[unresolved] {" + "opacity: 0; display: block; overflow: hidden; position: relative;" + " } \n";
+  var head = document.querySelector("head");
+  head.insertBefore(style, head.firstChild);
+})(window.WebComponents);
+//JS file for the supplier-page
+Polymer({
+  is: "customer-read-page",
+  ready:function()
+  {    
+    localStorage.setItem("curr_sess_showpage","Customer Detail");    
+    this.page="Customer Detail";
+  },
+  //Method to change the page view in base page ie home page
+  setPage:function(page)
+  {
+    this.page = page;
+  }
+});
+(function() {
+      var arr=[];
+      var id="true";
+      var clrid="true";
+      var regno="";
+      var n=1;
+      var clr="true";
+      Polymer({is:"approvecustomer-detailcard",
+        ready:function(){
+          this.icons="icons:arrow-drop-down";
+        },
+        // Function which fetch the selected customer info
+        FnFetchInfo:function(){
+          if(clr=="true") {
+            this.customername=(this.customername).replace(" ","");
+            document.querySelector('#btn'+this.customername).style.color = '#ff6789';
+            clr=this.customername;
+          }
+          else if(clr!=this.customername){
+            this.customername=(this.customername).replace(" ","");
+            document.querySelector('#btn'+clr).style.color = '#000000';
+            document.querySelector('#btn'+this.customername).style.color = '#ff6789';
+            clr=this.customername;
+          }
+          sessionStorage.setItem("sess_curr_customername",this.customername);
+          sessionStorage.setItem("sess_curr_customerid",this.customerid);
+          this.$.cs.FnCustomerinforeadService();
+        }
+      });
+    })();
+/**
+ * Created by praba on 5/9/2016.
+ */
+ // JS component for customer approve card
+(function() {
+  Polymer({
+    is: "approvecustomer-card",
+    ready:function(){
+      
+      localStorage.setItem("curr_sess_showpage","approvecustomer-card");
+      // Calling webcomponent service to fetch the label for the components
+      this.$.ID_Webcomponent_Service.callWebcomponentService();
+      // Calling service to fetch the customer created for approve
+      this.$.customerservice.readcustomertoapproveService();    
+    }
+  });
+})();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'passwordchange-card',
+
+      properties: {
+        foo: {
+          type: String,
+          value: 'passwordchange-card',
+          notify: true
+        }
+      },
+      FnPasswordChange:function(){
+        this.$.userservice.callPasswordchangeservice(this.empid,this.oldpass,this.newpass);
+      },
+      FnBack:function(){
+        document.querySelector('app-card').setPage('login-card');
+      }
+    });
+  })();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'resetpassword-card',
+
+      properties: {
+        foo: {
+          type: String,
+          value: 'resetpassword-card',
+          notify: true
+        }
+      },
+      ready:function(){
+        this.hidecode=true;
+        this.text="";
+      },
+      FnChange:function(){
+        this.hidecode=false;
+        this.createid();
+      },
+      createid:function()
+      {    
+      var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      for( var i=0; i < 6; i++ ){
+        this.text += possible.charAt(Math.floor(Math.random() * possible.length)); 
+      }
+        alert("Please enter the verification code,Which sent to your mail!");
+        this.$.userservice.callMailService(this.empid,this.text);    
+      },
+      FnResetPassword:function(){
+        // alert(this.text+" "+this.code)
+        if(this.text==this.code){
+        // alert("hi");
+        this.$.userservice.callResetpasswordservice(this.empid,this.newpass);
+        }
+        else{
+        alert("Invalid code!");
+        this.code="";
+        }
+      },      
+      FnBack:function(){
+        document.querySelector('app-card').setPage('login-card');
+      }
+    });
+  })();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'app-card',
+      ready:function(){
+        this.page='login-card';
+      },
+      setPage:function(page){
+        this.page=page;
+      }
+    });
+  })();
+//JS file for datepicker card
+Polymer({
+  is: "dobpicker-card",
+  ready:function()
+  {
+    this.showdate=moment(new Date()).format('L');
+    this.year1=new Date((this.showdate)).getFullYear();
+    localStorage.setItem("curr_sess_dobdate",this.showdate);
+
+  },
+  FnShowDialog:function(){       
+    this.$.dialog.toggle();
+  },
+  // Function calls while closing the datepicker dialog
+  FnDismissDialog:function(e){
+    if (e.detail.confirmed) { 
+          this.showdate = moment(this.$.picker.date).format('L');
+          this.year2=new Date((this.showdate)).getFullYear();
+          localStorage.setItem("curr_sess_dobdate",this.showdate); 
+          var year=parseInt(this.year1)-parseInt(this.year2);
+          document.querySelector('user-info-card').setDOB(year);       
+    }
+  },
+  setDate:function(date){
+    this.showdate=date;
+    localStorage.setItem("curr_sess_dobdate",this.showdate); 
+  }
+
+});
+/**
+ * Created by praba on 3/10/2016.
+ */
+// JS file for the addcustomer-card
+(function() {
+  'use strict';
+  Polymer({
+    is: 'user-info-card',
+    // Ready function to set the initial parameters
+    ready:function(){
+      this.country="India";
+      this.Btn_disable_flag=false;
+      this.read=false;
+      //Initially hiding paperlistbox of itemtype and itemgroup fields
+      this.isHidden=true;
+      this.isHiddenid=true;
+      this.IDread=true;
+      localStorage.setItem("curr_sess_searchtypeflag", "nothing");
+      localStorage.setItem("curr_sess_addusereditflag","0");
+  },
+  FnSelectGender:function(e){ 
+  this.sex = e.target.selectedItem.textContent.trim();   
+  },
+  // Function which invokes while changing the email
+  FnEmailChange:function(){
+    document.querySelector('#emailid').validate();
+  },
+  // Function which invokes while enterning customer name and doing substring operation to get the customer id
+  FnInputChange:function(){
+    localStorage.setItem("curr_sess_searchtypeflag","nothing");
+    this.IDread=true;    
+  },
+  // Function which invokes while submitting the customer inforamtion form
+   FnEmployeeInfoSubmit:function(){
+    // Method which validate the fields if it is left blank
+      /*document.querySelector('#address1').validate();     
+     document.querySelector('#suppliername').validate();
+     document.querySelector('#doorno').validate();
+     document.querySelector('#streetno').validate();
+     document.querySelector('#streetname').validate();
+     document.querySelector('#location').validate();
+     document.querySelector('#city').validate();
+     document.querySelector('#district').validate();
+     document.querySelector('#state').validate();
+     document.querySelector('#country').validate();
+     document.querySelector('#pincode').validate();
+     document.querySelector('#mobileno').validate();
+     document.querySelector('#emailid').validate();*/
+     // Condition which check for all the fields are entered
+     if(this.employeename==""||this.employeename==null){}
+     // Else condition will invoke if all the fileds are entered
+     else{     
+     // Condition will invoke for new customer adding
+     if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+         // localStorage.setItem('curr_sess_loggedemployee',this.employeename);
+         // Calling service to store the customer information
+         this.$.userservice.addemployeeService(this.employeename,localStorage.getItem("curr_sess_dobdate"),this.sex,this.age,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
+         // After submitting customer it would show the tax page to enter
+         document.querySelector("usercreation-home-card").setPage("Account Detail");
+     }
+     // Condition will invoke while searching existing customer and updating
+     else if(localStorage.getItem("curr_sess_addusereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+       // Caalling service to fetch the customer information
+       // this.$.customerservice.updatesupplierService(this.category,localStorage.getItem('curr_sess_customerloggedid'),this.suppliername,this.aliasname,this.address1,this.address2,this.doorno,this.streetno,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid,this.faxno,this.website);
+        this.$.userservice.updateemployeeService(localStorage.getItem('curr_sess_employeeloggedid'),this.employeename,localStorage.getItem("curr_sess_dobdate"),this.sex,this.age,this.streetname,this.location,this.city,this.district,this.state,this.country,this.pincode,this.phoneno,this.mobileno,this.emailid);
+         // Calling service to fetch the tax information
+         this.$.userservice.callAccountService();
+         // Showing tax page with values while moving from customer page
+         document.querySelector("usercreation-home-card").setPage("Account Detail"); 
+      }   
+     // Condition will invoke while searching existing customer
+     else{
+      // Calling service to fetch the tax information
+         this.$.userservice.callAccountService();
+         // Showing tax page with values while moving from customer page
+         document.querySelector("usercreation-home-card").setPage("Account Detail");   
+     }
+    }
+    },
+    // Method will invoke while searching customer
+  FnSearchEmployeeName:function(){
+    //The flag is used to ensure the search is performed by using item name
+      localStorage.setItem("curr_sess_searchtypeflag","1");
+      // While searching existing customer which shows the edit button
+      document.querySelector('viewtype-card').FnEnableEdit(true);
+      //When performing search using itemname making listbox visible with items
+      this.isHidden=false;
+      // While searching customer making all the fields as readonly
+      this.read=true;
+      // Making ajax call to fetch the customer names
+      this.userreadurl=sessionStorage.getItem("curr_sess_url")+"userread-service";
+      this.$.userreadajax.generateRequest();
+  },
+  // Method will list/load all the customer names in the listbox while search for the customer
+  userreadResponse:function(e){
+    //Fetching items matching with searc items to populate it in listbox
+    //Condition will invoke if we performed item search using name
+    if(localStorage.getItem("curr_sess_searchtypeflag")=="1") {
+    this.querySelector('#searchname').style.visibility = 'visible';
+    var arr = [];
+    arr.push({"itemname": "-----Select-----"});
+    var item = e.detail.response;
+    // alert(JSON.stringify(e.detail.response));
+    if (this.employeename.length > 0) {
+        for (var i = 0; i < item.length; i++) {
+          // alert((item[i].Employee_Name));
+            var subval = ((item[i].Employee_Name).trim()).substring(0, this.employeename.length);
+            if ((subval).toLowerCase() == (this.employeename).toLowerCase()) {
+            var obj = {"itemname": ""};
+            obj.itemname = item[i].Employee_Name;
+            arr.push(obj);
+            }
+        }
+        //Binding items to the listbox when it has the matching items otherwise showing no items
+        if (arr.length > 0)
+            this.itemArray = arr;
+        else{
+            var obj = {"itemname": ""};
+            obj.itemname = "No items found";
+            arr.push(obj);
+            this.itemArray = arr;
+            }
+    }
+    }
+    //Condition will invoke if we performed item search using name
+    if(localStorage.getItem("curr_sess_searchtypeflag")=="0") {
+      //Fetching items matching with searc items to populate it in listbox
+      //Condition will invoke if we performed item search using id
+      this.querySelector('#searchid').style.visibility = 'visible';
+      var arr = [];
+      arr.push({"itemid": "-----Select-----"});
+      var item = e.detail.response.itemarr;
+      if (this.supplierid.length > 0) {
+        for (var i = 0; i < item.length; i++) {
+            var subval = ((item[i].itemsupplierid).trim()).substring(0, this.supplierid.length);
+        if ((subval).toLowerCase() == (this.supplierid).toLowerCase()) {
+               var obj = {"itemid": ""};
+               obj.itemid = item[i].itemsupplierid;
+               arr.push(obj);
+            }
+        }
+      //Binding items to the listbox when it has the matching items otherwise showing no items
+        if (arr.length > 0)
+           this.itemidArray = arr;
+        else {
+            var obj = {"itemid": ""};
+            obj.itemid = "No items found";
+            arr.push(obj);
+            this.itemidArray = arr;
+        }
+        }
+    }
+  },
+  // Method will invoke while selecting name in the listbox
+  FnEmployeeNameSelected:function(e){
+        //if selecting item from dropdown apart from no items found it will invoke the search servcie and fetching currently selected item info
+        if(e.target.selectedItem.textContent.trim()!="-----Select-----") {
+          this.employeename = e.target.selectedItem.textContent.trim();
+          // alert(this.employeename);
+          //Making invisible and deselection in dropdown of item name search list box
+          this.querySelector('#searchname').style.visibility='hidden';
+          this.querySelector('#searchname').selected=-1;
+          this.itemArray="";
+          //if selected item id is not null invoking service to fetch item info
+          if(this.employeename!=""||this.employeename!="-----Select-----") {
+
+            this.$.userservice.callUsersearchService("", this.employeename);
+
+          }
+        }
+        else{         
+        this.read=false;
+        this.employeename="";
+        // this.supplierid="";
+        this.itemArray="";
+        this.querySelector('#searchname').style.visibility='hidden';
+        this.querySelector('#searchname').selected=-1;
+        }
+  },
+  // Function to change fields as editable while cicking edit button
+  FnEnableFields:function(){
+    this.read=false;
+  },
+  setDOB:function(age){
+    this.age=age;
+  }
+  });
+})();
+//JS file for the customer payment card
+Polymer({
+  is: "useraccount-info-card",
+  ready:function()
+  {
+  this.read=false;
+	this.mode="";
+  },
+ 
+  // Function invokes while submitting payment info page of the customer
+  FnAddPaymentInfoSubmit:function(){
+
+    // Function whic validates the input fields
+    /*document.querySelector('#droppaymentmode').validate();
+    document.querySelector('#bankname').validate();
+    document.querySelector('#accountno').validate();
+    document.querySelector('#accountname').validate();
+    document.querySelector('#accounttype').validate();
+    document.querySelector('#branch').validate();
+    document.querySelector('#ifsccode').validate();
+    document.querySelector('#micrcode').validate();
+    document.querySelector('#swiftcode').validate();*/
+	 // var paymentterm=this.querySelector('#radio').selected;
+	 if(this.accountno==null||this.accountno==""){
+	 }
+	 else{
+   if(localStorage.getItem("curr_sess_searchtypeflag")=="nothing"){
+   //Function which calls service to add payment info of the customer 
+	 this.$.userservice.addpaymentService(this.accountname,this.accountno,this.accounttype,this.bankname,this.branch,this.ifsccode);
+	 document.querySelector("usercreation-home-card").setPage("Role/Department Detail");
+ 	 }
+    //Function which calls service to update payment info of the customer while searching customer 
+ 		else if(localStorage.getItem("curr_sess_addusereditflag")=="1"&&localStorage.getItem("curr_sess_searchtypeflag")=="1"){
+ 		// alert('in edit');
+    this.$.userservice.updatepaymentService(this.accountname,this.accountno,this.accounttype,this.bankname,this.branch,this.ifsccode);
+    	this.$.userservice.FnRoleService();
+    	document.querySelector("usercreation-home-card").setPage("Role/Department Detail");
+ 		}
+    //Function which calls service to search payment info of the customer while searching
+ 		else
+ 		{    
+    // alert('in search');  
+        this.$.userservice.FnRoleService();
+    	document.querySelector("usercreation-home-card").setPage("Role/Department Detail");
+		}
+	}
+  }
+});
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'userrole-info-card',
+      ready:function(){
+        this.$.userservice.callreaddepartment();
+        this.$.userservice.callreadrole();
+      },
+      FnSelectDepartment:function(e){
+        this.departmentname = e.target.selectedItem.textContent.trim();
+      },
+      FnSelectRole:function(e){
+        this.rolename = e.target.selectedItem.textContent.trim();
+      },
+      FnSave:function(){
+        this.$.userservice.calluserroleService(this.departmentname,this.rolename);
+      }
+    });
+  })();
+/**
+ * @license
+ * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+ * This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+ * The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+ * The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+ * Code distributed by Google as part of the polymer project is also
+ * subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+ */
+// @version 0.7.20
+(function() {
+  window.WebComponents = window.WebComponents || {
+    flags: {}
+  };
+  var file = "webcomponents-lite.js";
+  var script = document.querySelector('script[src*="' + file + '"]');
+  var flags = {};
+  if (!flags.noOpts) {
+    location.search.slice(1).split("&").forEach(function(option) {
+      var parts = option.split("=");
+      var match;
+      if (parts[0] && (match = parts[0].match(/wc-(.+)/))) {
+        flags[match[1]] = parts[1] || true;
+      }
+    });
+    if (script) {
+      for (var i = 0, a; a = script.attributes[i]; i++) {
+        if (a.name !== "src") {
+          flags[a.name] = a.value || true;
+        }
+      }
+    }
+    if (flags.log && flags.log.split) {
+      var parts = flags.log.split(",");
+      flags.log = {};
+      parts.forEach(function(f) {
+        flags.log[f] = true;
+      });
+    } else {
+      flags.log = {};
+    }
+  }
+  if (flags.register) {
+    window.CustomElements = window.CustomElements || {
+      flags: {}
+    };
+    window.CustomElements.flags.register = flags.register;
+  }
+  WebComponents.flags = flags;
+})();
+
+(function(scope) {
+  "use strict";
+  var hasWorkingUrl = false;
+  if (!scope.forceJURL) {
+    try {
+      var u = new URL("b", "http://a");
+      u.pathname = "c%20d";
+      hasWorkingUrl = u.href === "http://a/c%20d";
+    } catch (e) {}
+  }
+  if (hasWorkingUrl) return;
+  var relative = Object.create(null);
+  relative["ftp"] = 21;
+  relative["file"] = 0;
+  relative["gopher"] = 70;
+  relative["http"] = 80;
+  relative["https"] = 443;
+  relative["ws"] = 80;
+  relative["wss"] = 443;
+  var relativePathDotMapping = Object.create(null);
+  relativePathDotMapping["%2e"] = ".";
+  relativePathDotMapping[".%2e"] = "..";
+  relativePathDotMapping["%2e."] = "..";
+  relativePathDotMapping["%2e%2e"] = "..";
+  function isRelativeScheme(scheme) {
+    return relative[scheme] !== undefined;
+  }
+  function invalid() {
+    clear.call(this);
+    this._isInvalid = true;
+  }
+  function IDNAToASCII(h) {
+    if ("" == h) {
+      invalid.call(this);
+    }
+    return h.toLowerCase();
+  }
+  function percentEscape(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 63, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  function percentEscapeQuery(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  var EOF = undefined, ALPHA = /[a-zA-Z]/, ALPHANUMERIC = /[a-zA-Z0-9\+\-\.]/;
+  function parse(input, stateOverride, base) {
+    function err(message) {
+      errors.push(message);
+    }
+    var state = stateOverride || "scheme start", cursor = 0, buffer = "", seenAt = false, seenBracket = false, errors = [];
+    loop: while ((input[cursor - 1] != EOF || cursor == 0) && !this._isInvalid) {
+      var c = input[cursor];
+      switch (state) {
+       case "scheme start":
+        if (c && ALPHA.test(c)) {
+          buffer += c.toLowerCase();
+          state = "scheme";
+        } else if (!stateOverride) {
+          buffer = "";
+          state = "no scheme";
+          continue;
+        } else {
+          err("Invalid scheme.");
+          break loop;
+        }
+        break;
+
+       case "scheme":
+        if (c && ALPHANUMERIC.test(c)) {
+          buffer += c.toLowerCase();
+        } else if (":" == c) {
+          this._scheme = buffer;
+          buffer = "";
+          if (stateOverride) {
+            break loop;
+          }
+          if (isRelativeScheme(this._scheme)) {
+            this._isRelative = true;
+          }
+          if ("file" == this._scheme) {
+            state = "relative";
+          } else if (this._isRelative && base && base._scheme == this._scheme) {
+            state = "relative or authority";
+          } else if (this._isRelative) {
+            state = "authority first slash";
+          } else {
+            state = "scheme data";
+          }
+        } else if (!stateOverride) {
+          buffer = "";
+          cursor = 0;
+          state = "no scheme";
+          continue;
+        } else if (EOF == c) {
+          break loop;
+        } else {
+          err("Code point not allowed in scheme: " + c);
+          break loop;
+        }
+        break;
+
+       case "scheme data":
+        if ("?" == c) {
+          this._query = "?";
+          state = "query";
+        } else if ("#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else {
+          if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+            this._schemeData += percentEscape(c);
+          }
+        }
+        break;
+
+       case "no scheme":
+        if (!base || !isRelativeScheme(base._scheme)) {
+          err("Missing scheme.");
+          invalid.call(this);
+        } else {
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative or authority":
+        if ("/" == c && "/" == input[cursor + 1]) {
+          state = "authority ignore slashes";
+        } else {
+          err("Expected /, got: " + c);
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative":
+        this._isRelative = true;
+        if ("file" != this._scheme) this._scheme = base._scheme;
+        if (EOF == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._username = base._username;
+          this._password = base._password;
+          break loop;
+        } else if ("/" == c || "\\" == c) {
+          if ("\\" == c) err("\\ is an invalid code point.");
+          state = "relative slash";
+        } else if ("?" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = "?";
+          this._username = base._username;
+          this._password = base._password;
+          state = "query";
+        } else if ("#" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._fragment = "#";
+          this._username = base._username;
+          this._password = base._password;
+          state = "fragment";
+        } else {
+          var nextC = input[cursor + 1];
+          var nextNextC = input[cursor + 2];
+          if ("file" != this._scheme || !ALPHA.test(c) || nextC != ":" && nextC != "|" || EOF != nextNextC && "/" != nextNextC && "\\" != nextNextC && "?" != nextNextC && "#" != nextNextC) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+            this._path = base._path.slice();
+            this._path.pop();
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "relative slash":
+        if ("/" == c || "\\" == c) {
+          if ("\\" == c) {
+            err("\\ is an invalid code point.");
+          }
+          if ("file" == this._scheme) {
+            state = "file host";
+          } else {
+            state = "authority ignore slashes";
+          }
+        } else {
+          if ("file" != this._scheme) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "authority first slash":
+        if ("/" == c) {
+          state = "authority second slash";
+        } else {
+          err("Expected '/', got: " + c);
+          state = "authority ignore slashes";
+          continue;
+        }
+        break;
+
+       case "authority second slash":
+        state = "authority ignore slashes";
+        if ("/" != c) {
+          err("Expected '/', got: " + c);
+          continue;
+        }
+        break;
+
+       case "authority ignore slashes":
+        if ("/" != c && "\\" != c) {
+          state = "authority";
+          continue;
+        } else {
+          err("Expected authority, got: " + c);
+        }
+        break;
+
+       case "authority":
+        if ("@" == c) {
+          if (seenAt) {
+            err("@ already seen.");
+            buffer += "%40";
+          }
+          seenAt = true;
+          for (var i = 0; i < buffer.length; i++) {
+            var cp = buffer[i];
+            if ("	" == cp || "\n" == cp || "\r" == cp) {
+              err("Invalid whitespace in authority.");
+              continue;
+            }
+            if (":" == cp && null === this._password) {
+              this._password = "";
+              continue;
+            }
+            var tempC = percentEscape(cp);
+            null !== this._password ? this._password += tempC : this._username += tempC;
+          }
+          buffer = "";
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          cursor -= buffer.length;
+          buffer = "";
+          state = "host";
+          continue;
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "file host":
+        if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          if (buffer.length == 2 && ALPHA.test(buffer[0]) && (buffer[1] == ":" || buffer[1] == "|")) {
+            state = "relative path";
+          } else if (buffer.length == 0) {
+            state = "relative path start";
+          } else {
+            this._host = IDNAToASCII.call(this, buffer);
+            buffer = "";
+            state = "relative path start";
+          }
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid whitespace in file host.");
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "host":
+       case "hostname":
+        if (":" == c && !seenBracket) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "port";
+          if ("hostname" == stateOverride) {
+            break loop;
+          }
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "relative path start";
+          if (stateOverride) {
+            break loop;
+          }
+          continue;
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          if ("[" == c) {
+            seenBracket = true;
+          } else if ("]" == c) {
+            seenBracket = false;
+          }
+          buffer += c;
+        } else {
+          err("Invalid code point in host/hostname: " + c);
+        }
+        break;
+
+       case "port":
+        if (/[0-9]/.test(c)) {
+          buffer += c;
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c || stateOverride) {
+          if ("" != buffer) {
+            var temp = parseInt(buffer, 10);
+            if (temp != relative[this._scheme]) {
+              this._port = temp + "";
+            }
+            buffer = "";
+          }
+          if (stateOverride) {
+            break loop;
+          }
+          state = "relative path start";
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid code point in port: " + c);
+        } else {
+          invalid.call(this);
+        }
+        break;
+
+       case "relative path start":
+        if ("\\" == c) err("'\\' not allowed in path.");
+        state = "relative path";
+        if ("/" != c && "\\" != c) {
+          continue;
+        }
+        break;
+
+       case "relative path":
+        if (EOF == c || "/" == c || "\\" == c || !stateOverride && ("?" == c || "#" == c)) {
+          if ("\\" == c) {
+            err("\\ not allowed in relative path.");
+          }
+          var tmp;
+          if (tmp = relativePathDotMapping[buffer.toLowerCase()]) {
+            buffer = tmp;
+          }
+          if (".." == buffer) {
+            this._path.pop();
+            if ("/" != c && "\\" != c) {
+              this._path.push("");
+            }
+          } else if ("." == buffer && "/" != c && "\\" != c) {
+            this._path.push("");
+          } else if ("." != buffer) {
+            if ("file" == this._scheme && this._path.length == 0 && buffer.length == 2 && ALPHA.test(buffer[0]) && buffer[1] == "|") {
+              buffer = buffer[0] + ":";
+            }
+            this._path.push(buffer);
+          }
+          buffer = "";
+          if ("?" == c) {
+            this._query = "?";
+            state = "query";
+          } else if ("#" == c) {
+            this._fragment = "#";
+            state = "fragment";
+          }
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          buffer += percentEscape(c);
+        }
+        break;
+
+       case "query":
+        if (!stateOverride && "#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._query += percentEscapeQuery(c);
+        }
+        break;
+
+       case "fragment":
+        if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._fragment += c;
+        }
+        break;
+      }
+      cursor++;
+    }
+  }
+  function clear() {
+    this._scheme = "";
+    this._schemeData = "";
+    this._username = "";
+    this._password = null;
+    this._host = "";
+    this._port = "";
+    this._path = [];
+    this._query = "";
+    this._fragment = "";
+    this._isInvalid = false;
+    this._isRelative = false;
+  }
+  function jURL(url, base) {
+    if (base !== undefined && !(base instanceof jURL)) base = new jURL(String(base));
+    this._url = url;
+    clear.call(this);
+    var input = url.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
+    parse.call(this, input, null, base);
+  }
+  jURL.prototype = {
+    toString: function() {
+      return this.href;
+    },
+    get href() {
+      if (this._isInvalid) return this._url;
+      var authority = "";
+      if ("" != this._username || null != this._password) {
+        authority = this._username + (null != this._password ? ":" + this._password : "") + "@";
+      }
+      return this.protocol + (this._isRelative ? "//" + authority + this.host : "") + this.pathname + this._query + this._fragment;
+    },
+    set href(href) {
+      clear.call(this);
+      parse.call(this, href);
+    },
+    get protocol() {
+      return this._scheme + ":";
+    },
+    set protocol(protocol) {
+      if (this._isInvalid) return;
+      parse.call(this, protocol + ":", "scheme start");
+    },
+    get host() {
+      return this._isInvalid ? "" : this._port ? this._host + ":" + this._port : this._host;
+    },
+    set host(host) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, host, "host");
+    },
+    get hostname() {
+      return this._host;
+    },
+    set hostname(hostname) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, hostname, "hostname");
+    },
+    get port() {
+      return this._port;
+    },
+    set port(port) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, port, "port");
+    },
+    get pathname() {
+      return this._isInvalid ? "" : this._isRelative ? "/" + this._path.join("/") : this._schemeData;
+    },
+    set pathname(pathname) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._path = [];
+      parse.call(this, pathname, "relative path start");
+    },
+    get search() {
+      return this._isInvalid || !this._query || "?" == this._query ? "" : this._query;
+    },
+    set search(search) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._query = "?";
+      if ("?" == search[0]) search = search.slice(1);
+      parse.call(this, search, "query");
+    },
+    get hash() {
+      return this._isInvalid || !this._fragment || "#" == this._fragment ? "" : this._fragment;
+    },
+    set hash(hash) {
+      if (this._isInvalid) return;
+      this._fragment = "#";
+      if ("#" == hash[0]) hash = hash.slice(1);
+      parse.call(this, hash, "fragment");
+    },
+    get origin() {
+      var host;
+      if (this._isInvalid || !this._scheme) {
+        return "";
+      }
+      switch (this._scheme) {
+       case "data":
+       case "file":
+       case "javascript":
+       case "mailto":
+        return "null";
+      }
+      host = this.host;
+      if (!host) {
+        return "";
+      }
+      return this._scheme + "://" + host;
+    }
+  };
+  var OriginalURL = scope.URL;
+  if (OriginalURL) {
+    jURL.createObjectURL = function(blob) {
+      return OriginalURL.createObjectURL.apply(OriginalURL, arguments);
+    };
+    jURL.revokeObjectURL = function(url) {
+      OriginalURL.revokeObjectURL(url);
+    };
+  }
+  scope.URL = jURL;
+})(self);
+
+if (typeof WeakMap === "undefined") {
+  (function() {
+    var defineProperty = Object.defineProperty;
+    var counter = Date.now() % 1e9;
+    var WeakMap = function() {
+      this.name = "__st" + (Math.random() * 1e9 >>> 0) + (counter++ + "__");
+    };
+    WeakMap.prototype = {
+      set: function(key, value) {
+        var entry = key[this.name];
+        if (entry && entry[0] === key) entry[1] = value; else defineProperty(key, this.name, {
+          value: [ key, value ],
+          writable: true
+        });
+        return this;
+      },
+      get: function(key) {
+        var entry;
+        return (entry = key[this.name]) && entry[0] === key ? entry[1] : undefined;
+      },
+      "delete": function(key) {
+        var entry = key[this.name];
+        if (!entry || entry[0] !== key) return false;
+        entry[0] = entry[1] = undefined;
+        return true;
+      },
+      has: function(key) {
+        var entry = key[this.name];
+        if (!entry) return false;
+        return entry[0] === key;
+      }
+    };
+    window.WeakMap = WeakMap;
+  })();
+}
+
+(function(global) {
+  if (global.JsMutationObserver) {
+    return;
+  }
+  var registrationsTable = new WeakMap();
+  var setImmediate;
+  if (/Trident|Edge/.test(navigator.userAgent)) {
+    setImmediate = setTimeout;
+  } else if (window.setImmediate) {
+    setImmediate = window.setImmediate;
+  } else {
+    var setImmediateQueue = [];
+    var sentinel = String(Math.random());
+    window.addEventListener("message", function(e) {
+      if (e.data === sentinel) {
+        var queue = setImmediateQueue;
+        setImmediateQueue = [];
+        queue.forEach(function(func) {
+          func();
+        });
+      }
+    });
+    setImmediate = function(func) {
+      setImmediateQueue.push(func);
+      window.postMessage(sentinel, "*");
+    };
+  }
+  var isScheduled = false;
+  var scheduledObservers = [];
+  function scheduleCallback(observer) {
+    scheduledObservers.push(observer);
+    if (!isScheduled) {
+      isScheduled = true;
+      setImmediate(dispatchCallbacks);
+    }
+  }
+  function wrapIfNeeded(node) {
+    return window.ShadowDOMPolyfill && window.ShadowDOMPolyfill.wrapIfNeeded(node) || node;
+  }
+  function dispatchCallbacks() {
+    isScheduled = false;
+    var observers = scheduledObservers;
+    scheduledObservers = [];
+    observers.sort(function(o1, o2) {
+      return o1.uid_ - o2.uid_;
+    });
+    var anyNonEmpty = false;
+    observers.forEach(function(observer) {
+      var queue = observer.takeRecords();
+      removeTransientObserversFor(observer);
+      if (queue.length) {
+        observer.callback_(queue, observer);
+        anyNonEmpty = true;
+      }
+    });
+    if (anyNonEmpty) dispatchCallbacks();
+  }
+  function removeTransientObserversFor(observer) {
+    observer.nodes_.forEach(function(node) {
+      var registrations = registrationsTable.get(node);
+      if (!registrations) return;
+      registrations.forEach(function(registration) {
+        if (registration.observer === observer) registration.removeTransientObservers();
+      });
+    });
+  }
+  function forEachAncestorAndObserverEnqueueRecord(target, callback) {
+    for (var node = target; node; node = node.parentNode) {
+      var registrations = registrationsTable.get(node);
+      if (registrations) {
+        for (var j = 0; j < registrations.length; j++) {
+          var registration = registrations[j];
+          var options = registration.options;
+          if (node !== target && !options.subtree) continue;
+          var record = callback(options);
+          if (record) registration.enqueue(record);
+        }
+      }
+    }
+  }
+  var uidCounter = 0;
+  function JsMutationObserver(callback) {
+    this.callback_ = callback;
+    this.nodes_ = [];
+    this.records_ = [];
+    this.uid_ = ++uidCounter;
+  }
+  JsMutationObserver.prototype = {
+    observe: function(target, options) {
+      target = wrapIfNeeded(target);
+      if (!options.childList && !options.attributes && !options.characterData || options.attributeOldValue && !options.attributes || options.attributeFilter && options.attributeFilter.length && !options.attributes || options.characterDataOldValue && !options.characterData) {
+        throw new SyntaxError();
+      }
+      var registrations = registrationsTable.get(target);
+      if (!registrations) registrationsTable.set(target, registrations = []);
+      var registration;
+      for (var i = 0; i < registrations.length; i++) {
+        if (registrations[i].observer === this) {
+          registration = registrations[i];
+          registration.removeListeners();
+          registration.options = options;
+          break;
+        }
+      }
+      if (!registration) {
+        registration = new Registration(this, target, options);
+        registrations.push(registration);
+        this.nodes_.push(target);
+      }
+      registration.addListeners();
+    },
+    disconnect: function() {
+      this.nodes_.forEach(function(node) {
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          var registration = registrations[i];
+          if (registration.observer === this) {
+            registration.removeListeners();
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+      this.records_ = [];
+    },
+    takeRecords: function() {
+      var copyOfRecords = this.records_;
+      this.records_ = [];
+      return copyOfRecords;
+    }
+  };
+  function MutationRecord(type, target) {
+    this.type = type;
+    this.target = target;
+    this.addedNodes = [];
+    this.removedNodes = [];
+    this.previousSibling = null;
+    this.nextSibling = null;
+    this.attributeName = null;
+    this.attributeNamespace = null;
+    this.oldValue = null;
+  }
+  function copyMutationRecord(original) {
+    var record = new MutationRecord(original.type, original.target);
+    record.addedNodes = original.addedNodes.slice();
+    record.removedNodes = original.removedNodes.slice();
+    record.previousSibling = original.previousSibling;
+    record.nextSibling = original.nextSibling;
+    record.attributeName = original.attributeName;
+    record.attributeNamespace = original.attributeNamespace;
+    record.oldValue = original.oldValue;
+    return record;
+  }
+  var currentRecord, recordWithOldValue;
+  function getRecord(type, target) {
+    return currentRecord = new MutationRecord(type, target);
+  }
+  function getRecordWithOldValue(oldValue) {
+    if (recordWithOldValue) return recordWithOldValue;
+    recordWithOldValue = copyMutationRecord(currentRecord);
+    recordWithOldValue.oldValue = oldValue;
+    return recordWithOldValue;
+  }
+  function clearRecords() {
+    currentRecord = recordWithOldValue = undefined;
+  }
+  function recordRepresentsCurrentMutation(record) {
+    return record === recordWithOldValue || record === currentRecord;
+  }
+  function selectRecord(lastRecord, newRecord) {
+    if (lastRecord === newRecord) return lastRecord;
+    if (recordWithOldValue && recordRepresentsCurrentMutation(lastRecord)) return recordWithOldValue;
+    return null;
+  }
+  function Registration(observer, target, options) {
+    this.observer = observer;
+    this.target = target;
+    this.options = options;
+    this.transientObservedNodes = [];
+  }
+  Registration.prototype = {
+    enqueue: function(record) {
+      var records = this.observer.records_;
+      var length = records.length;
+      if (records.length > 0) {
+        var lastRecord = records[length - 1];
+        var recordToReplaceLast = selectRecord(lastRecord, record);
+        if (recordToReplaceLast) {
+          records[length - 1] = recordToReplaceLast;
+          return;
+        }
+      } else {
+        scheduleCallback(this.observer);
+      }
+      records[length] = record;
+    },
+    addListeners: function() {
+      this.addListeners_(this.target);
+    },
+    addListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.addEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.addEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.addEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.addEventListener("DOMNodeRemoved", this, true);
+    },
+    removeListeners: function() {
+      this.removeListeners_(this.target);
+    },
+    removeListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.removeEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.removeEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.removeEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.removeEventListener("DOMNodeRemoved", this, true);
+    },
+    addTransientObserver: function(node) {
+      if (node === this.target) return;
+      this.addListeners_(node);
+      this.transientObservedNodes.push(node);
+      var registrations = registrationsTable.get(node);
+      if (!registrations) registrationsTable.set(node, registrations = []);
+      registrations.push(this);
+    },
+    removeTransientObservers: function() {
+      var transientObservedNodes = this.transientObservedNodes;
+      this.transientObservedNodes = [];
+      transientObservedNodes.forEach(function(node) {
+        this.removeListeners_(node);
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          if (registrations[i] === this) {
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+    },
+    handleEvent: function(e) {
+      e.stopImmediatePropagation();
+      switch (e.type) {
+       case "DOMAttrModified":
+        var name = e.attrName;
+        var namespace = e.relatedNode.namespaceURI;
+        var target = e.target;
+        var record = new getRecord("attributes", target);
+        record.attributeName = name;
+        record.attributeNamespace = namespace;
+        var oldValue = e.attrChange === MutationEvent.ADDITION ? null : e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.attributes) return;
+          if (options.attributeFilter && options.attributeFilter.length && options.attributeFilter.indexOf(name) === -1 && options.attributeFilter.indexOf(namespace) === -1) {
+            return;
+          }
+          if (options.attributeOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMCharacterDataModified":
+        var target = e.target;
+        var record = getRecord("characterData", target);
+        var oldValue = e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.characterData) return;
+          if (options.characterDataOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMNodeRemoved":
+        this.addTransientObserver(e.target);
+
+       case "DOMNodeInserted":
+        var changedNode = e.target;
+        var addedNodes, removedNodes;
+        if (e.type === "DOMNodeInserted") {
+          addedNodes = [ changedNode ];
+          removedNodes = [];
+        } else {
+          addedNodes = [];
+          removedNodes = [ changedNode ];
+        }
+        var previousSibling = changedNode.previousSibling;
+        var nextSibling = changedNode.nextSibling;
+        var record = getRecord("childList", e.target.parentNode);
+        record.addedNodes = addedNodes;
+        record.removedNodes = removedNodes;
+        record.previousSibling = previousSibling;
+        record.nextSibling = nextSibling;
+        forEachAncestorAndObserverEnqueueRecord(e.relatedNode, function(options) {
+          if (!options.childList) return;
+          return record;
+        });
+      }
+      clearRecords();
+    }
+  };
+  global.JsMutationObserver = JsMutationObserver;
+  if (!global.MutationObserver) {
+    global.MutationObserver = JsMutationObserver;
+    JsMutationObserver._isPolyfilled = true;
+  }
+})(self);
+
+if (typeof HTMLTemplateElement === "undefined") {
+  (function() {
+    var TEMPLATE_TAG = "template";
+    var contentDoc = document.implementation.createHTMLDocument("template");
+    var canDecorate = true;
+    HTMLTemplateElement = function() {};
+    HTMLTemplateElement.prototype = Object.create(HTMLElement.prototype);
+    HTMLTemplateElement.decorate = function(template) {
+      if (template.content) {
+        return;
+      }
+      template.content = contentDoc.createDocumentFragment();
+      var child;
+      while (child = template.firstChild) {
+        template.content.appendChild(child);
+      }
+      if (canDecorate) {
+        try {
+          Object.defineProperty(template, "innerHTML", {
+            get: function() {
+              var o = "";
+              for (var e = this.content.firstChild; e; e = e.nextSibling) {
+                o += e.outerHTML || escapeData(e.data);
+              }
+              return o;
+            },
+            set: function(text) {
+              contentDoc.body.innerHTML = text;
+              HTMLTemplateElement.bootstrap(contentDoc);
+              while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+              }
+              while (contentDoc.body.firstChild) {
+                this.content.appendChild(contentDoc.body.firstChild);
+              }
+            },
+            configurable: true
+          });
+        } catch (err) {
+          canDecorate = false;
+        }
+      }
+      HTMLTemplateElement.bootstrap(template.content);
+    };
+    HTMLTemplateElement.bootstrap = function(doc) {
+      var templates = doc.querySelectorAll(TEMPLATE_TAG);
+      for (var i = 0, l = templates.length, t; i < l && (t = templates[i]); i++) {
+        HTMLTemplateElement.decorate(t);
+      }
+    };
+    document.addEventListener("DOMContentLoaded", function() {
+      HTMLTemplateElement.bootstrap(document);
+    });
+    var createElement = document.createElement;
+    document.createElement = function() {
+      "use strict";
+      var el = createElement.apply(document, arguments);
+      if (el.localName == "template") {
+        HTMLTemplateElement.decorate(el);
+      }
+      return el;
+    };
+    var escapeDataRegExp = /[&\u00A0<>]/g;
+    function escapeReplace(c) {
+      switch (c) {
+       case "&":
+        return "&amp;";
+
+       case "<":
+        return "&lt;";
+
+       case ">":
+        return "&gt;";
+
+       case " ":
+        return "&nbsp;";
+      }
+    }
+    function escapeData(s) {
+      return s.replace(escapeDataRegExp, escapeReplace);
+    }
+  })();
+}
+
+(function(scope) {
+  "use strict";
+  if (!window.performance) {
+    var start = Date.now();
+    window.performance = {
+      now: function() {
+        return Date.now() - start;
+      }
+    };
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function() {
+      var nativeRaf = window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+      return nativeRaf ? function(callback) {
+        return nativeRaf(function() {
+          callback(performance.now());
+        });
+      } : function(callback) {
+        return window.setTimeout(callback, 1e3 / 60);
+      };
+    }();
+  }
+  if (!window.cancelAnimationFrame) {
+    window.cancelAnimationFrame = function() {
+      return window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame || function(id) {
+        clearTimeout(id);
+      };
+    }();
+  }
+  var workingDefaultPrevented = function() {
+    var e = document.createEvent("Event");
+    e.initEvent("foo", true, true);
+    e.preventDefault();
+    return e.defaultPrevented;
+  }();
+  if (!workingDefaultPrevented) {
+    var origPreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function() {
+      if (!this.cancelable) {
+        return;
+      }
+      origPreventDefault.call(this);
+      Object.defineProperty(this, "defaultPrevented", {
+        get: function() {
+          return true;
+        },
+        configurable: true
+      });
+    };
+  }
+  var isIE = /Trident/.test(navigator.userAgent);
+  if (!window.CustomEvent || isIE && typeof window.CustomEvent !== "function") {
+    window.CustomEvent = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("CustomEvent");
+      e.initCustomEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable), params.detail);
+      return e;
+    };
+    window.CustomEvent.prototype = window.Event.prototype;
+  }
+  if (!window.Event || isIE && typeof window.Event !== "function") {
+    var origEvent = window.Event;
+    window.Event = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("Event");
+      e.initEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable));
+      return e;
+    };
+    window.Event.prototype = origEvent.prototype;
+  }
+})(window.WebComponents);
+
+window.HTMLImports = window.HTMLImports || {
+  flags: {}
+};
+
+(function(scope) {
+  var IMPORT_LINK_TYPE = "import";
+  var useNative = Boolean(IMPORT_LINK_TYPE in document.createElement("link"));
+  var hasShadowDOMPolyfill = Boolean(window.ShadowDOMPolyfill);
+  var wrap = function(node) {
+    return hasShadowDOMPolyfill ? window.ShadowDOMPolyfill.wrapIfNeeded(node) : node;
+  };
+  var rootDocument = wrap(document);
+  var currentScriptDescriptor = {
+    get: function() {
+      var script = window.HTMLImports.currentScript || document.currentScript || (document.readyState !== "complete" ? document.scripts[document.scripts.length - 1] : null);
+      return wrap(script);
+    },
+    configurable: true
+  };
+  Object.defineProperty(document, "_currentScript", currentScriptDescriptor);
+  Object.defineProperty(rootDocument, "_currentScript", currentScriptDescriptor);
+  var isIE = /Trident/.test(navigator.userAgent);
+  function whenReady(callback, doc) {
+    doc = doc || rootDocument;
+    whenDocumentReady(function() {
+      watchImportsLoad(callback, doc);
+    }, doc);
+  }
+  var requiredReadyState = isIE ? "complete" : "interactive";
+  var READY_EVENT = "readystatechange";
+  function isDocumentReady(doc) {
+    return doc.readyState === "complete" || doc.readyState === requiredReadyState;
+  }
+  function whenDocumentReady(callback, doc) {
+    if (!isDocumentReady(doc)) {
+      var checkReady = function() {
+        if (doc.readyState === "complete" || doc.readyState === requiredReadyState) {
+          doc.removeEventListener(READY_EVENT, checkReady);
+          whenDocumentReady(callback, doc);
+        }
+      };
+      doc.addEventListener(READY_EVENT, checkReady);
+    } else if (callback) {
+      callback();
+    }
+  }
+  function markTargetLoaded(event) {
+    event.target.__loaded = true;
+  }
+  function watchImportsLoad(callback, doc) {
+    var imports = doc.querySelectorAll("link[rel=import]");
+    var parsedCount = 0, importCount = imports.length, newImports = [], errorImports = [];
+    function checkDone() {
+      if (parsedCount == importCount && callback) {
+        callback({
+          allImports: imports,
+          loadedImports: newImports,
+          errorImports: errorImports
+        });
+      }
+    }
+    function loadedImport(e) {
+      markTargetLoaded(e);
+      newImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    function errorLoadingImport(e) {
+      errorImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    if (importCount) {
+      for (var i = 0, imp; i < importCount && (imp = imports[i]); i++) {
+        if (isImportLoaded(imp)) {
+          newImports.push(this);
+          parsedCount++;
+          checkDone();
+        } else {
+          imp.addEventListener("load", loadedImport);
+          imp.addEventListener("error", errorLoadingImport);
+        }
+      }
+    } else {
+      checkDone();
+    }
+  }
+  function isImportLoaded(link) {
+    return useNative ? link.__loaded || link.import && link.import.readyState !== "loading" : link.__importParsed;
+  }
+  if (useNative) {
+    new MutationObserver(function(mxns) {
+      for (var i = 0, l = mxns.length, m; i < l && (m = mxns[i]); i++) {
+        if (m.addedNodes) {
+          handleImports(m.addedNodes);
+        }
+      }
+    }).observe(document.head, {
+      childList: true
+    });
+    function handleImports(nodes) {
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (isImport(n)) {
+          handleImport(n);
+        }
+      }
+    }
+    function isImport(element) {
+      return element.localName === "link" && element.rel === "import";
+    }
+    function handleImport(element) {
+      var loaded = element.import;
+      if (loaded) {
+        markTargetLoaded({
+          target: element
+        });
+      } else {
+        element.addEventListener("load", markTargetLoaded);
+        element.addEventListener("error", markTargetLoaded);
+      }
+    }
+    (function() {
+      if (document.readyState === "loading") {
+        var imports = document.querySelectorAll("link[rel=import]");
+        for (var i = 0, l = imports.length, imp; i < l && (imp = imports[i]); i++) {
+          handleImport(imp);
+        }
+      }
+    })();
+  }
+  whenReady(function(detail) {
+    window.HTMLImports.ready = true;
+    window.HTMLImports.readyTime = new Date().getTime();
+    var evt = rootDocument.createEvent("CustomEvent");
+    evt.initCustomEvent("HTMLImportsLoaded", true, true, detail);
+    rootDocument.dispatchEvent(evt);
+  });
+  scope.IMPORT_LINK_TYPE = IMPORT_LINK_TYPE;
+  scope.useNative = useNative;
+  scope.rootDocument = rootDocument;
+  scope.whenReady = whenReady;
+  scope.isIE = isIE;
+})(window.HTMLImports);
+
+(function(scope) {
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+})(window.HTMLImports);
+
+window.HTMLImports.addModule(function(scope) {
+  var CSS_URL_REGEXP = /(url\()([^)]*)(\))/g;
+  var CSS_IMPORT_REGEXP = /(@import[\s]+(?!url\())([^;]*)(;)/g;
+  var path = {
+    resolveUrlsInStyle: function(style, linkUrl) {
+      var doc = style.ownerDocument;
+      var resolver = doc.createElement("a");
+      style.textContent = this.resolveUrlsInCssText(style.textContent, linkUrl, resolver);
+      return style;
+    },
+    resolveUrlsInCssText: function(cssText, linkUrl, urlObj) {
+      var r = this.replaceUrls(cssText, urlObj, linkUrl, CSS_URL_REGEXP);
+      r = this.replaceUrls(r, urlObj, linkUrl, CSS_IMPORT_REGEXP);
+      return r;
+    },
+    replaceUrls: function(text, urlObj, linkUrl, regexp) {
+      return text.replace(regexp, function(m, pre, url, post) {
+        var urlPath = url.replace(/["']/g, "");
+        if (linkUrl) {
+          urlPath = new URL(urlPath, linkUrl).href;
+        }
+        urlObj.href = urlPath;
+        urlPath = urlObj.href;
+        return pre + "'" + urlPath + "'" + post;
+      });
+    }
+  };
+  scope.path = path;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = {
+    async: true,
+    ok: function(request) {
+      return request.status >= 200 && request.status < 300 || request.status === 304 || request.status === 0;
+    },
+    load: function(url, next, nextContext) {
+      var request = new XMLHttpRequest();
+      if (scope.flags.debug || scope.flags.bust) {
+        url += "?" + Math.random();
+      }
+      request.open("GET", url, xhr.async);
+      request.addEventListener("readystatechange", function(e) {
+        if (request.readyState === 4) {
+          var redirectedUrl = null;
+          try {
+            var locationHeader = request.getResponseHeader("Location");
+            if (locationHeader) {
+              redirectedUrl = locationHeader.substr(0, 1) === "/" ? location.origin + locationHeader : locationHeader;
+            }
+          } catch (e) {
+            console.error(e.message);
+          }
+          next.call(nextContext, !xhr.ok(request) && request, request.response || request.responseText, redirectedUrl);
+        }
+      });
+      request.send();
+      return request;
+    },
+    loadDocument: function(url, next, nextContext) {
+      this.load(url, next, nextContext).responseType = "document";
+    }
+  };
+  scope.xhr = xhr;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = scope.xhr;
+  var flags = scope.flags;
+  var Loader = function(onLoad, onComplete) {
+    this.cache = {};
+    this.onload = onLoad;
+    this.oncomplete = onComplete;
+    this.inflight = 0;
+    this.pending = {};
+  };
+  Loader.prototype = {
+    addNodes: function(nodes) {
+      this.inflight += nodes.length;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        this.require(n);
+      }
+      this.checkDone();
+    },
+    addNode: function(node) {
+      this.inflight++;
+      this.require(node);
+      this.checkDone();
+    },
+    require: function(elt) {
+      var url = elt.src || elt.href;
+      elt.__nodeUrl = url;
+      if (!this.dedupe(url, elt)) {
+        this.fetch(url, elt);
+      }
+    },
+    dedupe: function(url, elt) {
+      if (this.pending[url]) {
+        this.pending[url].push(elt);
+        return true;
+      }
+      var resource;
+      if (this.cache[url]) {
+        this.onload(url, elt, this.cache[url]);
+        this.tail();
+        return true;
+      }
+      this.pending[url] = [ elt ];
+      return false;
+    },
+    fetch: function(url, elt) {
+      flags.load && console.log("fetch", url, elt);
+      if (!url) {
+        setTimeout(function() {
+          this.receive(url, elt, {
+            error: "href must be specified"
+          }, null);
+        }.bind(this), 0);
+      } else if (url.match(/^data:/)) {
+        var pieces = url.split(",");
+        var header = pieces[0];
+        var body = pieces[1];
+        if (header.indexOf(";base64") > -1) {
+          body = atob(body);
+        } else {
+          body = decodeURIComponent(body);
+        }
+        setTimeout(function() {
+          this.receive(url, elt, null, body);
+        }.bind(this), 0);
+      } else {
+        var receiveXhr = function(err, resource, redirectedUrl) {
+          this.receive(url, elt, err, resource, redirectedUrl);
+        }.bind(this);
+        xhr.load(url, receiveXhr);
+      }
+    },
+    receive: function(url, elt, err, resource, redirectedUrl) {
+      this.cache[url] = resource;
+      var $p = this.pending[url];
+      for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+        this.onload(url, p, resource, err, redirectedUrl);
+        this.tail();
+      }
+      this.pending[url] = null;
+    },
+    tail: function() {
+      --this.inflight;
+      this.checkDone();
+    },
+    checkDone: function() {
+      if (!this.inflight) {
+        this.oncomplete();
+      }
+    }
+  };
+  scope.Loader = Loader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var Observer = function(addCallback) {
+    this.addCallback = addCallback;
+    this.mo = new MutationObserver(this.handler.bind(this));
+  };
+  Observer.prototype = {
+    handler: function(mutations) {
+      for (var i = 0, l = mutations.length, m; i < l && (m = mutations[i]); i++) {
+        if (m.type === "childList" && m.addedNodes.length) {
+          this.addedNodes(m.addedNodes);
+        }
+      }
+    },
+    addedNodes: function(nodes) {
+      if (this.addCallback) {
+        this.addCallback(nodes);
+      }
+      for (var i = 0, l = nodes.length, n, loading; i < l && (n = nodes[i]); i++) {
+        if (n.children && n.children.length) {
+          this.addedNodes(n.children);
+        }
+      }
+    },
+    observe: function(root) {
+      this.mo.observe(root, {
+        childList: true,
+        subtree: true
+      });
+    }
+  };
+  scope.Observer = Observer;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var path = scope.path;
+  var rootDocument = scope.rootDocument;
+  var flags = scope.flags;
+  var isIE = scope.isIE;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = "link[rel=" + IMPORT_LINK_TYPE + "]";
+  var importParser = {
+    documentSelectors: IMPORT_SELECTOR,
+    importsSelectors: [ IMPORT_SELECTOR, "link[rel=stylesheet]:not([type])", "style:not([type])", "script:not([type])", 'script[type="application/javascript"]', 'script[type="text/javascript"]' ].join(","),
+    map: {
+      link: "parseLink",
+      script: "parseScript",
+      style: "parseStyle"
+    },
+    dynamicElements: [],
+    parseNext: function() {
+      var next = this.nextToParse();
+      if (next) {
+        this.parse(next);
+      }
+    },
+    parse: function(elt) {
+      if (this.isParsed(elt)) {
+        flags.parse && console.log("[%s] is already parsed", elt.localName);
+        return;
+      }
+      var fn = this[this.map[elt.localName]];
+      if (fn) {
+        this.markParsing(elt);
+        fn.call(this, elt);
+      }
+    },
+    parseDynamic: function(elt, quiet) {
+      this.dynamicElements.push(elt);
+      if (!quiet) {
+        this.parseNext();
+      }
+    },
+    markParsing: function(elt) {
+      flags.parse && console.log("parsing", elt);
+      this.parsingElement = elt;
+    },
+    markParsingComplete: function(elt) {
+      elt.__importParsed = true;
+      this.markDynamicParsingComplete(elt);
+      if (elt.__importElement) {
+        elt.__importElement.__importParsed = true;
+        this.markDynamicParsingComplete(elt.__importElement);
+      }
+      this.parsingElement = null;
+      flags.parse && console.log("completed", elt);
+    },
+    markDynamicParsingComplete: function(elt) {
+      var i = this.dynamicElements.indexOf(elt);
+      if (i >= 0) {
+        this.dynamicElements.splice(i, 1);
+      }
+    },
+    parseImport: function(elt) {
+      elt.import = elt.__doc;
+      if (window.HTMLImports.__importsParsingHook) {
+        window.HTMLImports.__importsParsingHook(elt);
+      }
+      if (elt.import) {
+        elt.import.__importParsed = true;
+      }
+      this.markParsingComplete(elt);
+      if (elt.__resource && !elt.__error) {
+        elt.dispatchEvent(new CustomEvent("load", {
+          bubbles: false
+        }));
+      } else {
+        elt.dispatchEvent(new CustomEvent("error", {
+          bubbles: false
+        }));
+      }
+      if (elt.__pending) {
+        var fn;
+        while (elt.__pending.length) {
+          fn = elt.__pending.shift();
+          if (fn) {
+            fn({
+              target: elt
+            });
+          }
+        }
+      }
+      this.parseNext();
+    },
+    parseLink: function(linkElt) {
+      if (nodeIsImport(linkElt)) {
+        this.parseImport(linkElt);
+      } else {
+        linkElt.href = linkElt.href;
+        this.parseGeneric(linkElt);
+      }
+    },
+    parseStyle: function(elt) {
+      var src = elt;
+      elt = cloneStyle(elt);
+      src.__appliedElement = elt;
+      elt.__importElement = src;
+      this.parseGeneric(elt);
+    },
+    parseGeneric: function(elt) {
+      this.trackElement(elt);
+      this.addElementToDocument(elt);
+    },
+    rootImportForElement: function(elt) {
+      var n = elt;
+      while (n.ownerDocument.__importLink) {
+        n = n.ownerDocument.__importLink;
+      }
+      return n;
+    },
+    addElementToDocument: function(elt) {
+      var port = this.rootImportForElement(elt.__importElement || elt);
+      port.parentNode.insertBefore(elt, port);
+    },
+    trackElement: function(elt, callback) {
+      var self = this;
+      var done = function(e) {
+        elt.removeEventListener("load", done);
+        elt.removeEventListener("error", done);
+        if (callback) {
+          callback(e);
+        }
+        self.markParsingComplete(elt);
+        self.parseNext();
+      };
+      elt.addEventListener("load", done);
+      elt.addEventListener("error", done);
+      if (isIE && elt.localName === "style") {
+        var fakeLoad = false;
+        if (elt.textContent.indexOf("@import") == -1) {
+          fakeLoad = true;
+        } else if (elt.sheet) {
+          fakeLoad = true;
+          var csr = elt.sheet.cssRules;
+          var len = csr ? csr.length : 0;
+          for (var i = 0, r; i < len && (r = csr[i]); i++) {
+            if (r.type === CSSRule.IMPORT_RULE) {
+              fakeLoad = fakeLoad && Boolean(r.styleSheet);
+            }
+          }
+        }
+        if (fakeLoad) {
+          setTimeout(function() {
+            elt.dispatchEvent(new CustomEvent("load", {
+              bubbles: false
+            }));
+          });
+        }
+      }
+    },
+    parseScript: function(scriptElt) {
+      var script = document.createElement("script");
+      script.__importElement = scriptElt;
+      script.src = scriptElt.src ? scriptElt.src : generateScriptDataUrl(scriptElt);
+      scope.currentScript = scriptElt;
+      this.trackElement(script, function(e) {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        scope.currentScript = null;
+      });
+      this.addElementToDocument(script);
+    },
+    nextToParse: function() {
+      this._mayParse = [];
+      return !this.parsingElement && (this.nextToParseInDoc(rootDocument) || this.nextToParseDynamic());
+    },
+    nextToParseInDoc: function(doc, link) {
+      if (doc && this._mayParse.indexOf(doc) < 0) {
+        this._mayParse.push(doc);
+        var nodes = doc.querySelectorAll(this.parseSelectorsForNode(doc));
+        for (var i = 0, l = nodes.length, p = 0, n; i < l && (n = nodes[i]); i++) {
+          if (!this.isParsed(n)) {
+            if (this.hasResource(n)) {
+              return nodeIsImport(n) ? this.nextToParseInDoc(n.__doc, n) : n;
+            } else {
+              return;
+            }
+          }
+        }
+      }
+      return link;
+    },
+    nextToParseDynamic: function() {
+      return this.dynamicElements[0];
+    },
+    parseSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentSelectors : this.importsSelectors;
+    },
+    isParsed: function(node) {
+      return node.__importParsed;
+    },
+    needsDynamicParsing: function(elt) {
+      return this.dynamicElements.indexOf(elt) >= 0;
+    },
+    hasResource: function(node) {
+      if (nodeIsImport(node) && node.__doc === undefined) {
+        return false;
+      }
+      return true;
+    }
+  };
+  function nodeIsImport(elt) {
+    return elt.localName === "link" && elt.rel === IMPORT_LINK_TYPE;
+  }
+  function generateScriptDataUrl(script) {
+    var scriptContent = generateScriptContent(script);
+    return "data:text/javascript;charset=utf-8," + encodeURIComponent(scriptContent);
+  }
+  function generateScriptContent(script) {
+    return script.textContent + generateSourceMapHint(script);
+  }
+  function generateSourceMapHint(script) {
+    var owner = script.ownerDocument;
+    owner.__importedScripts = owner.__importedScripts || 0;
+    var moniker = script.ownerDocument.baseURI;
+    var num = owner.__importedScripts ? "-" + owner.__importedScripts : "";
+    owner.__importedScripts++;
+    return "\n//# sourceURL=" + moniker + num + ".js\n";
+  }
+  function cloneStyle(style) {
+    var clone = style.ownerDocument.createElement("style");
+    clone.textContent = style.textContent;
+    path.resolveUrlsInStyle(clone);
+    return clone;
+  }
+  scope.parser = importParser;
+  scope.IMPORT_SELECTOR = IMPORT_SELECTOR;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var flags = scope.flags;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = scope.IMPORT_SELECTOR;
+  var rootDocument = scope.rootDocument;
+  var Loader = scope.Loader;
+  var Observer = scope.Observer;
+  var parser = scope.parser;
+  var importer = {
+    documents: {},
+    documentPreloadSelectors: IMPORT_SELECTOR,
+    importsPreloadSelectors: [ IMPORT_SELECTOR ].join(","),
+    loadNode: function(node) {
+      importLoader.addNode(node);
+    },
+    loadSubtree: function(parent) {
+      var nodes = this.marshalNodes(parent);
+      importLoader.addNodes(nodes);
+    },
+    marshalNodes: function(parent) {
+      return parent.querySelectorAll(this.loadSelectorsForNode(parent));
+    },
+    loadSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentPreloadSelectors : this.importsPreloadSelectors;
+    },
+    loaded: function(url, elt, resource, err, redirectedUrl) {
+      flags.load && console.log("loaded", url, elt);
+      elt.__resource = resource;
+      elt.__error = err;
+      if (isImportLink(elt)) {
+        var doc = this.documents[url];
+        if (doc === undefined) {
+          doc = err ? null : makeDocument(resource, redirectedUrl || url);
+          if (doc) {
+            doc.__importLink = elt;
+            this.bootDocument(doc);
+          }
+          this.documents[url] = doc;
+        }
+        elt.__doc = doc;
+      }
+      parser.parseNext();
+    },
+    bootDocument: function(doc) {
+      this.loadSubtree(doc);
+      this.observer.observe(doc);
+      parser.parseNext();
+    },
+    loadedAll: function() {
+      parser.parseNext();
+    }
+  };
+  var importLoader = new Loader(importer.loaded.bind(importer), importer.loadedAll.bind(importer));
+  importer.observer = new Observer();
+  function isImportLink(elt) {
+    return isLinkRel(elt, IMPORT_LINK_TYPE);
+  }
+  function isLinkRel(elt, rel) {
+    return elt.localName === "link" && elt.getAttribute("rel") === rel;
+  }
+  function hasBaseURIAccessor(doc) {
+    return !!Object.getOwnPropertyDescriptor(doc, "baseURI");
+  }
+  function makeDocument(resource, url) {
+    var doc = document.implementation.createHTMLDocument(IMPORT_LINK_TYPE);
+    doc._URL = url;
+    var base = doc.createElement("base");
+    base.setAttribute("href", url);
+    if (!doc.baseURI && !hasBaseURIAccessor(doc)) {
+      Object.defineProperty(doc, "baseURI", {
+        value: url
+      });
+    }
+    var meta = doc.createElement("meta");
+    meta.setAttribute("charset", "utf-8");
+    doc.head.appendChild(meta);
+    doc.head.appendChild(base);
+    doc.body.innerHTML = resource;
+    if (window.HTMLTemplateElement && HTMLTemplateElement.bootstrap) {
+      HTMLTemplateElement.bootstrap(doc);
+    }
+    return doc;
+  }
+  if (!document.baseURI) {
+    var baseURIDescriptor = {
+      get: function() {
+        var base = document.querySelector("base");
+        return base ? base.href : window.location.href;
+      },
+      configurable: true
+    };
+    Object.defineProperty(document, "baseURI", baseURIDescriptor);
+    Object.defineProperty(rootDocument, "baseURI", baseURIDescriptor);
+  }
+  scope.importer = importer;
+  scope.importLoader = importLoader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var parser = scope.parser;
+  var importer = scope.importer;
+  var dynamic = {
+    added: function(nodes) {
+      var owner, parsed, loading;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (!owner) {
+          owner = n.ownerDocument;
+          parsed = parser.isParsed(owner);
+        }
+        loading = this.shouldLoadNode(n);
+        if (loading) {
+          importer.loadNode(n);
+        }
+        if (this.shouldParseNode(n) && parsed) {
+          parser.parseDynamic(n, loading);
+        }
+      }
+    },
+    shouldLoadNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, importer.loadSelectorsForNode(node));
+    },
+    shouldParseNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, parser.parseSelectorsForNode(node));
+    }
+  };
+  importer.observer.addCallback = dynamic.added.bind(dynamic);
+  var matches = HTMLElement.prototype.matches || HTMLElement.prototype.matchesSelector || HTMLElement.prototype.webkitMatchesSelector || HTMLElement.prototype.mozMatchesSelector || HTMLElement.prototype.msMatchesSelector;
+});
+
+(function(scope) {
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (scope.useNative) {
+    return;
+  }
+  initializeModules();
+  var rootDocument = scope.rootDocument;
+  function bootstrap() {
+    window.HTMLImports.importer.bootDocument(rootDocument);
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive" && !window.attachEvent) {
+    bootstrap();
+  } else {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  }
+})(window.HTMLImports);
+
+window.CustomElements = window.CustomElements || {
+  flags: {}
+};
+
+(function(scope) {
+  var flags = scope.flags;
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+  scope.hasNative = Boolean(document.registerElement);
+  scope.isIE = /Trident/.test(navigator.userAgent);
+  scope.useNative = !flags.register && scope.hasNative && !window.ShadowDOMPolyfill && (!window.HTMLImports || window.HTMLImports.useNative);
+})(window.CustomElements);
+
+window.CustomElements.addModule(function(scope) {
+  var IMPORT_LINK_TYPE = window.HTMLImports ? window.HTMLImports.IMPORT_LINK_TYPE : "none";
+  function forSubtree(node, cb) {
+    findAllElements(node, function(e) {
+      if (cb(e)) {
+        return true;
+      }
+      forRoots(e, cb);
+    });
+    forRoots(node, cb);
+  }
+  function findAllElements(node, find, data) {
+    var e = node.firstElementChild;
+    if (!e) {
+      e = node.firstChild;
+      while (e && e.nodeType !== Node.ELEMENT_NODE) {
+        e = e.nextSibling;
+      }
+    }
+    while (e) {
+      if (find(e, data) !== true) {
+        findAllElements(e, find, data);
+      }
+      e = e.nextElementSibling;
+    }
+    return null;
+  }
+  function forRoots(node, cb) {
+    var root = node.shadowRoot;
+    while (root) {
+      forSubtree(root, cb);
+      root = root.olderShadowRoot;
+    }
+  }
+  function forDocumentTree(doc, cb) {
+    _forDocumentTree(doc, cb, []);
+  }
+  function _forDocumentTree(doc, cb, processingDocuments) {
+    doc = window.wrap(doc);
+    if (processingDocuments.indexOf(doc) >= 0) {
+      return;
+    }
+    processingDocuments.push(doc);
+    var imports = doc.querySelectorAll("link[rel=" + IMPORT_LINK_TYPE + "]");
+    for (var i = 0, l = imports.length, n; i < l && (n = imports[i]); i++) {
+      if (n.import) {
+        _forDocumentTree(n.import, cb, processingDocuments);
+      }
+    }
+    cb(doc);
+  }
+  scope.forDocumentTree = forDocumentTree;
+  scope.forSubtree = forSubtree;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  var forSubtree = scope.forSubtree;
+  var forDocumentTree = scope.forDocumentTree;
+  function addedNode(node, isAttached) {
+    return added(node, isAttached) || addedSubtree(node, isAttached);
+  }
+  function added(node, isAttached) {
+    if (scope.upgrade(node, isAttached)) {
+      return true;
+    }
+    if (isAttached) {
+      attached(node);
+    }
+  }
+  function addedSubtree(node, isAttached) {
+    forSubtree(node, function(e) {
+      if (added(e, isAttached)) {
+        return true;
+      }
+    });
+  }
+  var hasThrottledAttached = window.MutationObserver._isPolyfilled && flags["throttle-attached"];
+  scope.hasPolyfillMutations = hasThrottledAttached;
+  scope.hasThrottledAttached = hasThrottledAttached;
+  var isPendingMutations = false;
+  var pendingMutations = [];
+  function deferMutation(fn) {
+    pendingMutations.push(fn);
+    if (!isPendingMutations) {
+      isPendingMutations = true;
+      setTimeout(takeMutations);
+    }
+  }
+  function takeMutations() {
+    isPendingMutations = false;
+    var $p = pendingMutations;
+    for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+      p();
+    }
+    pendingMutations = [];
+  }
+  function attached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _attached(element);
+      });
+    } else {
+      _attached(element);
+    }
+  }
+  function _attached(element) {
+    if (element.__upgraded__ && !element.__attached) {
+      element.__attached = true;
+      if (element.attachedCallback) {
+        element.attachedCallback();
+      }
+    }
+  }
+  function detachedNode(node) {
+    detached(node);
+    forSubtree(node, function(e) {
+      detached(e);
+    });
+  }
+  function detached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _detached(element);
+      });
+    } else {
+      _detached(element);
+    }
+  }
+  function _detached(element) {
+    if (element.__upgraded__ && element.__attached) {
+      element.__attached = false;
+      if (element.detachedCallback) {
+        element.detachedCallback();
+      }
+    }
+  }
+  function inDocument(element) {
+    var p = element;
+    var doc = window.wrap(document);
+    while (p) {
+      if (p == doc) {
+        return true;
+      }
+      p = p.parentNode || p.nodeType === Node.DOCUMENT_FRAGMENT_NODE && p.host;
+    }
+  }
+  function watchShadow(node) {
+    if (node.shadowRoot && !node.shadowRoot.__watched) {
+      flags.dom && console.log("watching shadow-root for: ", node.localName);
+      var root = node.shadowRoot;
+      while (root) {
+        observe(root);
+        root = root.olderShadowRoot;
+      }
+    }
+  }
+  function handler(root, mutations) {
+    if (flags.dom) {
+      var mx = mutations[0];
+      if (mx && mx.type === "childList" && mx.addedNodes) {
+        if (mx.addedNodes) {
+          var d = mx.addedNodes[0];
+          while (d && d !== document && !d.host) {
+            d = d.parentNode;
+          }
+          var u = d && (d.URL || d._URL || d.host && d.host.localName) || "";
+          u = u.split("/?").shift().split("/").pop();
+        }
+      }
+      console.group("mutations (%d) [%s]", mutations.length, u || "");
+    }
+    var isAttached = inDocument(root);
+    mutations.forEach(function(mx) {
+      if (mx.type === "childList") {
+        forEach(mx.addedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          addedNode(n, isAttached);
+        });
+        forEach(mx.removedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          detachedNode(n);
+        });
+      }
+    });
+    flags.dom && console.groupEnd();
+  }
+  function takeRecords(node) {
+    node = window.wrap(node);
+    if (!node) {
+      node = window.wrap(document);
+    }
+    while (node.parentNode) {
+      node = node.parentNode;
+    }
+    var observer = node.__observer;
+    if (observer) {
+      handler(node, observer.takeRecords());
+      takeMutations();
+    }
+  }
+  var forEach = Array.prototype.forEach.call.bind(Array.prototype.forEach);
+  function observe(inRoot) {
+    if (inRoot.__observer) {
+      return;
+    }
+    var observer = new MutationObserver(handler.bind(this, inRoot));
+    observer.observe(inRoot, {
+      childList: true,
+      subtree: true
+    });
+    inRoot.__observer = observer;
+  }
+  function upgradeDocument(doc) {
+    doc = window.wrap(doc);
+    flags.dom && console.group("upgradeDocument: ", doc.baseURI.split("/").pop());
+    var isMainDocument = doc === window.wrap(document);
+    addedNode(doc, isMainDocument);
+    observe(doc);
+    flags.dom && console.groupEnd();
+  }
+  function upgradeDocumentTree(doc) {
+    forDocumentTree(doc, upgradeDocument);
+  }
+  var originalCreateShadowRoot = Element.prototype.createShadowRoot;
+  if (originalCreateShadowRoot) {
+    Element.prototype.createShadowRoot = function() {
+      var root = originalCreateShadowRoot.call(this);
+      window.CustomElements.watchShadow(this);
+      return root;
+    };
+  }
+  scope.watchShadow = watchShadow;
+  scope.upgradeDocumentTree = upgradeDocumentTree;
+  scope.upgradeDocument = upgradeDocument;
+  scope.upgradeSubtree = addedSubtree;
+  scope.upgradeAll = addedNode;
+  scope.attached = attached;
+  scope.takeRecords = takeRecords;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  function upgrade(node, isAttached) {
+    if (node.localName === "template") {
+      if (window.HTMLTemplateElement && HTMLTemplateElement.decorate) {
+        HTMLTemplateElement.decorate(node);
+      }
+    }
+    if (!node.__upgraded__ && node.nodeType === Node.ELEMENT_NODE) {
+      var is = node.getAttribute("is");
+      var definition = scope.getRegisteredDefinition(node.localName) || scope.getRegisteredDefinition(is);
+      if (definition) {
+        if (is && definition.tag == node.localName || !is && !definition.extends) {
+          return upgradeWithDefinition(node, definition, isAttached);
+        }
+      }
+    }
+  }
+  function upgradeWithDefinition(element, definition, isAttached) {
+    flags.upgrade && console.group("upgrade:", element.localName);
+    if (definition.is) {
+      element.setAttribute("is", definition.is);
+    }
+    implementPrototype(element, definition);
+    element.__upgraded__ = true;
+    created(element);
+    if (isAttached) {
+      scope.attached(element);
+    }
+    scope.upgradeSubtree(element, isAttached);
+    flags.upgrade && console.groupEnd();
+    return element;
+  }
+  function implementPrototype(element, definition) {
+    if (Object.__proto__) {
+      element.__proto__ = definition.prototype;
+    } else {
+      customMixin(element, definition.prototype, definition.native);
+      element.__proto__ = definition.prototype;
+    }
+  }
+  function customMixin(inTarget, inSrc, inNative) {
+    var used = {};
+    var p = inSrc;
+    while (p !== inNative && p !== HTMLElement.prototype) {
+      var keys = Object.getOwnPropertyNames(p);
+      for (var i = 0, k; k = keys[i]; i++) {
+        if (!used[k]) {
+          Object.defineProperty(inTarget, k, Object.getOwnPropertyDescriptor(p, k));
+          used[k] = 1;
+        }
+      }
+      p = Object.getPrototypeOf(p);
+    }
+  }
+  function created(element) {
+    if (element.createdCallback) {
+      element.createdCallback();
+    }
+  }
+  scope.upgrade = upgrade;
+  scope.upgradeWithDefinition = upgradeWithDefinition;
+  scope.implementPrototype = implementPrototype;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var isIE = scope.isIE;
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeAll = scope.upgradeAll;
+  var upgradeWithDefinition = scope.upgradeWithDefinition;
+  var implementPrototype = scope.implementPrototype;
+  var useNative = scope.useNative;
+  function register(name, options) {
+    var definition = options || {};
+    if (!name) {
+      throw new Error("document.registerElement: first argument `name` must not be empty");
+    }
+    if (name.indexOf("-") < 0) {
+      throw new Error("document.registerElement: first argument ('name') must contain a dash ('-'). Argument provided was '" + String(name) + "'.");
+    }
+    if (isReservedTag(name)) {
+      throw new Error("Failed to execute 'registerElement' on 'Document': Registration failed for type '" + String(name) + "'. The type name is invalid.");
+    }
+    if (getRegisteredDefinition(name)) {
+      throw new Error("DuplicateDefinitionError: a type with name '" + String(name) + "' is already registered");
+    }
+    if (!definition.prototype) {
+      definition.prototype = Object.create(HTMLElement.prototype);
+    }
+    definition.__name = name.toLowerCase();
+    definition.lifecycle = definition.lifecycle || {};
+    definition.ancestry = ancestry(definition.extends);
+    resolveTagName(definition);
+    resolvePrototypeChain(definition);
+    overrideAttributeApi(definition.prototype);
+    registerDefinition(definition.__name, definition);
+    definition.ctor = generateConstructor(definition);
+    definition.ctor.prototype = definition.prototype;
+    definition.prototype.constructor = definition.ctor;
+    if (scope.ready) {
+      upgradeDocumentTree(document);
+    }
+    return definition.ctor;
+  }
+  function overrideAttributeApi(prototype) {
+    if (prototype.setAttribute._polyfilled) {
+      return;
+    }
+    var setAttribute = prototype.setAttribute;
+    prototype.setAttribute = function(name, value) {
+      changeAttribute.call(this, name, value, setAttribute);
+    };
+    var removeAttribute = prototype.removeAttribute;
+    prototype.removeAttribute = function(name) {
+      changeAttribute.call(this, name, null, removeAttribute);
+    };
+    prototype.setAttribute._polyfilled = true;
+  }
+  function changeAttribute(name, value, operation) {
+    name = name.toLowerCase();
+    var oldValue = this.getAttribute(name);
+    operation.apply(this, arguments);
+    var newValue = this.getAttribute(name);
+    if (this.attributeChangedCallback && newValue !== oldValue) {
+      this.attributeChangedCallback(name, oldValue, newValue);
+    }
+  }
+  function isReservedTag(name) {
+    for (var i = 0; i < reservedTagList.length; i++) {
+      if (name === reservedTagList[i]) {
+        return true;
+      }
+    }
+  }
+  var reservedTagList = [ "annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph" ];
+  function ancestry(extnds) {
+    var extendee = getRegisteredDefinition(extnds);
+    if (extendee) {
+      return ancestry(extendee.extends).concat([ extendee ]);
+    }
+    return [];
+  }
+  function resolveTagName(definition) {
+    var baseTag = definition.extends;
+    for (var i = 0, a; a = definition.ancestry[i]; i++) {
+      baseTag = a.is && a.tag;
+    }
+    definition.tag = baseTag || definition.__name;
+    if (baseTag) {
+      definition.is = definition.__name;
+    }
+  }
+  function resolvePrototypeChain(definition) {
+    if (!Object.__proto__) {
+      var nativePrototype = HTMLElement.prototype;
+      if (definition.is) {
+        var inst = document.createElement(definition.tag);
+        nativePrototype = Object.getPrototypeOf(inst);
+      }
+      var proto = definition.prototype, ancestor;
+      var foundPrototype = false;
+      while (proto) {
+        if (proto == nativePrototype) {
+          foundPrototype = true;
+        }
+        ancestor = Object.getPrototypeOf(proto);
+        if (ancestor) {
+          proto.__proto__ = ancestor;
+        }
+        proto = ancestor;
+      }
+      if (!foundPrototype) {
+        console.warn(definition.tag + " prototype not found in prototype chain for " + definition.is);
+      }
+      definition.native = nativePrototype;
+    }
+  }
+  function instantiate(definition) {
+    return upgradeWithDefinition(domCreateElement(definition.tag), definition);
+  }
+  var registry = {};
+  function getRegisteredDefinition(name) {
+    if (name) {
+      return registry[name.toLowerCase()];
+    }
+  }
+  function registerDefinition(name, definition) {
+    registry[name] = definition;
+  }
+  function generateConstructor(definition) {
+    return function() {
+      return instantiate(definition);
+    };
+  }
+  var HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+  function createElementNS(namespace, tag, typeExtension) {
+    if (namespace === HTML_NAMESPACE) {
+      return createElement(tag, typeExtension);
+    } else {
+      return domCreateElementNS(namespace, tag);
+    }
+  }
+  function createElement(tag, typeExtension) {
+    if (tag) {
+      tag = tag.toLowerCase();
+    }
+    if (typeExtension) {
+      typeExtension = typeExtension.toLowerCase();
+    }
+    var definition = getRegisteredDefinition(typeExtension || tag);
+    if (definition) {
+      if (tag == definition.tag && typeExtension == definition.is) {
+        return new definition.ctor();
+      }
+      if (!typeExtension && !definition.is) {
+        return new definition.ctor();
+      }
+    }
+    var element;
+    if (typeExtension) {
+      element = createElement(tag);
+      element.setAttribute("is", typeExtension);
+      return element;
+    }
+    element = domCreateElement(tag);
+    if (tag.indexOf("-") >= 0) {
+      implementPrototype(element, HTMLElement);
+    }
+    return element;
+  }
+  var domCreateElement = document.createElement.bind(document);
+  var domCreateElementNS = document.createElementNS.bind(document);
+  var isInstance;
+  if (!Object.__proto__ && !useNative) {
+    isInstance = function(obj, ctor) {
+      if (obj instanceof ctor) {
+        return true;
+      }
+      var p = obj;
+      while (p) {
+        if (p === ctor.prototype) {
+          return true;
+        }
+        p = p.__proto__;
+      }
+      return false;
+    };
+  } else {
+    isInstance = function(obj, base) {
+      return obj instanceof base;
+    };
+  }
+  function wrapDomMethodToForceUpgrade(obj, methodName) {
+    var orig = obj[methodName];
+    obj[methodName] = function() {
+      var n = orig.apply(this, arguments);
+      upgradeAll(n);
+      return n;
+    };
+  }
+  wrapDomMethodToForceUpgrade(Node.prototype, "cloneNode");
+  wrapDomMethodToForceUpgrade(document, "importNode");
+  if (isIE) {
+    (function() {
+      var importNode = document.importNode;
+      document.importNode = function() {
+        var n = importNode.apply(document, arguments);
+        if (n.nodeType == n.DOCUMENT_FRAGMENT_NODE) {
+          var f = document.createDocumentFragment();
+          f.appendChild(n);
+          return f;
+        } else {
+          return n;
+        }
+      };
+    })();
+  }
+  document.registerElement = register;
+  document.createElement = createElement;
+  document.createElementNS = createElementNS;
+  scope.registry = registry;
+  scope.instanceof = isInstance;
+  scope.reservedTagList = reservedTagList;
+  scope.getRegisteredDefinition = getRegisteredDefinition;
+  document.register = document.registerElement;
+});
+
+(function(scope) {
+  var useNative = scope.useNative;
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (useNative) {
+    var nop = function() {};
+    scope.watchShadow = nop;
+    scope.upgrade = nop;
+    scope.upgradeAll = nop;
+    scope.upgradeDocumentTree = nop;
+    scope.upgradeSubtree = nop;
+    scope.takeRecords = nop;
+    scope.instanceof = function(obj, base) {
+      return obj instanceof base;
+    };
+  } else {
+    initializeModules();
+  }
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeDocument = scope.upgradeDocument;
+  if (!window.wrap) {
+    if (window.ShadowDOMPolyfill) {
+      window.wrap = window.ShadowDOMPolyfill.wrapIfNeeded;
+      window.unwrap = window.ShadowDOMPolyfill.unwrapIfNeeded;
+    } else {
+      window.wrap = window.unwrap = function(node) {
+        return node;
+      };
+    }
+  }
+  if (window.HTMLImports) {
+    window.HTMLImports.__importsParsingHook = function(elt) {
+      if (elt.import) {
+        upgradeDocument(wrap(elt.import));
+      }
+    };
+  }
+  function bootstrap() {
+    upgradeDocumentTree(window.wrap(document));
+    window.CustomElements.ready = true;
+    var requestAnimationFrame = window.requestAnimationFrame || function(f) {
+      setTimeout(f, 16);
+    };
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        window.CustomElements.readyTime = Date.now();
+        if (window.HTMLImports) {
+          window.CustomElements.elapsed = window.CustomElements.readyTime - window.HTMLImports.readyTime;
+        }
+        document.dispatchEvent(new CustomEvent("WebComponentsReady", {
+          bubbles: true
+        }));
+      });
+    });
+  }
+  if (document.readyState === "complete" || scope.flags.eager) {
+    bootstrap();
+  } else if (document.readyState === "interactive" && !window.attachEvent && (!window.HTMLImports || window.HTMLImports.ready)) {
+    bootstrap();
+  } else {
+    var loadEvent = window.HTMLImports && !window.HTMLImports.ready ? "HTMLImportsLoaded" : "DOMContentLoaded";
+    window.addEventListener(loadEvent, bootstrap);
+  }
+})(window.CustomElements);
+
+(function(scope) {
+  var style = document.createElement("style");
+  style.textContent = "" + "body {" + "transition: opacity ease-in 0.2s;" + " } \n" + "body[unresolved] {" + "opacity: 0; display: block; overflow: hidden; position: relative;" + " } \n";
+  var head = document.querySelector("head");
+  head.insertBefore(style, head.firstChild);
+})(window.WebComponents);
+(function() {
+    'use strict';
+    Polymer({
+      is: 'usercreation-home-card',
+     ready:function(){
+      this.page="Employee Detail";
+     },
+     setPage:function(page){    
+      this.page=page;
+     }
+    });
+  })();
+(function() {
+    'use strict';
+    var approvearr=[];
+    var clr="true";
+    Polymer({
+      is: 'approveuser-detailcard',
+      // Function which fetch the supplier to approve
+      FnFetchInfo:function(){              
+        if(clr=="true") {
+          this.employeename=(this.employeename).replace(" ","");
+          document.querySelector('#btn'+this.employeename).style.color = '#ff6789';
+          clr=this.employeename;
+        }
+        else if(clr!=this.employeename){
+          this.employeename=(this.employeename).replace(" ","");
+          document.querySelector('#btn'+clr).style.color = '#000000';
+          document.querySelector('#btn'+this.employeename).style.color = '#ff6789';
+          clr=this.employeename;
+        }
+        sessionStorage.setItem("sess_curr_employeeid",this.employeeid);
+        sessionStorage.setItem("sess_curr_employeename",this.employeename);
+        this.$.userservice.FnUserinforeadService();
+      }
+    });
+  })();
+(function() {
+  'use strict';
+  Polymer({
+    is: 'userinfo-read-card',
+    ready:function(){
+
+    }
+  });
+})();
+(function() {
+  'use strict';
+  Polymer({
+    is: 'useraccount-read-card',
+    ready:function(){
+
+    }
+  });
+})();
+(function() {
+    'use strict';
+
+    Polymer({
+      is: 'userrole-read-card',
+
+      ready:function(){
+        // this.$.userservice.callreaddepartment();
+        // this.$.userservice.callreadrole();
+      }
+    });
+  })();
+/**
+ * @license
+ * Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+ * This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+ * The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+ * The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+ * Code distributed by Google as part of the polymer project is also
+ * subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+ */
+// @version 0.7.20
+(function() {
+  window.WebComponents = window.WebComponents || {
+    flags: {}
+  };
+  var file = "webcomponents-lite.js";
+  var script = document.querySelector('script[src*="' + file + '"]');
+  var flags = {};
+  if (!flags.noOpts) {
+    location.search.slice(1).split("&").forEach(function(option) {
+      var parts = option.split("=");
+      var match;
+      if (parts[0] && (match = parts[0].match(/wc-(.+)/))) {
+        flags[match[1]] = parts[1] || true;
+      }
+    });
+    if (script) {
+      for (var i = 0, a; a = script.attributes[i]; i++) {
+        if (a.name !== "src") {
+          flags[a.name] = a.value || true;
+        }
+      }
+    }
+    if (flags.log && flags.log.split) {
+      var parts = flags.log.split(",");
+      flags.log = {};
+      parts.forEach(function(f) {
+        flags.log[f] = true;
+      });
+    } else {
+      flags.log = {};
+    }
+  }
+  if (flags.register) {
+    window.CustomElements = window.CustomElements || {
+      flags: {}
+    };
+    window.CustomElements.flags.register = flags.register;
+  }
+  WebComponents.flags = flags;
+})();
+
+(function(scope) {
+  "use strict";
+  var hasWorkingUrl = false;
+  if (!scope.forceJURL) {
+    try {
+      var u = new URL("b", "http://a");
+      u.pathname = "c%20d";
+      hasWorkingUrl = u.href === "http://a/c%20d";
+    } catch (e) {}
+  }
+  if (hasWorkingUrl) return;
+  var relative = Object.create(null);
+  relative["ftp"] = 21;
+  relative["file"] = 0;
+  relative["gopher"] = 70;
+  relative["http"] = 80;
+  relative["https"] = 443;
+  relative["ws"] = 80;
+  relative["wss"] = 443;
+  var relativePathDotMapping = Object.create(null);
+  relativePathDotMapping["%2e"] = ".";
+  relativePathDotMapping[".%2e"] = "..";
+  relativePathDotMapping["%2e."] = "..";
+  relativePathDotMapping["%2e%2e"] = "..";
+  function isRelativeScheme(scheme) {
+    return relative[scheme] !== undefined;
+  }
+  function invalid() {
+    clear.call(this);
+    this._isInvalid = true;
+  }
+  function IDNAToASCII(h) {
+    if ("" == h) {
+      invalid.call(this);
+    }
+    return h.toLowerCase();
+  }
+  function percentEscape(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 63, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  function percentEscapeQuery(c) {
+    var unicode = c.charCodeAt(0);
+    if (unicode > 32 && unicode < 127 && [ 34, 35, 60, 62, 96 ].indexOf(unicode) == -1) {
+      return c;
+    }
+    return encodeURIComponent(c);
+  }
+  var EOF = undefined, ALPHA = /[a-zA-Z]/, ALPHANUMERIC = /[a-zA-Z0-9\+\-\.]/;
+  function parse(input, stateOverride, base) {
+    function err(message) {
+      errors.push(message);
+    }
+    var state = stateOverride || "scheme start", cursor = 0, buffer = "", seenAt = false, seenBracket = false, errors = [];
+    loop: while ((input[cursor - 1] != EOF || cursor == 0) && !this._isInvalid) {
+      var c = input[cursor];
+      switch (state) {
+       case "scheme start":
+        if (c && ALPHA.test(c)) {
+          buffer += c.toLowerCase();
+          state = "scheme";
+        } else if (!stateOverride) {
+          buffer = "";
+          state = "no scheme";
+          continue;
+        } else {
+          err("Invalid scheme.");
+          break loop;
+        }
+        break;
+
+       case "scheme":
+        if (c && ALPHANUMERIC.test(c)) {
+          buffer += c.toLowerCase();
+        } else if (":" == c) {
+          this._scheme = buffer;
+          buffer = "";
+          if (stateOverride) {
+            break loop;
+          }
+          if (isRelativeScheme(this._scheme)) {
+            this._isRelative = true;
+          }
+          if ("file" == this._scheme) {
+            state = "relative";
+          } else if (this._isRelative && base && base._scheme == this._scheme) {
+            state = "relative or authority";
+          } else if (this._isRelative) {
+            state = "authority first slash";
+          } else {
+            state = "scheme data";
+          }
+        } else if (!stateOverride) {
+          buffer = "";
+          cursor = 0;
+          state = "no scheme";
+          continue;
+        } else if (EOF == c) {
+          break loop;
+        } else {
+          err("Code point not allowed in scheme: " + c);
+          break loop;
+        }
+        break;
+
+       case "scheme data":
+        if ("?" == c) {
+          this._query = "?";
+          state = "query";
+        } else if ("#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else {
+          if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+            this._schemeData += percentEscape(c);
+          }
+        }
+        break;
+
+       case "no scheme":
+        if (!base || !isRelativeScheme(base._scheme)) {
+          err("Missing scheme.");
+          invalid.call(this);
+        } else {
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative or authority":
+        if ("/" == c && "/" == input[cursor + 1]) {
+          state = "authority ignore slashes";
+        } else {
+          err("Expected /, got: " + c);
+          state = "relative";
+          continue;
+        }
+        break;
+
+       case "relative":
+        this._isRelative = true;
+        if ("file" != this._scheme) this._scheme = base._scheme;
+        if (EOF == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._username = base._username;
+          this._password = base._password;
+          break loop;
+        } else if ("/" == c || "\\" == c) {
+          if ("\\" == c) err("\\ is an invalid code point.");
+          state = "relative slash";
+        } else if ("?" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = "?";
+          this._username = base._username;
+          this._password = base._password;
+          state = "query";
+        } else if ("#" == c) {
+          this._host = base._host;
+          this._port = base._port;
+          this._path = base._path.slice();
+          this._query = base._query;
+          this._fragment = "#";
+          this._username = base._username;
+          this._password = base._password;
+          state = "fragment";
+        } else {
+          var nextC = input[cursor + 1];
+          var nextNextC = input[cursor + 2];
+          if ("file" != this._scheme || !ALPHA.test(c) || nextC != ":" && nextC != "|" || EOF != nextNextC && "/" != nextNextC && "\\" != nextNextC && "?" != nextNextC && "#" != nextNextC) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+            this._path = base._path.slice();
+            this._path.pop();
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "relative slash":
+        if ("/" == c || "\\" == c) {
+          if ("\\" == c) {
+            err("\\ is an invalid code point.");
+          }
+          if ("file" == this._scheme) {
+            state = "file host";
+          } else {
+            state = "authority ignore slashes";
+          }
+        } else {
+          if ("file" != this._scheme) {
+            this._host = base._host;
+            this._port = base._port;
+            this._username = base._username;
+            this._password = base._password;
+          }
+          state = "relative path";
+          continue;
+        }
+        break;
+
+       case "authority first slash":
+        if ("/" == c) {
+          state = "authority second slash";
+        } else {
+          err("Expected '/', got: " + c);
+          state = "authority ignore slashes";
+          continue;
+        }
+        break;
+
+       case "authority second slash":
+        state = "authority ignore slashes";
+        if ("/" != c) {
+          err("Expected '/', got: " + c);
+          continue;
+        }
+        break;
+
+       case "authority ignore slashes":
+        if ("/" != c && "\\" != c) {
+          state = "authority";
+          continue;
+        } else {
+          err("Expected authority, got: " + c);
+        }
+        break;
+
+       case "authority":
+        if ("@" == c) {
+          if (seenAt) {
+            err("@ already seen.");
+            buffer += "%40";
+          }
+          seenAt = true;
+          for (var i = 0; i < buffer.length; i++) {
+            var cp = buffer[i];
+            if ("	" == cp || "\n" == cp || "\r" == cp) {
+              err("Invalid whitespace in authority.");
+              continue;
+            }
+            if (":" == cp && null === this._password) {
+              this._password = "";
+              continue;
+            }
+            var tempC = percentEscape(cp);
+            null !== this._password ? this._password += tempC : this._username += tempC;
+          }
+          buffer = "";
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          cursor -= buffer.length;
+          buffer = "";
+          state = "host";
+          continue;
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "file host":
+        if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          if (buffer.length == 2 && ALPHA.test(buffer[0]) && (buffer[1] == ":" || buffer[1] == "|")) {
+            state = "relative path";
+          } else if (buffer.length == 0) {
+            state = "relative path start";
+          } else {
+            this._host = IDNAToASCII.call(this, buffer);
+            buffer = "";
+            state = "relative path start";
+          }
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid whitespace in file host.");
+        } else {
+          buffer += c;
+        }
+        break;
+
+       case "host":
+       case "hostname":
+        if (":" == c && !seenBracket) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "port";
+          if ("hostname" == stateOverride) {
+            break loop;
+          }
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c) {
+          this._host = IDNAToASCII.call(this, buffer);
+          buffer = "";
+          state = "relative path start";
+          if (stateOverride) {
+            break loop;
+          }
+          continue;
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          if ("[" == c) {
+            seenBracket = true;
+          } else if ("]" == c) {
+            seenBracket = false;
+          }
+          buffer += c;
+        } else {
+          err("Invalid code point in host/hostname: " + c);
+        }
+        break;
+
+       case "port":
+        if (/[0-9]/.test(c)) {
+          buffer += c;
+        } else if (EOF == c || "/" == c || "\\" == c || "?" == c || "#" == c || stateOverride) {
+          if ("" != buffer) {
+            var temp = parseInt(buffer, 10);
+            if (temp != relative[this._scheme]) {
+              this._port = temp + "";
+            }
+            buffer = "";
+          }
+          if (stateOverride) {
+            break loop;
+          }
+          state = "relative path start";
+          continue;
+        } else if ("	" == c || "\n" == c || "\r" == c) {
+          err("Invalid code point in port: " + c);
+        } else {
+          invalid.call(this);
+        }
+        break;
+
+       case "relative path start":
+        if ("\\" == c) err("'\\' not allowed in path.");
+        state = "relative path";
+        if ("/" != c && "\\" != c) {
+          continue;
+        }
+        break;
+
+       case "relative path":
+        if (EOF == c || "/" == c || "\\" == c || !stateOverride && ("?" == c || "#" == c)) {
+          if ("\\" == c) {
+            err("\\ not allowed in relative path.");
+          }
+          var tmp;
+          if (tmp = relativePathDotMapping[buffer.toLowerCase()]) {
+            buffer = tmp;
+          }
+          if (".." == buffer) {
+            this._path.pop();
+            if ("/" != c && "\\" != c) {
+              this._path.push("");
+            }
+          } else if ("." == buffer && "/" != c && "\\" != c) {
+            this._path.push("");
+          } else if ("." != buffer) {
+            if ("file" == this._scheme && this._path.length == 0 && buffer.length == 2 && ALPHA.test(buffer[0]) && buffer[1] == "|") {
+              buffer = buffer[0] + ":";
+            }
+            this._path.push(buffer);
+          }
+          buffer = "";
+          if ("?" == c) {
+            this._query = "?";
+            state = "query";
+          } else if ("#" == c) {
+            this._fragment = "#";
+            state = "fragment";
+          }
+        } else if ("	" != c && "\n" != c && "\r" != c) {
+          buffer += percentEscape(c);
+        }
+        break;
+
+       case "query":
+        if (!stateOverride && "#" == c) {
+          this._fragment = "#";
+          state = "fragment";
+        } else if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._query += percentEscapeQuery(c);
+        }
+        break;
+
+       case "fragment":
+        if (EOF != c && "	" != c && "\n" != c && "\r" != c) {
+          this._fragment += c;
+        }
+        break;
+      }
+      cursor++;
+    }
+  }
+  function clear() {
+    this._scheme = "";
+    this._schemeData = "";
+    this._username = "";
+    this._password = null;
+    this._host = "";
+    this._port = "";
+    this._path = [];
+    this._query = "";
+    this._fragment = "";
+    this._isInvalid = false;
+    this._isRelative = false;
+  }
+  function jURL(url, base) {
+    if (base !== undefined && !(base instanceof jURL)) base = new jURL(String(base));
+    this._url = url;
+    clear.call(this);
+    var input = url.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
+    parse.call(this, input, null, base);
+  }
+  jURL.prototype = {
+    toString: function() {
+      return this.href;
+    },
+    get href() {
+      if (this._isInvalid) return this._url;
+      var authority = "";
+      if ("" != this._username || null != this._password) {
+        authority = this._username + (null != this._password ? ":" + this._password : "") + "@";
+      }
+      return this.protocol + (this._isRelative ? "//" + authority + this.host : "") + this.pathname + this._query + this._fragment;
+    },
+    set href(href) {
+      clear.call(this);
+      parse.call(this, href);
+    },
+    get protocol() {
+      return this._scheme + ":";
+    },
+    set protocol(protocol) {
+      if (this._isInvalid) return;
+      parse.call(this, protocol + ":", "scheme start");
+    },
+    get host() {
+      return this._isInvalid ? "" : this._port ? this._host + ":" + this._port : this._host;
+    },
+    set host(host) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, host, "host");
+    },
+    get hostname() {
+      return this._host;
+    },
+    set hostname(hostname) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, hostname, "hostname");
+    },
+    get port() {
+      return this._port;
+    },
+    set port(port) {
+      if (this._isInvalid || !this._isRelative) return;
+      parse.call(this, port, "port");
+    },
+    get pathname() {
+      return this._isInvalid ? "" : this._isRelative ? "/" + this._path.join("/") : this._schemeData;
+    },
+    set pathname(pathname) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._path = [];
+      parse.call(this, pathname, "relative path start");
+    },
+    get search() {
+      return this._isInvalid || !this._query || "?" == this._query ? "" : this._query;
+    },
+    set search(search) {
+      if (this._isInvalid || !this._isRelative) return;
+      this._query = "?";
+      if ("?" == search[0]) search = search.slice(1);
+      parse.call(this, search, "query");
+    },
+    get hash() {
+      return this._isInvalid || !this._fragment || "#" == this._fragment ? "" : this._fragment;
+    },
+    set hash(hash) {
+      if (this._isInvalid) return;
+      this._fragment = "#";
+      if ("#" == hash[0]) hash = hash.slice(1);
+      parse.call(this, hash, "fragment");
+    },
+    get origin() {
+      var host;
+      if (this._isInvalid || !this._scheme) {
+        return "";
+      }
+      switch (this._scheme) {
+       case "data":
+       case "file":
+       case "javascript":
+       case "mailto":
+        return "null";
+      }
+      host = this.host;
+      if (!host) {
+        return "";
+      }
+      return this._scheme + "://" + host;
+    }
+  };
+  var OriginalURL = scope.URL;
+  if (OriginalURL) {
+    jURL.createObjectURL = function(blob) {
+      return OriginalURL.createObjectURL.apply(OriginalURL, arguments);
+    };
+    jURL.revokeObjectURL = function(url) {
+      OriginalURL.revokeObjectURL(url);
+    };
+  }
+  scope.URL = jURL;
+})(self);
+
+if (typeof WeakMap === "undefined") {
+  (function() {
+    var defineProperty = Object.defineProperty;
+    var counter = Date.now() % 1e9;
+    var WeakMap = function() {
+      this.name = "__st" + (Math.random() * 1e9 >>> 0) + (counter++ + "__");
+    };
+    WeakMap.prototype = {
+      set: function(key, value) {
+        var entry = key[this.name];
+        if (entry && entry[0] === key) entry[1] = value; else defineProperty(key, this.name, {
+          value: [ key, value ],
+          writable: true
+        });
+        return this;
+      },
+      get: function(key) {
+        var entry;
+        return (entry = key[this.name]) && entry[0] === key ? entry[1] : undefined;
+      },
+      "delete": function(key) {
+        var entry = key[this.name];
+        if (!entry || entry[0] !== key) return false;
+        entry[0] = entry[1] = undefined;
+        return true;
+      },
+      has: function(key) {
+        var entry = key[this.name];
+        if (!entry) return false;
+        return entry[0] === key;
+      }
+    };
+    window.WeakMap = WeakMap;
+  })();
+}
+
+(function(global) {
+  if (global.JsMutationObserver) {
+    return;
+  }
+  var registrationsTable = new WeakMap();
+  var setImmediate;
+  if (/Trident|Edge/.test(navigator.userAgent)) {
+    setImmediate = setTimeout;
+  } else if (window.setImmediate) {
+    setImmediate = window.setImmediate;
+  } else {
+    var setImmediateQueue = [];
+    var sentinel = String(Math.random());
+    window.addEventListener("message", function(e) {
+      if (e.data === sentinel) {
+        var queue = setImmediateQueue;
+        setImmediateQueue = [];
+        queue.forEach(function(func) {
+          func();
+        });
+      }
+    });
+    setImmediate = function(func) {
+      setImmediateQueue.push(func);
+      window.postMessage(sentinel, "*");
+    };
+  }
+  var isScheduled = false;
+  var scheduledObservers = [];
+  function scheduleCallback(observer) {
+    scheduledObservers.push(observer);
+    if (!isScheduled) {
+      isScheduled = true;
+      setImmediate(dispatchCallbacks);
+    }
+  }
+  function wrapIfNeeded(node) {
+    return window.ShadowDOMPolyfill && window.ShadowDOMPolyfill.wrapIfNeeded(node) || node;
+  }
+  function dispatchCallbacks() {
+    isScheduled = false;
+    var observers = scheduledObservers;
+    scheduledObservers = [];
+    observers.sort(function(o1, o2) {
+      return o1.uid_ - o2.uid_;
+    });
+    var anyNonEmpty = false;
+    observers.forEach(function(observer) {
+      var queue = observer.takeRecords();
+      removeTransientObserversFor(observer);
+      if (queue.length) {
+        observer.callback_(queue, observer);
+        anyNonEmpty = true;
+      }
+    });
+    if (anyNonEmpty) dispatchCallbacks();
+  }
+  function removeTransientObserversFor(observer) {
+    observer.nodes_.forEach(function(node) {
+      var registrations = registrationsTable.get(node);
+      if (!registrations) return;
+      registrations.forEach(function(registration) {
+        if (registration.observer === observer) registration.removeTransientObservers();
+      });
+    });
+  }
+  function forEachAncestorAndObserverEnqueueRecord(target, callback) {
+    for (var node = target; node; node = node.parentNode) {
+      var registrations = registrationsTable.get(node);
+      if (registrations) {
+        for (var j = 0; j < registrations.length; j++) {
+          var registration = registrations[j];
+          var options = registration.options;
+          if (node !== target && !options.subtree) continue;
+          var record = callback(options);
+          if (record) registration.enqueue(record);
+        }
+      }
+    }
+  }
+  var uidCounter = 0;
+  function JsMutationObserver(callback) {
+    this.callback_ = callback;
+    this.nodes_ = [];
+    this.records_ = [];
+    this.uid_ = ++uidCounter;
+  }
+  JsMutationObserver.prototype = {
+    observe: function(target, options) {
+      target = wrapIfNeeded(target);
+      if (!options.childList && !options.attributes && !options.characterData || options.attributeOldValue && !options.attributes || options.attributeFilter && options.attributeFilter.length && !options.attributes || options.characterDataOldValue && !options.characterData) {
+        throw new SyntaxError();
+      }
+      var registrations = registrationsTable.get(target);
+      if (!registrations) registrationsTable.set(target, registrations = []);
+      var registration;
+      for (var i = 0; i < registrations.length; i++) {
+        if (registrations[i].observer === this) {
+          registration = registrations[i];
+          registration.removeListeners();
+          registration.options = options;
+          break;
+        }
+      }
+      if (!registration) {
+        registration = new Registration(this, target, options);
+        registrations.push(registration);
+        this.nodes_.push(target);
+      }
+      registration.addListeners();
+    },
+    disconnect: function() {
+      this.nodes_.forEach(function(node) {
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          var registration = registrations[i];
+          if (registration.observer === this) {
+            registration.removeListeners();
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+      this.records_ = [];
+    },
+    takeRecords: function() {
+      var copyOfRecords = this.records_;
+      this.records_ = [];
+      return copyOfRecords;
+    }
+  };
+  function MutationRecord(type, target) {
+    this.type = type;
+    this.target = target;
+    this.addedNodes = [];
+    this.removedNodes = [];
+    this.previousSibling = null;
+    this.nextSibling = null;
+    this.attributeName = null;
+    this.attributeNamespace = null;
+    this.oldValue = null;
+  }
+  function copyMutationRecord(original) {
+    var record = new MutationRecord(original.type, original.target);
+    record.addedNodes = original.addedNodes.slice();
+    record.removedNodes = original.removedNodes.slice();
+    record.previousSibling = original.previousSibling;
+    record.nextSibling = original.nextSibling;
+    record.attributeName = original.attributeName;
+    record.attributeNamespace = original.attributeNamespace;
+    record.oldValue = original.oldValue;
+    return record;
+  }
+  var currentRecord, recordWithOldValue;
+  function getRecord(type, target) {
+    return currentRecord = new MutationRecord(type, target);
+  }
+  function getRecordWithOldValue(oldValue) {
+    if (recordWithOldValue) return recordWithOldValue;
+    recordWithOldValue = copyMutationRecord(currentRecord);
+    recordWithOldValue.oldValue = oldValue;
+    return recordWithOldValue;
+  }
+  function clearRecords() {
+    currentRecord = recordWithOldValue = undefined;
+  }
+  function recordRepresentsCurrentMutation(record) {
+    return record === recordWithOldValue || record === currentRecord;
+  }
+  function selectRecord(lastRecord, newRecord) {
+    if (lastRecord === newRecord) return lastRecord;
+    if (recordWithOldValue && recordRepresentsCurrentMutation(lastRecord)) return recordWithOldValue;
+    return null;
+  }
+  function Registration(observer, target, options) {
+    this.observer = observer;
+    this.target = target;
+    this.options = options;
+    this.transientObservedNodes = [];
+  }
+  Registration.prototype = {
+    enqueue: function(record) {
+      var records = this.observer.records_;
+      var length = records.length;
+      if (records.length > 0) {
+        var lastRecord = records[length - 1];
+        var recordToReplaceLast = selectRecord(lastRecord, record);
+        if (recordToReplaceLast) {
+          records[length - 1] = recordToReplaceLast;
+          return;
+        }
+      } else {
+        scheduleCallback(this.observer);
+      }
+      records[length] = record;
+    },
+    addListeners: function() {
+      this.addListeners_(this.target);
+    },
+    addListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.addEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.addEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.addEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.addEventListener("DOMNodeRemoved", this, true);
+    },
+    removeListeners: function() {
+      this.removeListeners_(this.target);
+    },
+    removeListeners_: function(node) {
+      var options = this.options;
+      if (options.attributes) node.removeEventListener("DOMAttrModified", this, true);
+      if (options.characterData) node.removeEventListener("DOMCharacterDataModified", this, true);
+      if (options.childList) node.removeEventListener("DOMNodeInserted", this, true);
+      if (options.childList || options.subtree) node.removeEventListener("DOMNodeRemoved", this, true);
+    },
+    addTransientObserver: function(node) {
+      if (node === this.target) return;
+      this.addListeners_(node);
+      this.transientObservedNodes.push(node);
+      var registrations = registrationsTable.get(node);
+      if (!registrations) registrationsTable.set(node, registrations = []);
+      registrations.push(this);
+    },
+    removeTransientObservers: function() {
+      var transientObservedNodes = this.transientObservedNodes;
+      this.transientObservedNodes = [];
+      transientObservedNodes.forEach(function(node) {
+        this.removeListeners_(node);
+        var registrations = registrationsTable.get(node);
+        for (var i = 0; i < registrations.length; i++) {
+          if (registrations[i] === this) {
+            registrations.splice(i, 1);
+            break;
+          }
+        }
+      }, this);
+    },
+    handleEvent: function(e) {
+      e.stopImmediatePropagation();
+      switch (e.type) {
+       case "DOMAttrModified":
+        var name = e.attrName;
+        var namespace = e.relatedNode.namespaceURI;
+        var target = e.target;
+        var record = new getRecord("attributes", target);
+        record.attributeName = name;
+        record.attributeNamespace = namespace;
+        var oldValue = e.attrChange === MutationEvent.ADDITION ? null : e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.attributes) return;
+          if (options.attributeFilter && options.attributeFilter.length && options.attributeFilter.indexOf(name) === -1 && options.attributeFilter.indexOf(namespace) === -1) {
+            return;
+          }
+          if (options.attributeOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMCharacterDataModified":
+        var target = e.target;
+        var record = getRecord("characterData", target);
+        var oldValue = e.prevValue;
+        forEachAncestorAndObserverEnqueueRecord(target, function(options) {
+          if (!options.characterData) return;
+          if (options.characterDataOldValue) return getRecordWithOldValue(oldValue);
+          return record;
+        });
+        break;
+
+       case "DOMNodeRemoved":
+        this.addTransientObserver(e.target);
+
+       case "DOMNodeInserted":
+        var changedNode = e.target;
+        var addedNodes, removedNodes;
+        if (e.type === "DOMNodeInserted") {
+          addedNodes = [ changedNode ];
+          removedNodes = [];
+        } else {
+          addedNodes = [];
+          removedNodes = [ changedNode ];
+        }
+        var previousSibling = changedNode.previousSibling;
+        var nextSibling = changedNode.nextSibling;
+        var record = getRecord("childList", e.target.parentNode);
+        record.addedNodes = addedNodes;
+        record.removedNodes = removedNodes;
+        record.previousSibling = previousSibling;
+        record.nextSibling = nextSibling;
+        forEachAncestorAndObserverEnqueueRecord(e.relatedNode, function(options) {
+          if (!options.childList) return;
+          return record;
+        });
+      }
+      clearRecords();
+    }
+  };
+  global.JsMutationObserver = JsMutationObserver;
+  if (!global.MutationObserver) {
+    global.MutationObserver = JsMutationObserver;
+    JsMutationObserver._isPolyfilled = true;
+  }
+})(self);
+
+if (typeof HTMLTemplateElement === "undefined") {
+  (function() {
+    var TEMPLATE_TAG = "template";
+    var contentDoc = document.implementation.createHTMLDocument("template");
+    var canDecorate = true;
+    HTMLTemplateElement = function() {};
+    HTMLTemplateElement.prototype = Object.create(HTMLElement.prototype);
+    HTMLTemplateElement.decorate = function(template) {
+      if (template.content) {
+        return;
+      }
+      template.content = contentDoc.createDocumentFragment();
+      var child;
+      while (child = template.firstChild) {
+        template.content.appendChild(child);
+      }
+      if (canDecorate) {
+        try {
+          Object.defineProperty(template, "innerHTML", {
+            get: function() {
+              var o = "";
+              for (var e = this.content.firstChild; e; e = e.nextSibling) {
+                o += e.outerHTML || escapeData(e.data);
+              }
+              return o;
+            },
+            set: function(text) {
+              contentDoc.body.innerHTML = text;
+              HTMLTemplateElement.bootstrap(contentDoc);
+              while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+              }
+              while (contentDoc.body.firstChild) {
+                this.content.appendChild(contentDoc.body.firstChild);
+              }
+            },
+            configurable: true
+          });
+        } catch (err) {
+          canDecorate = false;
+        }
+      }
+      HTMLTemplateElement.bootstrap(template.content);
+    };
+    HTMLTemplateElement.bootstrap = function(doc) {
+      var templates = doc.querySelectorAll(TEMPLATE_TAG);
+      for (var i = 0, l = templates.length, t; i < l && (t = templates[i]); i++) {
+        HTMLTemplateElement.decorate(t);
+      }
+    };
+    document.addEventListener("DOMContentLoaded", function() {
+      HTMLTemplateElement.bootstrap(document);
+    });
+    var createElement = document.createElement;
+    document.createElement = function() {
+      "use strict";
+      var el = createElement.apply(document, arguments);
+      if (el.localName == "template") {
+        HTMLTemplateElement.decorate(el);
+      }
+      return el;
+    };
+    var escapeDataRegExp = /[&\u00A0<>]/g;
+    function escapeReplace(c) {
+      switch (c) {
+       case "&":
+        return "&amp;";
+
+       case "<":
+        return "&lt;";
+
+       case ">":
+        return "&gt;";
+
+       case " ":
+        return "&nbsp;";
+      }
+    }
+    function escapeData(s) {
+      return s.replace(escapeDataRegExp, escapeReplace);
+    }
+  })();
+}
+
+(function(scope) {
+  "use strict";
+  if (!window.performance) {
+    var start = Date.now();
+    window.performance = {
+      now: function() {
+        return Date.now() - start;
+      }
+    };
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function() {
+      var nativeRaf = window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+      return nativeRaf ? function(callback) {
+        return nativeRaf(function() {
+          callback(performance.now());
+        });
+      } : function(callback) {
+        return window.setTimeout(callback, 1e3 / 60);
+      };
+    }();
+  }
+  if (!window.cancelAnimationFrame) {
+    window.cancelAnimationFrame = function() {
+      return window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame || function(id) {
+        clearTimeout(id);
+      };
+    }();
+  }
+  var workingDefaultPrevented = function() {
+    var e = document.createEvent("Event");
+    e.initEvent("foo", true, true);
+    e.preventDefault();
+    return e.defaultPrevented;
+  }();
+  if (!workingDefaultPrevented) {
+    var origPreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function() {
+      if (!this.cancelable) {
+        return;
+      }
+      origPreventDefault.call(this);
+      Object.defineProperty(this, "defaultPrevented", {
+        get: function() {
+          return true;
+        },
+        configurable: true
+      });
+    };
+  }
+  var isIE = /Trident/.test(navigator.userAgent);
+  if (!window.CustomEvent || isIE && typeof window.CustomEvent !== "function") {
+    window.CustomEvent = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("CustomEvent");
+      e.initCustomEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable), params.detail);
+      return e;
+    };
+    window.CustomEvent.prototype = window.Event.prototype;
+  }
+  if (!window.Event || isIE && typeof window.Event !== "function") {
+    var origEvent = window.Event;
+    window.Event = function(inType, params) {
+      params = params || {};
+      var e = document.createEvent("Event");
+      e.initEvent(inType, Boolean(params.bubbles), Boolean(params.cancelable));
+      return e;
+    };
+    window.Event.prototype = origEvent.prototype;
+  }
+})(window.WebComponents);
+
+window.HTMLImports = window.HTMLImports || {
+  flags: {}
+};
+
+(function(scope) {
+  var IMPORT_LINK_TYPE = "import";
+  var useNative = Boolean(IMPORT_LINK_TYPE in document.createElement("link"));
+  var hasShadowDOMPolyfill = Boolean(window.ShadowDOMPolyfill);
+  var wrap = function(node) {
+    return hasShadowDOMPolyfill ? window.ShadowDOMPolyfill.wrapIfNeeded(node) : node;
+  };
+  var rootDocument = wrap(document);
+  var currentScriptDescriptor = {
+    get: function() {
+      var script = window.HTMLImports.currentScript || document.currentScript || (document.readyState !== "complete" ? document.scripts[document.scripts.length - 1] : null);
+      return wrap(script);
+    },
+    configurable: true
+  };
+  Object.defineProperty(document, "_currentScript", currentScriptDescriptor);
+  Object.defineProperty(rootDocument, "_currentScript", currentScriptDescriptor);
+  var isIE = /Trident/.test(navigator.userAgent);
+  function whenReady(callback, doc) {
+    doc = doc || rootDocument;
+    whenDocumentReady(function() {
+      watchImportsLoad(callback, doc);
+    }, doc);
+  }
+  var requiredReadyState = isIE ? "complete" : "interactive";
+  var READY_EVENT = "readystatechange";
+  function isDocumentReady(doc) {
+    return doc.readyState === "complete" || doc.readyState === requiredReadyState;
+  }
+  function whenDocumentReady(callback, doc) {
+    if (!isDocumentReady(doc)) {
+      var checkReady = function() {
+        if (doc.readyState === "complete" || doc.readyState === requiredReadyState) {
+          doc.removeEventListener(READY_EVENT, checkReady);
+          whenDocumentReady(callback, doc);
+        }
+      };
+      doc.addEventListener(READY_EVENT, checkReady);
+    } else if (callback) {
+      callback();
+    }
+  }
+  function markTargetLoaded(event) {
+    event.target.__loaded = true;
+  }
+  function watchImportsLoad(callback, doc) {
+    var imports = doc.querySelectorAll("link[rel=import]");
+    var parsedCount = 0, importCount = imports.length, newImports = [], errorImports = [];
+    function checkDone() {
+      if (parsedCount == importCount && callback) {
+        callback({
+          allImports: imports,
+          loadedImports: newImports,
+          errorImports: errorImports
+        });
+      }
+    }
+    function loadedImport(e) {
+      markTargetLoaded(e);
+      newImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    function errorLoadingImport(e) {
+      errorImports.push(this);
+      parsedCount++;
+      checkDone();
+    }
+    if (importCount) {
+      for (var i = 0, imp; i < importCount && (imp = imports[i]); i++) {
+        if (isImportLoaded(imp)) {
+          newImports.push(this);
+          parsedCount++;
+          checkDone();
+        } else {
+          imp.addEventListener("load", loadedImport);
+          imp.addEventListener("error", errorLoadingImport);
+        }
+      }
+    } else {
+      checkDone();
+    }
+  }
+  function isImportLoaded(link) {
+    return useNative ? link.__loaded || link.import && link.import.readyState !== "loading" : link.__importParsed;
+  }
+  if (useNative) {
+    new MutationObserver(function(mxns) {
+      for (var i = 0, l = mxns.length, m; i < l && (m = mxns[i]); i++) {
+        if (m.addedNodes) {
+          handleImports(m.addedNodes);
+        }
+      }
+    }).observe(document.head, {
+      childList: true
+    });
+    function handleImports(nodes) {
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (isImport(n)) {
+          handleImport(n);
+        }
+      }
+    }
+    function isImport(element) {
+      return element.localName === "link" && element.rel === "import";
+    }
+    function handleImport(element) {
+      var loaded = element.import;
+      if (loaded) {
+        markTargetLoaded({
+          target: element
+        });
+      } else {
+        element.addEventListener("load", markTargetLoaded);
+        element.addEventListener("error", markTargetLoaded);
+      }
+    }
+    (function() {
+      if (document.readyState === "loading") {
+        var imports = document.querySelectorAll("link[rel=import]");
+        for (var i = 0, l = imports.length, imp; i < l && (imp = imports[i]); i++) {
+          handleImport(imp);
+        }
+      }
+    })();
+  }
+  whenReady(function(detail) {
+    window.HTMLImports.ready = true;
+    window.HTMLImports.readyTime = new Date().getTime();
+    var evt = rootDocument.createEvent("CustomEvent");
+    evt.initCustomEvent("HTMLImportsLoaded", true, true, detail);
+    rootDocument.dispatchEvent(evt);
+  });
+  scope.IMPORT_LINK_TYPE = IMPORT_LINK_TYPE;
+  scope.useNative = useNative;
+  scope.rootDocument = rootDocument;
+  scope.whenReady = whenReady;
+  scope.isIE = isIE;
+})(window.HTMLImports);
+
+(function(scope) {
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+})(window.HTMLImports);
+
+window.HTMLImports.addModule(function(scope) {
+  var CSS_URL_REGEXP = /(url\()([^)]*)(\))/g;
+  var CSS_IMPORT_REGEXP = /(@import[\s]+(?!url\())([^;]*)(;)/g;
+  var path = {
+    resolveUrlsInStyle: function(style, linkUrl) {
+      var doc = style.ownerDocument;
+      var resolver = doc.createElement("a");
+      style.textContent = this.resolveUrlsInCssText(style.textContent, linkUrl, resolver);
+      return style;
+    },
+    resolveUrlsInCssText: function(cssText, linkUrl, urlObj) {
+      var r = this.replaceUrls(cssText, urlObj, linkUrl, CSS_URL_REGEXP);
+      r = this.replaceUrls(r, urlObj, linkUrl, CSS_IMPORT_REGEXP);
+      return r;
+    },
+    replaceUrls: function(text, urlObj, linkUrl, regexp) {
+      return text.replace(regexp, function(m, pre, url, post) {
+        var urlPath = url.replace(/["']/g, "");
+        if (linkUrl) {
+          urlPath = new URL(urlPath, linkUrl).href;
+        }
+        urlObj.href = urlPath;
+        urlPath = urlObj.href;
+        return pre + "'" + urlPath + "'" + post;
+      });
+    }
+  };
+  scope.path = path;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = {
+    async: true,
+    ok: function(request) {
+      return request.status >= 200 && request.status < 300 || request.status === 304 || request.status === 0;
+    },
+    load: function(url, next, nextContext) {
+      var request = new XMLHttpRequest();
+      if (scope.flags.debug || scope.flags.bust) {
+        url += "?" + Math.random();
+      }
+      request.open("GET", url, xhr.async);
+      request.addEventListener("readystatechange", function(e) {
+        if (request.readyState === 4) {
+          var redirectedUrl = null;
+          try {
+            var locationHeader = request.getResponseHeader("Location");
+            if (locationHeader) {
+              redirectedUrl = locationHeader.substr(0, 1) === "/" ? location.origin + locationHeader : locationHeader;
+            }
+          } catch (e) {
+            console.error(e.message);
+          }
+          next.call(nextContext, !xhr.ok(request) && request, request.response || request.responseText, redirectedUrl);
+        }
+      });
+      request.send();
+      return request;
+    },
+    loadDocument: function(url, next, nextContext) {
+      this.load(url, next, nextContext).responseType = "document";
+    }
+  };
+  scope.xhr = xhr;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var xhr = scope.xhr;
+  var flags = scope.flags;
+  var Loader = function(onLoad, onComplete) {
+    this.cache = {};
+    this.onload = onLoad;
+    this.oncomplete = onComplete;
+    this.inflight = 0;
+    this.pending = {};
+  };
+  Loader.prototype = {
+    addNodes: function(nodes) {
+      this.inflight += nodes.length;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        this.require(n);
+      }
+      this.checkDone();
+    },
+    addNode: function(node) {
+      this.inflight++;
+      this.require(node);
+      this.checkDone();
+    },
+    require: function(elt) {
+      var url = elt.src || elt.href;
+      elt.__nodeUrl = url;
+      if (!this.dedupe(url, elt)) {
+        this.fetch(url, elt);
+      }
+    },
+    dedupe: function(url, elt) {
+      if (this.pending[url]) {
+        this.pending[url].push(elt);
+        return true;
+      }
+      var resource;
+      if (this.cache[url]) {
+        this.onload(url, elt, this.cache[url]);
+        this.tail();
+        return true;
+      }
+      this.pending[url] = [ elt ];
+      return false;
+    },
+    fetch: function(url, elt) {
+      flags.load && console.log("fetch", url, elt);
+      if (!url) {
+        setTimeout(function() {
+          this.receive(url, elt, {
+            error: "href must be specified"
+          }, null);
+        }.bind(this), 0);
+      } else if (url.match(/^data:/)) {
+        var pieces = url.split(",");
+        var header = pieces[0];
+        var body = pieces[1];
+        if (header.indexOf(";base64") > -1) {
+          body = atob(body);
+        } else {
+          body = decodeURIComponent(body);
+        }
+        setTimeout(function() {
+          this.receive(url, elt, null, body);
+        }.bind(this), 0);
+      } else {
+        var receiveXhr = function(err, resource, redirectedUrl) {
+          this.receive(url, elt, err, resource, redirectedUrl);
+        }.bind(this);
+        xhr.load(url, receiveXhr);
+      }
+    },
+    receive: function(url, elt, err, resource, redirectedUrl) {
+      this.cache[url] = resource;
+      var $p = this.pending[url];
+      for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+        this.onload(url, p, resource, err, redirectedUrl);
+        this.tail();
+      }
+      this.pending[url] = null;
+    },
+    tail: function() {
+      --this.inflight;
+      this.checkDone();
+    },
+    checkDone: function() {
+      if (!this.inflight) {
+        this.oncomplete();
+      }
+    }
+  };
+  scope.Loader = Loader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var Observer = function(addCallback) {
+    this.addCallback = addCallback;
+    this.mo = new MutationObserver(this.handler.bind(this));
+  };
+  Observer.prototype = {
+    handler: function(mutations) {
+      for (var i = 0, l = mutations.length, m; i < l && (m = mutations[i]); i++) {
+        if (m.type === "childList" && m.addedNodes.length) {
+          this.addedNodes(m.addedNodes);
+        }
+      }
+    },
+    addedNodes: function(nodes) {
+      if (this.addCallback) {
+        this.addCallback(nodes);
+      }
+      for (var i = 0, l = nodes.length, n, loading; i < l && (n = nodes[i]); i++) {
+        if (n.children && n.children.length) {
+          this.addedNodes(n.children);
+        }
+      }
+    },
+    observe: function(root) {
+      this.mo.observe(root, {
+        childList: true,
+        subtree: true
+      });
+    }
+  };
+  scope.Observer = Observer;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var path = scope.path;
+  var rootDocument = scope.rootDocument;
+  var flags = scope.flags;
+  var isIE = scope.isIE;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = "link[rel=" + IMPORT_LINK_TYPE + "]";
+  var importParser = {
+    documentSelectors: IMPORT_SELECTOR,
+    importsSelectors: [ IMPORT_SELECTOR, "link[rel=stylesheet]:not([type])", "style:not([type])", "script:not([type])", 'script[type="application/javascript"]', 'script[type="text/javascript"]' ].join(","),
+    map: {
+      link: "parseLink",
+      script: "parseScript",
+      style: "parseStyle"
+    },
+    dynamicElements: [],
+    parseNext: function() {
+      var next = this.nextToParse();
+      if (next) {
+        this.parse(next);
+      }
+    },
+    parse: function(elt) {
+      if (this.isParsed(elt)) {
+        flags.parse && console.log("[%s] is already parsed", elt.localName);
+        return;
+      }
+      var fn = this[this.map[elt.localName]];
+      if (fn) {
+        this.markParsing(elt);
+        fn.call(this, elt);
+      }
+    },
+    parseDynamic: function(elt, quiet) {
+      this.dynamicElements.push(elt);
+      if (!quiet) {
+        this.parseNext();
+      }
+    },
+    markParsing: function(elt) {
+      flags.parse && console.log("parsing", elt);
+      this.parsingElement = elt;
+    },
+    markParsingComplete: function(elt) {
+      elt.__importParsed = true;
+      this.markDynamicParsingComplete(elt);
+      if (elt.__importElement) {
+        elt.__importElement.__importParsed = true;
+        this.markDynamicParsingComplete(elt.__importElement);
+      }
+      this.parsingElement = null;
+      flags.parse && console.log("completed", elt);
+    },
+    markDynamicParsingComplete: function(elt) {
+      var i = this.dynamicElements.indexOf(elt);
+      if (i >= 0) {
+        this.dynamicElements.splice(i, 1);
+      }
+    },
+    parseImport: function(elt) {
+      elt.import = elt.__doc;
+      if (window.HTMLImports.__importsParsingHook) {
+        window.HTMLImports.__importsParsingHook(elt);
+      }
+      if (elt.import) {
+        elt.import.__importParsed = true;
+      }
+      this.markParsingComplete(elt);
+      if (elt.__resource && !elt.__error) {
+        elt.dispatchEvent(new CustomEvent("load", {
+          bubbles: false
+        }));
+      } else {
+        elt.dispatchEvent(new CustomEvent("error", {
+          bubbles: false
+        }));
+      }
+      if (elt.__pending) {
+        var fn;
+        while (elt.__pending.length) {
+          fn = elt.__pending.shift();
+          if (fn) {
+            fn({
+              target: elt
+            });
+          }
+        }
+      }
+      this.parseNext();
+    },
+    parseLink: function(linkElt) {
+      if (nodeIsImport(linkElt)) {
+        this.parseImport(linkElt);
+      } else {
+        linkElt.href = linkElt.href;
+        this.parseGeneric(linkElt);
+      }
+    },
+    parseStyle: function(elt) {
+      var src = elt;
+      elt = cloneStyle(elt);
+      src.__appliedElement = elt;
+      elt.__importElement = src;
+      this.parseGeneric(elt);
+    },
+    parseGeneric: function(elt) {
+      this.trackElement(elt);
+      this.addElementToDocument(elt);
+    },
+    rootImportForElement: function(elt) {
+      var n = elt;
+      while (n.ownerDocument.__importLink) {
+        n = n.ownerDocument.__importLink;
+      }
+      return n;
+    },
+    addElementToDocument: function(elt) {
+      var port = this.rootImportForElement(elt.__importElement || elt);
+      port.parentNode.insertBefore(elt, port);
+    },
+    trackElement: function(elt, callback) {
+      var self = this;
+      var done = function(e) {
+        elt.removeEventListener("load", done);
+        elt.removeEventListener("error", done);
+        if (callback) {
+          callback(e);
+        }
+        self.markParsingComplete(elt);
+        self.parseNext();
+      };
+      elt.addEventListener("load", done);
+      elt.addEventListener("error", done);
+      if (isIE && elt.localName === "style") {
+        var fakeLoad = false;
+        if (elt.textContent.indexOf("@import") == -1) {
+          fakeLoad = true;
+        } else if (elt.sheet) {
+          fakeLoad = true;
+          var csr = elt.sheet.cssRules;
+          var len = csr ? csr.length : 0;
+          for (var i = 0, r; i < len && (r = csr[i]); i++) {
+            if (r.type === CSSRule.IMPORT_RULE) {
+              fakeLoad = fakeLoad && Boolean(r.styleSheet);
+            }
+          }
+        }
+        if (fakeLoad) {
+          setTimeout(function() {
+            elt.dispatchEvent(new CustomEvent("load", {
+              bubbles: false
+            }));
+          });
+        }
+      }
+    },
+    parseScript: function(scriptElt) {
+      var script = document.createElement("script");
+      script.__importElement = scriptElt;
+      script.src = scriptElt.src ? scriptElt.src : generateScriptDataUrl(scriptElt);
+      scope.currentScript = scriptElt;
+      this.trackElement(script, function(e) {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        scope.currentScript = null;
+      });
+      this.addElementToDocument(script);
+    },
+    nextToParse: function() {
+      this._mayParse = [];
+      return !this.parsingElement && (this.nextToParseInDoc(rootDocument) || this.nextToParseDynamic());
+    },
+    nextToParseInDoc: function(doc, link) {
+      if (doc && this._mayParse.indexOf(doc) < 0) {
+        this._mayParse.push(doc);
+        var nodes = doc.querySelectorAll(this.parseSelectorsForNode(doc));
+        for (var i = 0, l = nodes.length, p = 0, n; i < l && (n = nodes[i]); i++) {
+          if (!this.isParsed(n)) {
+            if (this.hasResource(n)) {
+              return nodeIsImport(n) ? this.nextToParseInDoc(n.__doc, n) : n;
+            } else {
+              return;
+            }
+          }
+        }
+      }
+      return link;
+    },
+    nextToParseDynamic: function() {
+      return this.dynamicElements[0];
+    },
+    parseSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentSelectors : this.importsSelectors;
+    },
+    isParsed: function(node) {
+      return node.__importParsed;
+    },
+    needsDynamicParsing: function(elt) {
+      return this.dynamicElements.indexOf(elt) >= 0;
+    },
+    hasResource: function(node) {
+      if (nodeIsImport(node) && node.__doc === undefined) {
+        return false;
+      }
+      return true;
+    }
+  };
+  function nodeIsImport(elt) {
+    return elt.localName === "link" && elt.rel === IMPORT_LINK_TYPE;
+  }
+  function generateScriptDataUrl(script) {
+    var scriptContent = generateScriptContent(script);
+    return "data:text/javascript;charset=utf-8," + encodeURIComponent(scriptContent);
+  }
+  function generateScriptContent(script) {
+    return script.textContent + generateSourceMapHint(script);
+  }
+  function generateSourceMapHint(script) {
+    var owner = script.ownerDocument;
+    owner.__importedScripts = owner.__importedScripts || 0;
+    var moniker = script.ownerDocument.baseURI;
+    var num = owner.__importedScripts ? "-" + owner.__importedScripts : "";
+    owner.__importedScripts++;
+    return "\n//# sourceURL=" + moniker + num + ".js\n";
+  }
+  function cloneStyle(style) {
+    var clone = style.ownerDocument.createElement("style");
+    clone.textContent = style.textContent;
+    path.resolveUrlsInStyle(clone);
+    return clone;
+  }
+  scope.parser = importParser;
+  scope.IMPORT_SELECTOR = IMPORT_SELECTOR;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var flags = scope.flags;
+  var IMPORT_LINK_TYPE = scope.IMPORT_LINK_TYPE;
+  var IMPORT_SELECTOR = scope.IMPORT_SELECTOR;
+  var rootDocument = scope.rootDocument;
+  var Loader = scope.Loader;
+  var Observer = scope.Observer;
+  var parser = scope.parser;
+  var importer = {
+    documents: {},
+    documentPreloadSelectors: IMPORT_SELECTOR,
+    importsPreloadSelectors: [ IMPORT_SELECTOR ].join(","),
+    loadNode: function(node) {
+      importLoader.addNode(node);
+    },
+    loadSubtree: function(parent) {
+      var nodes = this.marshalNodes(parent);
+      importLoader.addNodes(nodes);
+    },
+    marshalNodes: function(parent) {
+      return parent.querySelectorAll(this.loadSelectorsForNode(parent));
+    },
+    loadSelectorsForNode: function(node) {
+      var doc = node.ownerDocument || node;
+      return doc === rootDocument ? this.documentPreloadSelectors : this.importsPreloadSelectors;
+    },
+    loaded: function(url, elt, resource, err, redirectedUrl) {
+      flags.load && console.log("loaded", url, elt);
+      elt.__resource = resource;
+      elt.__error = err;
+      if (isImportLink(elt)) {
+        var doc = this.documents[url];
+        if (doc === undefined) {
+          doc = err ? null : makeDocument(resource, redirectedUrl || url);
+          if (doc) {
+            doc.__importLink = elt;
+            this.bootDocument(doc);
+          }
+          this.documents[url] = doc;
+        }
+        elt.__doc = doc;
+      }
+      parser.parseNext();
+    },
+    bootDocument: function(doc) {
+      this.loadSubtree(doc);
+      this.observer.observe(doc);
+      parser.parseNext();
+    },
+    loadedAll: function() {
+      parser.parseNext();
+    }
+  };
+  var importLoader = new Loader(importer.loaded.bind(importer), importer.loadedAll.bind(importer));
+  importer.observer = new Observer();
+  function isImportLink(elt) {
+    return isLinkRel(elt, IMPORT_LINK_TYPE);
+  }
+  function isLinkRel(elt, rel) {
+    return elt.localName === "link" && elt.getAttribute("rel") === rel;
+  }
+  function hasBaseURIAccessor(doc) {
+    return !!Object.getOwnPropertyDescriptor(doc, "baseURI");
+  }
+  function makeDocument(resource, url) {
+    var doc = document.implementation.createHTMLDocument(IMPORT_LINK_TYPE);
+    doc._URL = url;
+    var base = doc.createElement("base");
+    base.setAttribute("href", url);
+    if (!doc.baseURI && !hasBaseURIAccessor(doc)) {
+      Object.defineProperty(doc, "baseURI", {
+        value: url
+      });
+    }
+    var meta = doc.createElement("meta");
+    meta.setAttribute("charset", "utf-8");
+    doc.head.appendChild(meta);
+    doc.head.appendChild(base);
+    doc.body.innerHTML = resource;
+    if (window.HTMLTemplateElement && HTMLTemplateElement.bootstrap) {
+      HTMLTemplateElement.bootstrap(doc);
+    }
+    return doc;
+  }
+  if (!document.baseURI) {
+    var baseURIDescriptor = {
+      get: function() {
+        var base = document.querySelector("base");
+        return base ? base.href : window.location.href;
+      },
+      configurable: true
+    };
+    Object.defineProperty(document, "baseURI", baseURIDescriptor);
+    Object.defineProperty(rootDocument, "baseURI", baseURIDescriptor);
+  }
+  scope.importer = importer;
+  scope.importLoader = importLoader;
+});
+
+window.HTMLImports.addModule(function(scope) {
+  var parser = scope.parser;
+  var importer = scope.importer;
+  var dynamic = {
+    added: function(nodes) {
+      var owner, parsed, loading;
+      for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
+        if (!owner) {
+          owner = n.ownerDocument;
+          parsed = parser.isParsed(owner);
+        }
+        loading = this.shouldLoadNode(n);
+        if (loading) {
+          importer.loadNode(n);
+        }
+        if (this.shouldParseNode(n) && parsed) {
+          parser.parseDynamic(n, loading);
+        }
+      }
+    },
+    shouldLoadNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, importer.loadSelectorsForNode(node));
+    },
+    shouldParseNode: function(node) {
+      return node.nodeType === 1 && matches.call(node, parser.parseSelectorsForNode(node));
+    }
+  };
+  importer.observer.addCallback = dynamic.added.bind(dynamic);
+  var matches = HTMLElement.prototype.matches || HTMLElement.prototype.matchesSelector || HTMLElement.prototype.webkitMatchesSelector || HTMLElement.prototype.mozMatchesSelector || HTMLElement.prototype.msMatchesSelector;
+});
+
+(function(scope) {
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (scope.useNative) {
+    return;
+  }
+  initializeModules();
+  var rootDocument = scope.rootDocument;
+  function bootstrap() {
+    window.HTMLImports.importer.bootDocument(rootDocument);
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive" && !window.attachEvent) {
+    bootstrap();
+  } else {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  }
+})(window.HTMLImports);
+
+window.CustomElements = window.CustomElements || {
+  flags: {}
+};
+
+(function(scope) {
+  var flags = scope.flags;
+  var modules = [];
+  var addModule = function(module) {
+    modules.push(module);
+  };
+  var initializeModules = function() {
+    modules.forEach(function(module) {
+      module(scope);
+    });
+  };
+  scope.addModule = addModule;
+  scope.initializeModules = initializeModules;
+  scope.hasNative = Boolean(document.registerElement);
+  scope.isIE = /Trident/.test(navigator.userAgent);
+  scope.useNative = !flags.register && scope.hasNative && !window.ShadowDOMPolyfill && (!window.HTMLImports || window.HTMLImports.useNative);
+})(window.CustomElements);
+
+window.CustomElements.addModule(function(scope) {
+  var IMPORT_LINK_TYPE = window.HTMLImports ? window.HTMLImports.IMPORT_LINK_TYPE : "none";
+  function forSubtree(node, cb) {
+    findAllElements(node, function(e) {
+      if (cb(e)) {
+        return true;
+      }
+      forRoots(e, cb);
+    });
+    forRoots(node, cb);
+  }
+  function findAllElements(node, find, data) {
+    var e = node.firstElementChild;
+    if (!e) {
+      e = node.firstChild;
+      while (e && e.nodeType !== Node.ELEMENT_NODE) {
+        e = e.nextSibling;
+      }
+    }
+    while (e) {
+      if (find(e, data) !== true) {
+        findAllElements(e, find, data);
+      }
+      e = e.nextElementSibling;
+    }
+    return null;
+  }
+  function forRoots(node, cb) {
+    var root = node.shadowRoot;
+    while (root) {
+      forSubtree(root, cb);
+      root = root.olderShadowRoot;
+    }
+  }
+  function forDocumentTree(doc, cb) {
+    _forDocumentTree(doc, cb, []);
+  }
+  function _forDocumentTree(doc, cb, processingDocuments) {
+    doc = window.wrap(doc);
+    if (processingDocuments.indexOf(doc) >= 0) {
+      return;
+    }
+    processingDocuments.push(doc);
+    var imports = doc.querySelectorAll("link[rel=" + IMPORT_LINK_TYPE + "]");
+    for (var i = 0, l = imports.length, n; i < l && (n = imports[i]); i++) {
+      if (n.import) {
+        _forDocumentTree(n.import, cb, processingDocuments);
+      }
+    }
+    cb(doc);
+  }
+  scope.forDocumentTree = forDocumentTree;
+  scope.forSubtree = forSubtree;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  var forSubtree = scope.forSubtree;
+  var forDocumentTree = scope.forDocumentTree;
+  function addedNode(node, isAttached) {
+    return added(node, isAttached) || addedSubtree(node, isAttached);
+  }
+  function added(node, isAttached) {
+    if (scope.upgrade(node, isAttached)) {
+      return true;
+    }
+    if (isAttached) {
+      attached(node);
+    }
+  }
+  function addedSubtree(node, isAttached) {
+    forSubtree(node, function(e) {
+      if (added(e, isAttached)) {
+        return true;
+      }
+    });
+  }
+  var hasThrottledAttached = window.MutationObserver._isPolyfilled && flags["throttle-attached"];
+  scope.hasPolyfillMutations = hasThrottledAttached;
+  scope.hasThrottledAttached = hasThrottledAttached;
+  var isPendingMutations = false;
+  var pendingMutations = [];
+  function deferMutation(fn) {
+    pendingMutations.push(fn);
+    if (!isPendingMutations) {
+      isPendingMutations = true;
+      setTimeout(takeMutations);
+    }
+  }
+  function takeMutations() {
+    isPendingMutations = false;
+    var $p = pendingMutations;
+    for (var i = 0, l = $p.length, p; i < l && (p = $p[i]); i++) {
+      p();
+    }
+    pendingMutations = [];
+  }
+  function attached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _attached(element);
+      });
+    } else {
+      _attached(element);
+    }
+  }
+  function _attached(element) {
+    if (element.__upgraded__ && !element.__attached) {
+      element.__attached = true;
+      if (element.attachedCallback) {
+        element.attachedCallback();
+      }
+    }
+  }
+  function detachedNode(node) {
+    detached(node);
+    forSubtree(node, function(e) {
+      detached(e);
+    });
+  }
+  function detached(element) {
+    if (hasThrottledAttached) {
+      deferMutation(function() {
+        _detached(element);
+      });
+    } else {
+      _detached(element);
+    }
+  }
+  function _detached(element) {
+    if (element.__upgraded__ && element.__attached) {
+      element.__attached = false;
+      if (element.detachedCallback) {
+        element.detachedCallback();
+      }
+    }
+  }
+  function inDocument(element) {
+    var p = element;
+    var doc = window.wrap(document);
+    while (p) {
+      if (p == doc) {
+        return true;
+      }
+      p = p.parentNode || p.nodeType === Node.DOCUMENT_FRAGMENT_NODE && p.host;
+    }
+  }
+  function watchShadow(node) {
+    if (node.shadowRoot && !node.shadowRoot.__watched) {
+      flags.dom && console.log("watching shadow-root for: ", node.localName);
+      var root = node.shadowRoot;
+      while (root) {
+        observe(root);
+        root = root.olderShadowRoot;
+      }
+    }
+  }
+  function handler(root, mutations) {
+    if (flags.dom) {
+      var mx = mutations[0];
+      if (mx && mx.type === "childList" && mx.addedNodes) {
+        if (mx.addedNodes) {
+          var d = mx.addedNodes[0];
+          while (d && d !== document && !d.host) {
+            d = d.parentNode;
+          }
+          var u = d && (d.URL || d._URL || d.host && d.host.localName) || "";
+          u = u.split("/?").shift().split("/").pop();
+        }
+      }
+      console.group("mutations (%d) [%s]", mutations.length, u || "");
+    }
+    var isAttached = inDocument(root);
+    mutations.forEach(function(mx) {
+      if (mx.type === "childList") {
+        forEach(mx.addedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          addedNode(n, isAttached);
+        });
+        forEach(mx.removedNodes, function(n) {
+          if (!n.localName) {
+            return;
+          }
+          detachedNode(n);
+        });
+      }
+    });
+    flags.dom && console.groupEnd();
+  }
+  function takeRecords(node) {
+    node = window.wrap(node);
+    if (!node) {
+      node = window.wrap(document);
+    }
+    while (node.parentNode) {
+      node = node.parentNode;
+    }
+    var observer = node.__observer;
+    if (observer) {
+      handler(node, observer.takeRecords());
+      takeMutations();
+    }
+  }
+  var forEach = Array.prototype.forEach.call.bind(Array.prototype.forEach);
+  function observe(inRoot) {
+    if (inRoot.__observer) {
+      return;
+    }
+    var observer = new MutationObserver(handler.bind(this, inRoot));
+    observer.observe(inRoot, {
+      childList: true,
+      subtree: true
+    });
+    inRoot.__observer = observer;
+  }
+  function upgradeDocument(doc) {
+    doc = window.wrap(doc);
+    flags.dom && console.group("upgradeDocument: ", doc.baseURI.split("/").pop());
+    var isMainDocument = doc === window.wrap(document);
+    addedNode(doc, isMainDocument);
+    observe(doc);
+    flags.dom && console.groupEnd();
+  }
+  function upgradeDocumentTree(doc) {
+    forDocumentTree(doc, upgradeDocument);
+  }
+  var originalCreateShadowRoot = Element.prototype.createShadowRoot;
+  if (originalCreateShadowRoot) {
+    Element.prototype.createShadowRoot = function() {
+      var root = originalCreateShadowRoot.call(this);
+      window.CustomElements.watchShadow(this);
+      return root;
+    };
+  }
+  scope.watchShadow = watchShadow;
+  scope.upgradeDocumentTree = upgradeDocumentTree;
+  scope.upgradeDocument = upgradeDocument;
+  scope.upgradeSubtree = addedSubtree;
+  scope.upgradeAll = addedNode;
+  scope.attached = attached;
+  scope.takeRecords = takeRecords;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var flags = scope.flags;
+  function upgrade(node, isAttached) {
+    if (node.localName === "template") {
+      if (window.HTMLTemplateElement && HTMLTemplateElement.decorate) {
+        HTMLTemplateElement.decorate(node);
+      }
+    }
+    if (!node.__upgraded__ && node.nodeType === Node.ELEMENT_NODE) {
+      var is = node.getAttribute("is");
+      var definition = scope.getRegisteredDefinition(node.localName) || scope.getRegisteredDefinition(is);
+      if (definition) {
+        if (is && definition.tag == node.localName || !is && !definition.extends) {
+          return upgradeWithDefinition(node, definition, isAttached);
+        }
+      }
+    }
+  }
+  function upgradeWithDefinition(element, definition, isAttached) {
+    flags.upgrade && console.group("upgrade:", element.localName);
+    if (definition.is) {
+      element.setAttribute("is", definition.is);
+    }
+    implementPrototype(element, definition);
+    element.__upgraded__ = true;
+    created(element);
+    if (isAttached) {
+      scope.attached(element);
+    }
+    scope.upgradeSubtree(element, isAttached);
+    flags.upgrade && console.groupEnd();
+    return element;
+  }
+  function implementPrototype(element, definition) {
+    if (Object.__proto__) {
+      element.__proto__ = definition.prototype;
+    } else {
+      customMixin(element, definition.prototype, definition.native);
+      element.__proto__ = definition.prototype;
+    }
+  }
+  function customMixin(inTarget, inSrc, inNative) {
+    var used = {};
+    var p = inSrc;
+    while (p !== inNative && p !== HTMLElement.prototype) {
+      var keys = Object.getOwnPropertyNames(p);
+      for (var i = 0, k; k = keys[i]; i++) {
+        if (!used[k]) {
+          Object.defineProperty(inTarget, k, Object.getOwnPropertyDescriptor(p, k));
+          used[k] = 1;
+        }
+      }
+      p = Object.getPrototypeOf(p);
+    }
+  }
+  function created(element) {
+    if (element.createdCallback) {
+      element.createdCallback();
+    }
+  }
+  scope.upgrade = upgrade;
+  scope.upgradeWithDefinition = upgradeWithDefinition;
+  scope.implementPrototype = implementPrototype;
+});
+
+window.CustomElements.addModule(function(scope) {
+  var isIE = scope.isIE;
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeAll = scope.upgradeAll;
+  var upgradeWithDefinition = scope.upgradeWithDefinition;
+  var implementPrototype = scope.implementPrototype;
+  var useNative = scope.useNative;
+  function register(name, options) {
+    var definition = options || {};
+    if (!name) {
+      throw new Error("document.registerElement: first argument `name` must not be empty");
+    }
+    if (name.indexOf("-") < 0) {
+      throw new Error("document.registerElement: first argument ('name') must contain a dash ('-'). Argument provided was '" + String(name) + "'.");
+    }
+    if (isReservedTag(name)) {
+      throw new Error("Failed to execute 'registerElement' on 'Document': Registration failed for type '" + String(name) + "'. The type name is invalid.");
+    }
+    if (getRegisteredDefinition(name)) {
+      throw new Error("DuplicateDefinitionError: a type with name '" + String(name) + "' is already registered");
+    }
+    if (!definition.prototype) {
+      definition.prototype = Object.create(HTMLElement.prototype);
+    }
+    definition.__name = name.toLowerCase();
+    definition.lifecycle = definition.lifecycle || {};
+    definition.ancestry = ancestry(definition.extends);
+    resolveTagName(definition);
+    resolvePrototypeChain(definition);
+    overrideAttributeApi(definition.prototype);
+    registerDefinition(definition.__name, definition);
+    definition.ctor = generateConstructor(definition);
+    definition.ctor.prototype = definition.prototype;
+    definition.prototype.constructor = definition.ctor;
+    if (scope.ready) {
+      upgradeDocumentTree(document);
+    }
+    return definition.ctor;
+  }
+  function overrideAttributeApi(prototype) {
+    if (prototype.setAttribute._polyfilled) {
+      return;
+    }
+    var setAttribute = prototype.setAttribute;
+    prototype.setAttribute = function(name, value) {
+      changeAttribute.call(this, name, value, setAttribute);
+    };
+    var removeAttribute = prototype.removeAttribute;
+    prototype.removeAttribute = function(name) {
+      changeAttribute.call(this, name, null, removeAttribute);
+    };
+    prototype.setAttribute._polyfilled = true;
+  }
+  function changeAttribute(name, value, operation) {
+    name = name.toLowerCase();
+    var oldValue = this.getAttribute(name);
+    operation.apply(this, arguments);
+    var newValue = this.getAttribute(name);
+    if (this.attributeChangedCallback && newValue !== oldValue) {
+      this.attributeChangedCallback(name, oldValue, newValue);
+    }
+  }
+  function isReservedTag(name) {
+    for (var i = 0; i < reservedTagList.length; i++) {
+      if (name === reservedTagList[i]) {
+        return true;
+      }
+    }
+  }
+  var reservedTagList = [ "annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph" ];
+  function ancestry(extnds) {
+    var extendee = getRegisteredDefinition(extnds);
+    if (extendee) {
+      return ancestry(extendee.extends).concat([ extendee ]);
+    }
+    return [];
+  }
+  function resolveTagName(definition) {
+    var baseTag = definition.extends;
+    for (var i = 0, a; a = definition.ancestry[i]; i++) {
+      baseTag = a.is && a.tag;
+    }
+    definition.tag = baseTag || definition.__name;
+    if (baseTag) {
+      definition.is = definition.__name;
+    }
+  }
+  function resolvePrototypeChain(definition) {
+    if (!Object.__proto__) {
+      var nativePrototype = HTMLElement.prototype;
+      if (definition.is) {
+        var inst = document.createElement(definition.tag);
+        nativePrototype = Object.getPrototypeOf(inst);
+      }
+      var proto = definition.prototype, ancestor;
+      var foundPrototype = false;
+      while (proto) {
+        if (proto == nativePrototype) {
+          foundPrototype = true;
+        }
+        ancestor = Object.getPrototypeOf(proto);
+        if (ancestor) {
+          proto.__proto__ = ancestor;
+        }
+        proto = ancestor;
+      }
+      if (!foundPrototype) {
+        console.warn(definition.tag + " prototype not found in prototype chain for " + definition.is);
+      }
+      definition.native = nativePrototype;
+    }
+  }
+  function instantiate(definition) {
+    return upgradeWithDefinition(domCreateElement(definition.tag), definition);
+  }
+  var registry = {};
+  function getRegisteredDefinition(name) {
+    if (name) {
+      return registry[name.toLowerCase()];
+    }
+  }
+  function registerDefinition(name, definition) {
+    registry[name] = definition;
+  }
+  function generateConstructor(definition) {
+    return function() {
+      return instantiate(definition);
+    };
+  }
+  var HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+  function createElementNS(namespace, tag, typeExtension) {
+    if (namespace === HTML_NAMESPACE) {
+      return createElement(tag, typeExtension);
+    } else {
+      return domCreateElementNS(namespace, tag);
+    }
+  }
+  function createElement(tag, typeExtension) {
+    if (tag) {
+      tag = tag.toLowerCase();
+    }
+    if (typeExtension) {
+      typeExtension = typeExtension.toLowerCase();
+    }
+    var definition = getRegisteredDefinition(typeExtension || tag);
+    if (definition) {
+      if (tag == definition.tag && typeExtension == definition.is) {
+        return new definition.ctor();
+      }
+      if (!typeExtension && !definition.is) {
+        return new definition.ctor();
+      }
+    }
+    var element;
+    if (typeExtension) {
+      element = createElement(tag);
+      element.setAttribute("is", typeExtension);
+      return element;
+    }
+    element = domCreateElement(tag);
+    if (tag.indexOf("-") >= 0) {
+      implementPrototype(element, HTMLElement);
+    }
+    return element;
+  }
+  var domCreateElement = document.createElement.bind(document);
+  var domCreateElementNS = document.createElementNS.bind(document);
+  var isInstance;
+  if (!Object.__proto__ && !useNative) {
+    isInstance = function(obj, ctor) {
+      if (obj instanceof ctor) {
+        return true;
+      }
+      var p = obj;
+      while (p) {
+        if (p === ctor.prototype) {
+          return true;
+        }
+        p = p.__proto__;
+      }
+      return false;
+    };
+  } else {
+    isInstance = function(obj, base) {
+      return obj instanceof base;
+    };
+  }
+  function wrapDomMethodToForceUpgrade(obj, methodName) {
+    var orig = obj[methodName];
+    obj[methodName] = function() {
+      var n = orig.apply(this, arguments);
+      upgradeAll(n);
+      return n;
+    };
+  }
+  wrapDomMethodToForceUpgrade(Node.prototype, "cloneNode");
+  wrapDomMethodToForceUpgrade(document, "importNode");
+  if (isIE) {
+    (function() {
+      var importNode = document.importNode;
+      document.importNode = function() {
+        var n = importNode.apply(document, arguments);
+        if (n.nodeType == n.DOCUMENT_FRAGMENT_NODE) {
+          var f = document.createDocumentFragment();
+          f.appendChild(n);
+          return f;
+        } else {
+          return n;
+        }
+      };
+    })();
+  }
+  document.registerElement = register;
+  document.createElement = createElement;
+  document.createElementNS = createElementNS;
+  scope.registry = registry;
+  scope.instanceof = isInstance;
+  scope.reservedTagList = reservedTagList;
+  scope.getRegisteredDefinition = getRegisteredDefinition;
+  document.register = document.registerElement;
+});
+
+(function(scope) {
+  var useNative = scope.useNative;
+  var initializeModules = scope.initializeModules;
+  var isIE = scope.isIE;
+  if (useNative) {
+    var nop = function() {};
+    scope.watchShadow = nop;
+    scope.upgrade = nop;
+    scope.upgradeAll = nop;
+    scope.upgradeDocumentTree = nop;
+    scope.upgradeSubtree = nop;
+    scope.takeRecords = nop;
+    scope.instanceof = function(obj, base) {
+      return obj instanceof base;
+    };
+  } else {
+    initializeModules();
+  }
+  var upgradeDocumentTree = scope.upgradeDocumentTree;
+  var upgradeDocument = scope.upgradeDocument;
+  if (!window.wrap) {
+    if (window.ShadowDOMPolyfill) {
+      window.wrap = window.ShadowDOMPolyfill.wrapIfNeeded;
+      window.unwrap = window.ShadowDOMPolyfill.unwrapIfNeeded;
+    } else {
+      window.wrap = window.unwrap = function(node) {
+        return node;
+      };
+    }
+  }
+  if (window.HTMLImports) {
+    window.HTMLImports.__importsParsingHook = function(elt) {
+      if (elt.import) {
+        upgradeDocument(wrap(elt.import));
+      }
+    };
+  }
+  function bootstrap() {
+    upgradeDocumentTree(window.wrap(document));
+    window.CustomElements.ready = true;
+    var requestAnimationFrame = window.requestAnimationFrame || function(f) {
+      setTimeout(f, 16);
+    };
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        window.CustomElements.readyTime = Date.now();
+        if (window.HTMLImports) {
+          window.CustomElements.elapsed = window.CustomElements.readyTime - window.HTMLImports.readyTime;
+        }
+        document.dispatchEvent(new CustomEvent("WebComponentsReady", {
+          bubbles: true
+        }));
+      });
+    });
+  }
+  if (document.readyState === "complete" || scope.flags.eager) {
+    bootstrap();
+  } else if (document.readyState === "interactive" && !window.attachEvent && (!window.HTMLImports || window.HTMLImports.ready)) {
+    bootstrap();
+  } else {
+    var loadEvent = window.HTMLImports && !window.HTMLImports.ready ? "HTMLImportsLoaded" : "DOMContentLoaded";
+    window.addEventListener(loadEvent, bootstrap);
+  }
+})(window.CustomElements);
+
+(function(scope) {
+  var style = document.createElement("style");
+  style.textContent = "" + "body {" + "transition: opacity ease-in 0.2s;" + " } \n" + "body[unresolved] {" + "opacity: 0; display: block; overflow: hidden; position: relative;" + " } \n";
+  var head = document.querySelector("head");
+  head.insertBefore(style, head.firstChild);
+})(window.WebComponents);
+//JS file for the supplier-page
+Polymer({
+  is: "user-read-page",
+  ready:function()
+  {
+    localStorage.setItem("curr_sess_showpage","Employee Detail");    
+    this.page="Employee Detail";
   },
   //Method to change the page view in base page ie home page
   setPage:function(page)
@@ -60734,157 +73332,80 @@ Polymer({
     this.page = page;
   }
 });
-(function() {
-    'use strict';
-    var poarray;
-    Polymer({
-      is: 'promotebutton-card',
-    FnPOArrayInfo:function(poarr){
-    poarray=poarr;
-    },
-    FnPromoteState:function(){
-    this.$.intentservice.FnIntentViewPoCreateService(poarray);
-    }
-    });
-  })();
-(function() {
-    'use strict';
-
-    Polymer({
-      is: 'purchaseorder-home',
-      ready:function(){
-        alert('halo');
-        this.$.service.FnPurchaseorderService();
-      }
-    });
-  })();
-(function() {
-    'use strict';
-    var approvearr=[];
-
-    Polymer({
-      is: 'approvesupplier-detailcard',
-
-    FnCheck:function(){
-      // alert(this.supplierid);
-      if(document.querySelector('#'+this.supplierid).checked==true){
-        approvearr.push(this.supplierid);
-        document.querySelector('adminsupplier-service').FnSetSupplierforApprove(this.supplierid);
-      }
-    }
-    });
-  })();
-/** @polymerBehavior */
-  Polymer.PaperSpinnerBehavior = {
-
-    listeners: {
-      'animationend': '__reset',
-      'webkitAnimationEnd': '__reset'
-    },
-
-    properties: {
-      /**
-       * Displays the spinner.
-       */
-      active: {
-        type: Boolean,
-        value: false,
-        reflectToAttribute: true,
-        observer: '__activeChanged'
-      },
-
-      /**
-       * Alternative text content for accessibility support.
-       * If alt is present, it will add an aria-label whose content matches alt when active.
-       * If alt is not present, it will default to 'loading' as the alt value.
-       */
-      alt: {
-        type: String,
-        value: 'loading',
-        observer: '__altChanged'
-      },
-
-      __coolingDown: {
-        type: Boolean,
-        value: false
-      }
-    },
-
-    __computeContainerClasses: function(active, coolingDown) {
-      return [
-        active || coolingDown ? 'active' : '',
-        coolingDown ? 'cooldown' : ''
-      ].join(' ');
-    },
-
-    __activeChanged: function(active, old) {
-      this.__setAriaHidden(!active);
-      this.__coolingDown = !active && old;
-    },
-
-    __altChanged: function(alt) {
-      // user-provided `aria-label` takes precedence over prototype default
-      if (alt === this.getPropertyInfo('alt').value) {
-        this.alt = this.getAttribute('aria-label') || alt;
-      } else {
-        this.__setAriaHidden(alt==='');
-        this.setAttribute('aria-label', alt);
-      }
-    },
-
-    __setAriaHidden: function(hidden) {
-      var attr = 'aria-hidden';
-      if (hidden) {
-        this.setAttribute(attr, 'true');
-      } else {
-        this.removeAttribute(attr);
-      }
-    },
-
-    __reset: function() {
-      this.active = false;
-      this.__coolingDown = false;
-    }
-  };
-Polymer({
-      is: 'paper-spinner',
-
-      behaviors: [
-        Polymer.PaperSpinnerBehavior
-      ]
-    });
 /**
  * Created by praba on 5/9/2016.
  */
+ // JS component for approve usser card
 (function() {
   Polymer({
-    is: "approvesupplier-card",
-    ready:function(){
-    	localStorage.setItem("curr_sess_showpage","Approve Supplier");
-    	this.$.adminsupplierservice.readsuppliertoapproveService();
+    is: "approveuser-card",
+    ready:function(){	
+        // if(sessionStorage.getItem("curr_sess_roleflag")=="9"&&localStorage.getItem("curr_sess_wardflag")=="12"){
+    	  localStorage.setItem("curr_sess_showpage","approveuser-card");
+        // Calling service to fetch the label for the component
+      	// this.$.ID_Webcomponent_Service.callWebcomponentService();
+        // Calling service to fetch the supplier name s who have to approve
+    	  this.$.userservice.readusertoapproveService(); 
+        // }   
     }
   });
 })();
 (function() {
     'use strict';
+    Polymer({
+      is: 'rolecreation-card',
+      ready:function(){
+        this.$.userservice.callreaddepartment();
+      },
+      FnSelectDepartment:function(e){
+        this.departmentname = e.target.selectedItem.textContent.trim();
+      },
+      FnCreateRole:function(){
+        this.rolename = this.departmentname+" "+this.roleid;
+        this.$.userservice.callcreateroleService(this.roleid,this.rolename); 
+      }
+    });
+  })();
+(function() {
+    'use strict';
 
     Polymer({
-      is: 'dynamicbutton-card',
-      ready:function(){
-        if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
-          this.label="Approve";
-        }
-      },
-      FnApprove:function(){
-        //alert('approve');
-        if(sessionStorage.getItem("curr_sess_roleflag")=="9"){
-        this.$.adminsupplierservice.approvesupplierforpurchaseService();
-        }
+      is: 'departmentcreation-card',
 
+      properties: {
+        foo: {
+          type: String,
+          value: 'departmentcreation-card',
+          notify: true
+        }
       },
-      FnSetLabel:function(label){
-        this.label=label;
+      FnCreateDepartment:function(){
+        var departmentid=((this.departmentname).substring(0,4)).toUpperCase();        
+        this.$.userservice.callcreateDepartmentService(departmentid,this.departmentname);
       }
+    });
+  })();
+(function() {
+    'use strict';
+    var supplyarr,reqquantity,selquantity,requnit,selunit,aunit,aquantity;
+    Polymer({
+    is: 'supplybutton-card',
 
+    FnSetSupplyContainer:function(supplyarray,choosenquantity,quantity,choosenunit,unit,availunit,availquantity){
+      supplyarr=supplyarray;
+      reqquantity=quantity;
+      selquantity=choosenquantity;
+      requnit=unit;
+      selunit=choosenunit;
+      aunit=availunit;
+      aquantity=availquantity;
+    },
+    // Function which calls service to create the PO for the item in intent view
+    FnSupply:function(){
+      alert(JSON.stringify(supplyarr));
+      // alert(selquantity+" "+reqquantity+" "+selunit+" "+requnit);
+      this.$.intentservice.FnIntentSupplyService(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity);
+      this.$.intentservice.intentsupplystatusService(supplyarr,selquantity,reqquantity,selunit,requnit,aunit,aquantity);
+    }
     });
   })();
